@@ -1,0 +1,11 @@
+{
+    "go.inferGopath": false,
+    "go.useLanguageServer": true,
+    "gopls": {
+      "build.experimentalWorkspaceModule": true,
+    },
+    "editor.cursorSmoothCaretAnimation": "on",
+    "workbench.list.smoothScrolling": true,
+    "editor.smoothScrolling": true,
+    "java.configuration.updateBuildConfiguration": "automatic"
+  }
