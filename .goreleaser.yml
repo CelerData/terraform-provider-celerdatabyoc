@@ -1,0 +1,46 @@
+before:
+  hooks:
+    - go mod download
+builds:
+  - env:
+      - CGO_ENABLED=0
+    binary: "{{ .ProjectName }}_{{ .Tag }}"
+    ldflags:
+      - '-X github.com/celerdata/celerdata-terraform/common.version={{ replace .Version "v" "" }}'
+    goos:
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - arm
+archives:
+  - format: zip
+    name_template: '{{ .ProjectName }}_{{ replace .Version "v" "" }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - LICENSE*
+      - CHANGELOG*
+      - NOTICE*
+checksum:
+  name_template: '{{ .ProjectName }}_{{ replace .Version "v" "" }}_SHA256SUMS'
+  algorithm: sha256
+snapshot:
+  name_template: "{{ .Tag }}"
+signs:
+  - artifacts: checksum
+    args:
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+release:
+  draft: true
