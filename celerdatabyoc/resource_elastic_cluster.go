@@ -111,6 +111,30 @@ func resourceElasticCluster() *schema.Resource {
 				Type:     schema.TypeBool,
 				Computed: true,
 			},
+			"init_scripts": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				ForceNew: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"script_path": {
+							Type:     schema.TypeString,
+							Required: true,
+							ForceNew: true,
+						},
+						"logs_dir": {
+							Type:     schema.TypeString,
+							Required: true,
+							ForceNew: true,
+						},
+					},
+				},
+			},
+			"run_scripts_parallel": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -125,15 +149,16 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	clusterName := d.Get("cluster_name").(string)
 
 	clusterConf := &cluster.ClusterConf{
-		ClusterName:   clusterName,
-		Csp:           d.Get("csp").(string),
-		Region:        d.Get("region").(string),
-		ClusterType:   cluster.ClusterTypeElasic,
-		Password:      d.Get("default_admin_password").(string),
-		SslConnEnable: true,
-		NetIfaceId:    d.Get("network_id").(string),
-		DeployCredlId: d.Get("deployment_credential_id").(string),
-		DataCredId:    d.Get("data_credential_id").(string),
+		ClusterName:        clusterName,
+		Csp:                d.Get("csp").(string),
+		Region:             d.Get("region").(string),
+		ClusterType:        cluster.ClusterTypeElasic,
+		Password:           d.Get("default_admin_password").(string),
+		SslConnEnable:      true,
+		NetIfaceId:         d.Get("network_id").(string),
+		DeployCredlId:      d.Get("deployment_credential_id").(string),
+		DataCredId:         d.Get("data_credential_id").(string),
+		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
 	}
 
 	if v, ok := d.GetOk("resource_tags"); ok {
@@ -143,6 +168,20 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 			tags = append(tags, &cluster.Kv{Key: k, Value: v.(string)})
 		}
 		clusterConf.Tags = tags
+	}
+
+	if v, ok := d.GetOk("init_scripts"); ok {
+		vL := v.(*schema.Set).List()
+		scripts := make([]*cluster.Script, 0, len(vL))
+		for _, v := range vL {
+			s := v.(map[string]interface{})
+			scripts = append(scripts, &cluster.Script{
+				ScriptPath: s["script_path"].(string),
+				LogsDir:    s["logs_dir"].(string),
+			})
+		}
+
+		clusterConf.Scripts = scripts
 	}
 
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{

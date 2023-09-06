@@ -14,6 +14,7 @@ This is a pre-requisite step for the implementation of celerdatabyoc_aws_deploym
 resource "celerdatabyoc_aws_data_credential_policy" "new" {
    bucket = "[your S3 bucket]"
 }
+
 data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
 
 resource "aws_iam_role" "celerdata_data_cred_role" {
