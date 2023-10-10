@@ -17,6 +17,7 @@ More you can see : [How to create the AWS Deployment credential](https://docs.ce
 resource "celerdatabyoc_aws_data_credential_policy" "new" {
    bucket = "[your S3 bucket]"
 }
+
 data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
 
 resource "aws_iam_role" "celerdata_data_cred_role" {
@@ -33,7 +34,9 @@ resource "celerdatabyoc_aws_deployment_credential_policy" "new" {
   bucket = "[your S3 bucket name]"
   data_role_arn = aws_iam_role.celerdata_data_cred_role.arn 
 }
+
 resource "celerdatabyoc_aws_deployment_credential_assume_policy" "new" {}
+
 resource "aws_iam_role" "deploy_cred_role" {
   name               = "deploy_cred_role"
   assume_role_policy = celerdatabyoc_aws_deployment_credential_assume_policy.new.json
@@ -42,7 +45,7 @@ resource "aws_iam_role" "deploy_cred_role" {
     name   = "deploy_cred_role-policy"
     policy = celerdatabyoc_aws_deployment_credential_policy.new.json 
   }
-
+}
 
 resource "celerdatabyoc_aws_deployment_role_credential" "new" {
   name = "deployment-role-credential"

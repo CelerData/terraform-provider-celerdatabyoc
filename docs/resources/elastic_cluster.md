@@ -92,86 +92,94 @@ This document can help you deploy an elastic cluster in AWS EC2. Please follow t
 ### Example Usage
 
 ```example
-resource "celerdatabyoc_aws_data_credential_policy" "new" {
-bucket = local.s3_bucket
+locals {
+  your_s3_bucket = "[your S3 bucket]" 
 }
 
+resource "celerdatabyoc_aws_data_credential_policy" "new" {
+  bucket = local.your_s3_bucket
+}
 
 data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
 
 resource "aws_iam_role" "celerdata_data_cred_role" {
-name               = "celerdata_data_cred_role"
-assume_role_policy = data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json
-description        = "Celerdata Data Credential"
-inline_policy {
-name   = "celerdata_data_cred_role_policy"
-policy = celerdatabyoc_aws_data_credential_policy.new.json
-}
+  name               = "celerdata_data_cred_role"
+  assume_role_policy = data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json
+  description        = "Celerdata Data Credential"
+  inline_policy {
+    name   = "celerdata_data_cred_role_policy"
+    policy = celerdatabyoc_aws_data_credential_policy.new.json
+  }
 }
 
 resource "aws_iam_instance_profile" "celerdata_data_cred_profile" {
-name = "celerdata_data_cred_profile"
-role = aws_iam_role.celerdata_data_cred_role.name
+  name = "celerdata_data_cred_profile"
+  role = aws_iam_role.celerdata_data_cred_role.name
 }
 
 resource "celerdatabyoc_aws_deployment_credential_policy" "new" {
-bucket = local.s3_bucket
-data_role_arn = aws_iam_role.celerdata_data_cred_role.arn
+  bucket = local.your_s3_bucket
+  data_role_arn = aws_iam_role.celerdata_data_cred_role.arn
 }
 
 resource "celerdatabyoc_aws_deployment_credential_assume_policy" "new" {}
 
 resource "aws_iam_role" "deploy_cred_role" {
-name               = "deploy_cred_role"
-assume_role_policy = celerdatabyoc_aws_deployment_credential_assume_policy.new.json
-description        = "Celerdata Deploy Credential"
-inline_policy {
-name   = "deploy_cred_role-policy"
-policy = celerdatabyoc_aws_deployment_credential_policy.new.json
-}
+  name               = "deploy_cred_role"
+  assume_role_policy = celerdatabyoc_aws_deployment_credential_assume_policy.new.json
+  description        = "Celerdata Deploy Credential"
+  inline_policy {
+    name   = "deploy_cred_role-policy"
+    policy = celerdatabyoc_aws_deployment_credential_policy.new.json
+  }
 }
 
 resource "celerdatabyoc_aws_data_credential" "new" {
-name = "data-credential"
-role_arn = aws_iam_role.celerdata_data_cred_role.arn
-instance_profile_arn = aws_iam_instance_profile.celerdata_data_cred_profile.arn
-bucket_name = local.s3_bucket
-policy_version = celerdatabyoc_aws_data_credential_policy.new.version
+  name = "data-credential"
+  role_arn = aws_iam_role.celerdata_data_cred_role.arn
+  instance_profile_arn = aws_iam_instance_profile.celerdata_data_cred_profile.arn
+  bucket_name = local.your_s3_bucket
+  policy_version = celerdatabyoc_aws_data_credential_policy.new.version
 }
 
 resource "celerdatabyoc_aws_deployment_role_credential" "new" {
-name = "deployment-role-credential"
-role_arn = aws_iam_role.deploy_cred_role.arn
-external_id = celerdatabyoc_aws_deployment_credential_assume_policy.new.external_id
-policy_version = celerdatabyoc_aws_deployment_credential_policy.new.version
+  name = "deployment-role-credential"
+  role_arn = aws_iam_role.deploy_cred_role.arn
+  external_id = celerdatabyoc_aws_deployment_credential_assume_policy.new.external_id
+  policy_version = celerdatabyoc_aws_deployment_credential_policy.new.version
 }
 
 resource "celerdatabyoc_aws_network" "new" {
-name = "[name your net work]"
-subnet_id = "[your subnet id]"
-security_group_id = "[your security group id]"
-region = "[your AWS VPC region]"
-deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.new.id
-vpc_endpoint_id = "[your vpc endpoint id]"
+  name = "[name your net work]"
+  subnet_id = "[your subnet id]"
+  security_group_id = "[your security group id]"
+  region = "[your AWS VPC region]"
+  deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.new.id
+  vpc_endpoint_id = "[your vpc endpoint id]"
 }
-
 
 resource "celerdatabyoc_elastic_cluster" "new" {
-cluster_name = "[your cluster name]"
-coordinator_node_size = "[coordinator node size]"
-coordinator_node_count = 1
-deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.new.id
-data_credential_id = celerdatabyoc_aws_data_credential.new.id
-network_id = celerdatabyoc_aws_network.new.id
-compute_node_size = "[compute node size]"
-compute_node_count = 1
-default_admin_password = "[initial SQL user pwd]"
-expected_cluster_state = "[type cluster state]"
-resource_tags = {
-celerdata = "test"
-}
-csp = "aws"
-region = "[your aws vpc region]"
+  cluster_name = "[your cluster name]"
+  coordinator_node_size = "[coordinator node size]"
+  coordinator_node_count = 1
+  deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.new.id
+  data_credential_id = celerdatabyoc_aws_data_credential.new.id
+  network_id = celerdatabyoc_aws_network.new.id
+  compute_node_size = "[compute node size]"
+  compute_node_count = 1
+  default_admin_password = "[initial SQL user pwd]"
+  expected_cluster_state = "[type cluster state]"
+  csp = "aws"
+  region = "[your aws vpc region]"
+  init_scripts {
+      logs_dir    = "log-s3-path/"
+      script_path = "script-s3-path/test.sh" 
+  }
+  run_scripts_parallel = false
+
+  resource_tags = {
+    celerdata = "[tag name]"
+  }
 }
 ```
 
@@ -194,6 +202,10 @@ region = "[your aws vpc region]"
   - US East (N. Virginia) us-east-1
   - US West (Oregon) us-west-2
   - Europe (Ireland) eu-west-1Supplementary material
+- init_scripts - （Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is 20. You can learn more about executable scripts with [Run scripts](https://docs-sandbox.celerdata.com/en-us/main/run_scripts).
+  - logs_dir - (ForceNew) Storage path for script execution results.
+  - script_path - (ForceNew) The S3 bucket address where the script is stored.
+- run_scripts_parallel - (Optional) Execute/not execute script in parallel, the default value is false.
 
 ### Supplementary material
 
