@@ -10,7 +10,7 @@ This is a pre-requisite step for the implementation of celerdatabyoc_aws_deploym
 
 ### Example Usage
 
-```example
+```terraform
 resource "celerdatabyoc_aws_data_credential_policy" "new" {
    bucket = "[your S3 bucket]"
 }
@@ -29,8 +29,8 @@ resource "aws_iam_role" "celerdata_data_cred_role" {
 ```
 
 ### Argument Refernce
-- data_role_arn - (ForceNew) ARN of  CelerData Cloud BYOC deploy Credential
+* `data_role_arn` - (ForceNew) ARN of  CelerData Cloud BYOC deploy Credential
 
 ### Attribute Reference
-- json - AWS IAM Policy JSON document
-- version - Provides support for policy version comparisons, the result of which only affect newly created clusters and have no effect on existing clusters
+* `json` - AWS IAM Policy JSON document
+* `version` - Provides support for policy version comparisons, the result of which only affect newly created clusters and have no effect on existing clusters

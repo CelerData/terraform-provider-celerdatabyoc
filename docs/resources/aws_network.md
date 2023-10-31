@@ -11,7 +11,7 @@ Because CelerData needs to deploy the cluster in user’s VPC, thus during the d
 
 ### Example Usage
 
-```example
+```terraform
 resource "celerdatabyoc_aws_data_credential_policy" "new" {
    bucket = "[your S3 bucket]"
 }
@@ -78,17 +78,17 @@ resource "celerdatabyoc_aws_network" "new" {
 
 ### Argument Reference
 
-- name - (ForceNew) Your network name
-- subnet_id - (ForceNew) Type your subnet id
-- security_group_id - (ForceNew) Type your security group id
-- region - (ForceNew) Region of AWS VPC. The optional regions are as follows：
+* `name` - (ForceNew) Your network name
+* `subnet_id` - (ForceNew) Type your subnet id
+* `security_group_id` - (ForceNew) Type your security group id
+* `region` - (ForceNew) Region of AWS VPC. The optional regions are as follows：
   - Asia Pacific (Singapore) ap-southeast-1
   - US East (N. Virginia) us-east-1
   - US West (Oregon) us-west-2
   - Europe (Ireland) eu-west-1
-- deployment_credential_id - (ForceNew) Should type as "celerdatabyoc_aws_deployment_role_credential.new.id"
-- vpc_end_point_id- (Optional) If you need to achieve more stringent network communication method, you can set the vpc endpoint ID
+* `deployment_credential_id` - (ForceNew) Should type as `celerdatabyoc_aws_deployment_role_credential.new.id`
+* `vpc_end_point_id` - (Optional) If you need to achieve more stringent network communication method, you can set the vpc endpoint ID
 
 ### Attribute Reference
 
-- id  -  celerdatabyoc_aws_network id
+* `id`  -  celerdatabyoc_aws_network id

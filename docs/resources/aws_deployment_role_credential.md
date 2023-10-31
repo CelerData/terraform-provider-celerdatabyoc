@@ -13,7 +13,7 @@ More you can see : [How to create the AWS Deployment credential](https://docs.ce
 
 ### Example Usage
 
-```example
+```terraform
 resource "celerdatabyoc_aws_data_credential_policy" "new" {
    bucket = "[your S3 bucket]"
 }
@@ -56,10 +56,9 @@ resource "celerdatabyoc_aws_deployment_role_credential" "new" {
 ```
 
 ### Argument Reference
-- name - (ForceNew) The name of deployment credential
-- role_arn - (ForceNew) Should type as "aws_iam_role.deploy_cred_role.arn"
-- external_id - (ForceNew) Should type as "celerdatabyoc_aws_deployment_credential_assume_policy.new.external_id "
-- policy_version - (ForceNew) Should type as "celerdatabyoc_aws_deployment_credential_policy.new.version"
-
+* `name` - (ForceNew) The name of deployment credential
+* `role_arn` - (ForceNew) Should type as "aws_iam_role.deploy_cred_role.arn"
+* `external_id` - (ForceNew) Should type as `celerdatabyoc_aws_deployment_credential_assume_policy.new.external_id`
+* `policy_version` - (ForceNew) Should type as `celerdatabyoc_aws_deployment_credential_policy.new.version`
 ### Attribute Reference
-- id  -  celerdatabyoc_aws_deployment_role_credential id
+* `id` - celerdatabyoc_aws_deployment_role_credential id

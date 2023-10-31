@@ -27,12 +27,8 @@ When you create your first cluster consisting of a single FE node, a single BE n
     </tr>
     <tr>
      <td rowspan="7">FE</td>
-     <td>t2.small</td>
-     <td>1 Cores 2GB Memory 50 GB Storage</td>
     </tr>
     <tr>
-     <td>m6i.large</td>
-     <td>2 Cores 8GB Memory 20 GB Storage</td>
     </tr>
     <tr>
      <td>m6i.xlarge</td>
@@ -51,13 +47,9 @@ When you create your first cluster consisting of a single FE node, a single BE n
      <td>32 Cores 128GB Memory 50 GB Storage</td>
     </tr>
     <tr>
-     <td>c6i.2xlarge</td>
-     <td>8 Cores 16GB Memory 50 GB Storage</td>
     </tr>
     <tr>
      <td rowspan="6">BE (General Purpose)</td>
-     <td>m6i.large</td>
-     <td>2 Cores 8GB Memory</td>
     </tr>
     <tr>
      <td>m5.xlarge</td>
@@ -72,63 +64,13 @@ When you create your first cluster consisting of a single FE node, a single BE n
      <td>16 Cores 64GB Memory</td>
     </tr>
     <tr>
-     <td>m6i.4xlarge</td>
-     <td>16 Cores 64GB Memory</td>
-    </tr>
-    <tr>
      <td>m5.8xlarge</td>
      <td>32 Cores 128GB Memory</td>
     </tr>
     <tr>
-     <td rowspan="11">BE (Compute Optimized)</td>
-     <td>c6i.large</td>
-     <td>4 Cores 8GB Memory</td>
-    </tr>
-    <tr>
-     <td>c5.2xlarge</td>
-     <td>8 Cores 16GB Memory</td>
-    </tr>
-    <tr>
-     <td>c6i.2xlarge</td>
-     <td>8 Cores 16GB Memory</td>
-    </tr>
-    <tr>
-     <td>c5.4xlarge</td>
-     <td>16 Cores 32GB Memory</td>
-    </tr>
-    <tr>
-     <td>c6a.4xlarge</td>
-     <td>16 Cores 32GB Memory</td>
-    </tr>
-    <tr>
-     <td>c6i.4xlarge</td>
-     <td>16 Cores 32GB Memory</td>
-    </tr>
-    <tr>
-     <td>c7g.4xlarge</td>
-     <td>16 Cores 32GB Memory</td>
-    </tr>
-    <tr>
-     <td>c6i.8xlarge</td>
-     <td>32 Cores 64GB Memory</td>
-    </tr>
-    <tr>
-     <td>c6i.12xlarge</td>
-     <td>48 Cores 96GB Memory</td>
-    </tr>
-    <tr>
-     <td>c6i.16xlarge</td>
-     <td>64 Cores 128GB Memory</td>
-    </tr>
-    <tr>
-     <td>c6a.metal</td>
-     <td>192 Cores 384GB Memory</td>
     </tr>
     <tr>
      <td rowspan="7">BE (Memory Optimized)</td>
-     <td>r6i.large</td>
-     <td>2 Cores 16GB Memory</td>
-    </tr>
     <tr>
      <td>r6i.xlarge</td>
      <td>4 Cores 32GB Memory</td>
@@ -145,14 +87,6 @@ When you create your first cluster consisting of a single FE node, a single BE n
      <td>r6i.8xlarge</td>
      <td>32 Cores 256GB Memory</td>
     </tr>
-    <tr>
-     <td>r6i.12xlarge</td>
-     <td>48 Cores 384GB Memory</td>
-    </tr>
-    <tr>
-     <td>r6i.16xlarge</td>
-     <td>64 Cores 512GB Memory</td>
-    </tr>
    </tbody>
   </table>
  </body>
@@ -160,7 +94,7 @@ When you create your first cluster consisting of a single FE node, a single BE n
 
 ### Example Usage
 
-```example
+```terraform
 locals {
   your_s3_bucket = "[your S3 bucket]" 
 }
@@ -239,36 +173,42 @@ resource "celerdatabyoc_classic_cluster" "new" {
   be_storage_size_gb = 100
   default_admin_password = "[set initial SQL user password]"
   expected_cluster_state = "Suspended"
-  csp = "aws"
-  region = "[your AWS VPC region]"
-
   resource_tags = {
     celerdata = "[tag name]"
   }
+  csp = "aws"
+  region = "[your AWS VPC region]"
+
+  init_scripts {
+      logs_dir    = "log-s3-path/"
+      script_path = "script-s3-path/test1.sh" 
+  }
+  run_scripts_parallel = false
 }
+
 ```
 
 ### Argument Reference
 
-- expected_cluster_state - (Required) When creating a cluster, you need to declare whether the cluster status is "Suspended" or "Running"
-- cluster_name - (ForceNew) Should name your cluster.
-- fe_instance_type - (Required) Should select a fe instance type from the table above
-- fe_node_count - (Optional) Default number of fe nodes is 1, optional numbers are: 1,3,5
-- deployment_credential_id - (ForceNew) Type as "celerdatabyoc_aws_deployment_role_credential.new.id"
-- data_credential_id - (ForceNew) Type as "celerdatabyoc_aws_data_credential.new.id"
-- network_id - (ForceNew) Type as "celerdatabyoc_aws_network.new.id"
-- be_instance_type - (Required) Should select a be instance type from the table above.
-- be_node_count- (Optional)  Default number is 3.
-- be_storage_size_gb - (Optional) The value set must be a multiple of 100, and subsequent changes can only increase, not decrease, this data; the expansion interval must be greater than 6 hours
-- default_admin_password - (Required) Set initial SQL user password
-- resource_tags - (Optional)
-- csp - (Required) Now, we only support AWS
-- region - (Required) Your AWS VPC region. The optional regions are as follows：
+  * `expected_cluster_state` - (Required) When creating a cluster, you need to declare whether the cluster status is `Suspended` or `Running`
+  * `cluster_name` - (ForceNew) Should name your cluster.
+  * `fe_instance_type` - (Required) Should select a fe instance type from the table above
+  * `fe_node_count` - (Optional) Default number of fe nodes is `1`, optional numbers are: `1,3,5`
+  * `deployment_credential_id` - (ForceNew) Type as "celerdatabyoc_aws_deployment_role_credential.new.id"
+  * `data_credential_id` - (ForceNew) Type as `celerdatabyoc_aws_data_credential.new.id`
+  * `network_id` - (ForceNew) Type as `celerdatabyoc_aws_network.new.id`
+  * `be_instance_type` - (Required) Should select a be instance type from the table above.
+  * `be_node_count` - (Optional)  Default number is `3`.
+  * `be_storage_size_gb` - (Optional) The value set must be a multiple of `100`, and subsequent changes can only increase. The expansion interval must be greater than `6` hours.
+  * `default_admin_password` - (Required) Set initial SQL user password
+* `resource_tags` - (Optional)
+* `csp` - (Required) Now, we only support `aws`
+* `region` - (Required) Your AWS VPC region. The optional regions are as follows：
   - Asia Pacific (Singapore) ap-southeast-1
   - US East (N. Virginia) us-east-1
   - US West (Oregon) us-west-2
   - Europe (Ireland) eu-west-1
-- init_scripts - （Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is 20. You can learn more about executable scripts with [Run scripts](https://docs-sandbox.celerdata.com/en-us/main/run_scripts).
+- init_scripts - （Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is `20`. You can learn more about executable scripts with [Run scripts](https://docs-sandbox.celerdata.com/en-us/main/run_scripts).
   - logs_dir - (ForceNew) Storage path for script execution results.
   - script_path - (ForceNew) The S3 bucket address where the script is stored.
 - run_scripts_parallel - (Optional) Execute/not execute script in parallel, the default value is false.
