@@ -11,7 +11,6 @@ description: |-
 This document can help you deploy an elastic cluster in AWS EC2. Please follow the runnable example on AWS.
 
 ### The list of node sizes
-
 <table>
  <tbody>
   <tr>
@@ -23,12 +22,8 @@ This document can help you deploy an elastic cluster in AWS EC2. Please follow t
   </tr>
   <tr>
    <td rowspan="7">Coordinator node size</td>
-   <td>t2.small</td>
-   <td>1 Cores 2GB Memory 50 GB Storage</td>
   </tr>
   <tr>
-   <td>m6i.large</td>
-   <td>2 Cores 8GB Memory 20 GB Storage</td>
   </tr>
   <tr>
    <td>m6i.xlarge</td>
@@ -47,51 +42,18 @@ This document can help you deploy an elastic cluster in AWS EC2. Please follow t
    <td>32 Cores 128GB Memory 50 GB Storage</td>
   </tr>
   <tr>
-   <td>c6i.2xlarge</td>
-   <td>8 Cores 16GB Memory 50 GB Storage</td>
   </tr>
   <tr>
-   <td rowspan="3">Compute node size (General Purpose)</td>
+   <td rowspan="7">Compute node size (General Purpose)</td>
    <td>m5d.2xlarge</td>
    <td>8 Cores 32GB Memory</td>
-  </tr>
-  <tr>
-   <td>m6id.2xlarge</td>
-   <td>8 Cores 32GB Memory</td>
-  </tr>
-  <tr>
-   <td>m5d.16xlarge</td>
-   <td>64 Cores 256GB Memory</td>
-  </tr>
-  <tr>
-   <td rowspan="2">Compute node size (Compute Optimized)</td>
-   <td>c5d.2xlarge</td>
-   <td>8 Cores 16GB Memory</td>
-  </tr>
-  <tr>
-   <td>c5d.4xlarge</td>
-   <td>16 Cores 32GB Memory</td>
-  </tr>
-  <tr>
-   <td rowspan="2">Compute node size (Memory Optimized)</td>
-   <td>r5d.2xlarge</td>
-   <td>8 Cores 64GB Memory</td>
-  </tr>
-  <tr>
-   <td>r6id.2xlarge</td>
-   <td>8 Cores 64GB Memory</td>
-  </tr>
-  <tr>
-   <td>Compute node size (Storage Optimized)</td>
-   <td>i3en.xlarge</td>
-   <td>4 Cores 32GB Memory</td>
   </tr>
  </tbody>
 </table>
 
 ### Example Usage
 
-```example
+```terraform
 locals {
   your_s3_bucket = "[your S3 bucket]" 
 }
@@ -99,6 +61,7 @@ locals {
 resource "celerdatabyoc_aws_data_credential_policy" "new" {
   bucket = local.your_s3_bucket
 }
+
 
 data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
 
@@ -158,6 +121,7 @@ resource "celerdatabyoc_aws_network" "new" {
   vpc_endpoint_id = "[your vpc endpoint id]"
 }
 
+
 resource "celerdatabyoc_elastic_cluster" "new" {
   cluster_name = "[your cluster name]"
   coordinator_node_size = "[coordinator node size]"
@@ -169,44 +133,43 @@ resource "celerdatabyoc_elastic_cluster" "new" {
   compute_node_count = 1
   default_admin_password = "[initial SQL user pwd]"
   expected_cluster_state = "[type cluster state]"
+  resource_tags = {
+    celerdata = "test"
+  }
   csp = "aws"
   region = "[your aws vpc region]"
+
   init_scripts {
       logs_dir    = "log-s3-path/"
       script_path = "script-s3-path/test.sh" 
   }
   run_scripts_parallel = false
-
-  resource_tags = {
-    celerdata = "[tag name]"
-  }
 }
 ```
 
 ### Argument Reference
 
-- cluster_name - (ForceNew) Name your cluster
-- coordinator_node_size - (Required) Select the coordinator node size from the table above
-- coordinator_node_count - (Optional) Default number of coordinator nodes is 1, optional numbers are: 1,3,5
-- deployment_credential_id - (ForceNew) Should type as "celerdatabyoc_aws_deployment_role_credential.new.id"
-- data_credential_id - (ForceNew) Should type as "celerdatabyoc_aws_data_credential.new.id"
-- network_id - (ForceNew) Should type as "celerdatabyoc_aws_network.new.id"
-- compute_node_size - (Optional) The value set must be a multiple of 100, and subsequent changes can only increase, not decrease, this data; the expansion interval must be greater than 6 hours
-- compute_node_count - (Required) Set the number of compute node
-- default_admin_password - (Required) Set initial SQL user password
-- expected_cluster_state - (Required) When creating a cluster, you need to declare whether the cluster status is "Suspended" or "Running"
-- resource_tags - (Optional)
-- csp - (Required) Now, we only support AWS
-- region - (Required) Your AWS VPC region. The optional regions are as follows：
-  - Asia Pacific (Singapore) ap-southeast-1
-  - US East (N. Virginia) us-east-1
-  - US West (Oregon) us-west-2
-  - Europe (Ireland) eu-west-1Supplementary material
-- init_scripts - （Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is 20. You can learn more about executable scripts with [Run scripts](https://docs-sandbox.celerdata.com/en-us/main/run_scripts).
+ * `cluster_name` - (ForceNew) Name your cluster.
+ * `coordinator_node_size` - (ForceNew) Select the coordinator node size from the table above.
+ * `coordinator_node_count` - (Optional) Default number of coordinator nodes is 1, optional numbers are: `1,3,5`.
+ * `deployment_credential_id` - (ForceNew) Should type as `celerdatabyoc_aws_deployment_role_credential.new.id`.
+ * `data_credential_id` - (ForceNew) Should type as `celerdatabyoc_aws_data_credential.new.id`.
+ * `network_id` - (ForceNew) Should type as `celerdatabyoc_aws_network.new.id`.
+ * `compute_node_size` - (ForceNew) Should select a compute node size from the table above.
+ * `compute_node_count` - (Required) Set the number of compute node.
+ * `default_admin_password` - (Required) Set initial SQL user password.
+ * `expected_cluster_state` - (Required) When creating a cluster, you need to declare whether the cluster status is `Suspended` or `Running`.
+ * `resource_tags` - (Optional)
+ * `csp` - (Required) Now, we only support `aws`
+ * `region` - (Required) Your AWS VPC region. The optional regions are as follows：
+    - Asia Pacific (Singapore) ap-southeast-1
+    - US East (N. Virginia) us-east-1
+    - US West (Oregon) us-west-2
+    - Europe (Ireland) eu-west-1Supplementary material
+ * `init_scripts` -（Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is `20`. You can learn more about executable scripts with Run scripts.
   - logs_dir - (ForceNew) Storage path for script execution results.
   - script_path - (ForceNew) The S3 bucket address where the script is stored.
-- run_scripts_parallel - (Optional) Execute/not execute script in parallel, the default value is false.
-
+ * `run_scripts_parallel` - (Optional) Execute/not execute script in parallel, the default value is `false`.
 ### Supplementary material
 
 [The AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)<br />
