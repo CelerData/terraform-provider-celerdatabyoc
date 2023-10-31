@@ -9,7 +9,7 @@ description: |-
 This is a pre-requisite step for the implementation of celerdatabyoc_aws_data_credential.
 
 ### Example Usage
-```example
+```terraform
 resource "celerdatabyoc_aws_data_credential_policy" "new" {
    bucket = "[your S3 bucket]"
 }

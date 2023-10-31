@@ -17,7 +17,7 @@ You can use the CelerData Cloud BYOC provider to interact with most CelerData Cl
 ### Initialize provider
 All of the CelerData Cloud BYOC terraform provider resources can be created in a dedicated terraform module for your environment.
 
-```example
+```terraform
 terraform {
   required_providers {
     celerdatabyoc = {
