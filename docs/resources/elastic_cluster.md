@@ -167,8 +167,8 @@ resource "celerdatabyoc_elastic_cluster" "new" {
     - US West (Oregon) us-west-2
     - Europe (Ireland) eu-west-1Supplementary material
  * `init_scripts` -（Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is `20`. You can learn more about executable scripts with Run scripts.
-  - logs_dir - (ForceNew) Storage path for script execution results.
-  - script_path - (ForceNew) The S3 bucket address where the script is stored.
+    - logs_dir - (ForceNew) Storage path for script execution results.
+    - script_path - (ForceNew) The S3 bucket address where the script is stored.
  * `run_scripts_parallel` - (Optional) Execute/not execute script in parallel, the default value is `false`.
 ### Supplementary material
 
