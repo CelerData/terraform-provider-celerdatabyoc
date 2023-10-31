@@ -21,7 +21,7 @@ All of the CelerData Cloud BYOC terraform provider resources can be created in a
 terraform {
   required_providers {
     celerdatabyoc = {
-      source  = "celerdata.com/celerdata/celerdatabyoc"
+      source = "CelerData/celerdatabyoc"
       version = "= [provider version]"
     }
   }

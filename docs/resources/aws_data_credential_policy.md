@@ -41,8 +41,8 @@ resource "celerdatabyoc_aws_data_credential" "new" {
 ```
 
 ### Argument Reference
-- bucket (ForceNew)-  the name of  AWS S3 bucket for which to generate the policy document and stores the profile
+* `bucket` - (ForceNew) the name of  AWS S3 bucket for which to generate the policy document and stores the profile
 
 ### Attribute Reference
-- json  - AWS IAM Policy JSON document
-- version - Provides support for policy version comparisons, the result of which only affect newly created clusters and have no effect on existing clusters
+* `json ` - AWS IAM Policy JSON document
+* `version` - Provides support for policy version comparisons, the result of which only affect newly created clusters and have no effect on existing clusters

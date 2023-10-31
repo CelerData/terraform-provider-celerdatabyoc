@@ -12,7 +12,7 @@ The CelerData cluster generates a profile for each SQL Query. These profiles are
 More you can see: How to create AWS data credential
 
 ### Example Usage
-```example
+```terraform
 resource "celerdatabyoc_aws_data_credential_policy" "new" {
    bucket = "[your S3 bucket]"
 }
@@ -44,11 +44,11 @@ resource "celerdatabyoc_aws_data_credential" "new" {
 ```
 
 ### Argument Reference
-- name - (ForceNew) The name of data credential
-- role_arn - (ForceNew) ARN of Celerdata Data Credential role
-- instance_profile_arn - (ForceNew) ARN of Celerdata Data Credential profile
-- policy_version - (ForceNew) Should type as celerdatabyoc_aws_data_credential_policy.new.version
-- bucket_name - (ForceNew) The name of  AWS S3 bucket for which to generate the policy document and stores the profile
+* `name` - (ForceNew) The name of data credential
+* `role_arn` - (ForceNew) ARN of Celerdata Data Credential role
+* `instance_profile_arn` - (ForceNew) ARN of Celerdata Data Credential profile
+* `policy_version` - (ForceNew) Should type as `celerdatabyoc_aws_data_credential_policy.new.version`
+* `bucket_name` - (ForceNew) The name of  AWS S3 bucket for which to generate the policy document and stores the profile
 
 ### Attribute Reference
-- id  -  celerdatabyoc_aws_data_credential id
+* `id ` -  celerdatabyoc_aws_data_credential id
