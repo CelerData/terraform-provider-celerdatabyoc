@@ -3,22 +3,27 @@ package cluster
 type ClusterModuleType string
 type ClusterState string
 type ClusterType string
+type DomainAllocateState int32
 
 const (
-	ClusterTypeClassic         = ClusterType("CLASSIC")
-	ClusterTypeElasic          = ClusterType("ELASTIC")
-	ClusterModuleTypeFE        = ClusterModuleType("FE")
-	ClusterModuleTypeBE        = ClusterModuleType("BE")
-	ClusterModuleTypeWarehouse = ClusterModuleType("Warehouse")
-	ClusterStateDeploying      = ClusterState("Deploying")
-	ClusterStateRunning        = ClusterState("Running")
-	ClusterStateScaling        = ClusterState("Scaling")
-	ClusterStateAbnormal       = ClusterState("Abnormal")
-	ClusterStateSuspending     = ClusterState("Suspending")
-	ClusterStateSuspended      = ClusterState("Suspended")
-	ClusterStateResuming       = ClusterState("Resuming")
-	ClusterStateReleasing      = ClusterState("Releasing")
-	ClusterStateReleased       = ClusterState("Released")
+	ClusterTypeClassic                               = ClusterType("CLASSIC")
+	ClusterTypeElasic                                = ClusterType("ELASTIC")
+	ClusterModuleTypeFE                              = ClusterModuleType("FE")
+	ClusterModuleTypeBE                              = ClusterModuleType("BE")
+	ClusterModuleTypeWarehouse                       = ClusterModuleType("Warehouse")
+	ClusterStateDeploying                            = ClusterState("Deploying")
+	ClusterStateRunning                              = ClusterState("Running")
+	ClusterStateScaling                              = ClusterState("Scaling")
+	ClusterStateAbnormal                             = ClusterState("Abnormal")
+	ClusterStateSuspending                           = ClusterState("Suspending")
+	ClusterStateSuspended                            = ClusterState("Suspended")
+	ClusterStateResuming                             = ClusterState("Resuming")
+	ClusterStateReleasing                            = ClusterState("Releasing")
+	ClusterStateReleased                             = ClusterState("Released")
+	DomainAllocateStateUnknown   DomainAllocateState = 0
+	DomainAllocateStateOngoing   DomainAllocateState = 3
+	DomainAllocateStateSucceeded DomainAllocateState = 1
+	DomainAllocateStateFailed    DomainAllocateState = 2
 )
 
 type Kv struct {
@@ -175,4 +180,23 @@ type IncrStorageSizeReq struct {
 
 type IncrStorageSizeResp struct {
 	ActionId string `json:"action_id" mapstructure:"action_id"`
+}
+
+type EndpointsInfo struct {
+	NetworkMethod string `json:"network_method" mapstructure:"network_method"`
+	Host          string `json:"host" mapstructure:"host"`
+	Port          int64  `json:"port" mapstructure:"port"`
+}
+
+type GetClusterEndpointsReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type GetClusterEndpointsResp struct {
+	State DomainAllocateState `json:"state" mapstructure:"state"`
+	List  []*EndpointsInfo    `json:"list" mapstructure:"list"`
+}
+
+type AllocateClusterEndpointsReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
 }
