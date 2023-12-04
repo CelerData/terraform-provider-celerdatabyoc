@@ -161,7 +161,7 @@ resource "celerdatabyoc_aws_network" "new" {
   vpc_endpoint_id = "[your vpc endpoint id]"
 }
 
-resource "celerdatabyoc_classic_cluster" "new" {
+resource "celerdatabyoc_classic_cluster" "classic" {
   cluster_name = "[your cluster name]"
   fe_instance_type = "[fe type]"
   fe_node_count = 1

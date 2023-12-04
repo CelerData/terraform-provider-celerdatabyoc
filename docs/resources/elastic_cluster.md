@@ -122,7 +122,7 @@ resource "celerdatabyoc_aws_network" "new" {
 }
 
 
-resource "celerdatabyoc_elastic_cluster" "new" {
+resource "celerdatabyoc_elastic_cluster" "elastic" {
   cluster_name = "[your cluster name]"
   coordinator_node_size = "[coordinator node size]"
   coordinator_node_count = 1
