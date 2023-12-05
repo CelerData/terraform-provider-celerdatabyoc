@@ -34,6 +34,7 @@ type clusterAPI struct {
 
 func (c *clusterAPI) Deploy(ctx context.Context, req *DeployReq) (*DeployResp, error) {
 	resp := &DeployResp{}
+	req.SourceFrom = "terraform"
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters", c.apiVersion), req, resp)
 	if err != nil {
 		return nil, err

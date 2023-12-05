@@ -106,6 +106,7 @@ type ResumeResp struct {
 type DeployReq struct {
 	RequestId   string       `json:"request_id"  mapstructure:"request_id"`
 	ClusterConf *ClusterConf `json:"cluster_conf" mapstructure:"cluster_conf"`
+	SourceFrom  string       `json:"source_from" mapstructure:"source_from"`
 }
 
 type DeployResp struct {
