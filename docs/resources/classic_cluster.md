@@ -161,7 +161,7 @@ resource "celerdatabyoc_aws_network" "new" {
   vpc_endpoint_id = "[your vpc endpoint id]"
 }
 
-resource "celerdatabyoc_classic_cluster" "new" {
+resource "celerdatabyoc_classic_cluster" "classic" {
   cluster_name = "[your cluster name]"
   fe_instance_type = "[fe type]"
   fe_node_count = 1
@@ -208,6 +208,7 @@ resource "celerdatabyoc_classic_cluster" "new" {
     - US East (N. Virginia) us-east-1
     - US West (Oregon) us-west-2
     - Europe (Ireland) eu-west-1
+    - Europe (Frankfurt) eu-central-1
 * `init_scripts` - （Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is `20`. You can learn more about executable scripts with [Run scripts](https://docs-sandbox.celerdata.com/en-us/main/run_scripts).
   - logs_dir - (ForceNew) Storage path for script execution results.
   - script_path - (ForceNew) The S3 bucket address where the script is stored.

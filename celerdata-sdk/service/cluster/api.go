@@ -19,6 +19,8 @@ type IClusterAPI interface {
 	ScaleUp(ctx context.Context, req *ScaleUpReq) (*ScaleUpResp, error)
 	IncrStorageSize(ctx context.Context, req *IncrStorageSizeReq) (*IncrStorageSizeResp, error)
 	UnlockFreeTier(ctx context.Context, clusterID string) error
+	GetClusterEndpoints(ctx context.Context, req *GetClusterEndpointsReq) (*GetClusterEndpointsResp, error)
+	AllocateClusterEndpoints(ctx context.Context, req *AllocateClusterEndpointsReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -32,6 +34,7 @@ type clusterAPI struct {
 
 func (c *clusterAPI) Deploy(ctx context.Context, req *DeployReq) (*DeployResp, error) {
 	resp := &DeployResp{}
+	req.SourceFrom = "terraform"
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters", c.apiVersion), req, resp)
 	if err != nil {
 		return nil, err
@@ -132,4 +135,23 @@ func (c *clusterAPI) IncrStorageSize(ctx context.Context, req *IncrStorageSizeRe
 	}
 
 	return resp, nil
+}
+
+func (c *clusterAPI) GetClusterEndpoints(ctx context.Context, req *GetClusterEndpointsReq) (*GetClusterEndpointsResp, error) {
+	resp := &GetClusterEndpointsResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/endpoints", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func (c *clusterAPI) AllocateClusterEndpoints(ctx context.Context, req *AllocateClusterEndpointsReq) error {
+	resp := &IncrStorageSizeResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/endpoints", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return err
+	}
+	return nil
 }
