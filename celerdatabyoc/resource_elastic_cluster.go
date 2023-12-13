@@ -135,6 +135,12 @@ func resourceElasticCluster() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"query_port": {
+				Type:     schema.TypeInt,
+				Optional: true,
+				ForceNew: true,
+				Default:  9030,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -159,6 +165,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		DeployCredlId:      d.Get("deployment_credential_id").(string),
 		DataCredId:         d.Get("data_credential_id").(string),
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
+		QueryPort:          d.Get("query_port").(int32),
 	}
 
 	if v, ok := d.GetOk("resource_tags"); ok {
@@ -309,6 +316,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	d.Set("coordinator_node_size", resp.Cluster.FeModule.InstanceType)
 	d.Set("coordinator_node_count", int(resp.Cluster.FeModule.Num))
 	d.Set("free_tier", resp.Cluster.FreeTier)
+	d.Set("query_port", resp.Cluster.QueryPort)
 	return diags
 }
 

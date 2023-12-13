@@ -154,6 +154,12 @@ func resourceClassicCluster() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"query_port": {
+				Type:     schema.TypeInt,
+				Optional: true,
+				ForceNew: true,
+				Default:  9030,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -178,6 +184,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		DeployCredlId:      d.Get("deployment_credential_id").(string),
 		DataCredId:         d.Get("data_credential_id").(string),
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
+		QueryPort:          d.Get("query_port").(int32),
 	}
 
 	if v, ok := d.GetOk("resource_tags"); ok {
@@ -335,6 +342,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("fe_instance_type", resp.Cluster.FeModule.InstanceType)
 	d.Set("fe_node_count", int(resp.Cluster.FeModule.Num))
 	d.Set("free_tier", resp.Cluster.FreeTier)
+	d.Set("query_port", resp.Cluster.QueryPort)
 	return diags
 }
 

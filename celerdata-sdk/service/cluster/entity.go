@@ -59,6 +59,7 @@ type ClusterConf struct {
 	Tags               []*Kv          `json:"tags"`
 	Scripts            []*Script      `json:"scripts"`
 	RunScriptsParallel bool           `json:"run_scripts_parallel"`
+	QueryPort          int32          `json:"query_port"`
 }
 
 type GetReq struct {
@@ -137,6 +138,7 @@ type Cluster struct {
 	DeployCredID   string       `json:"deploy_cred_id" mapstructure:"deploy_cred_id"`
 	DataCredID     string       `json:"data_cred_id" mapstructure:"data_cred_id"`
 	FreeTier       bool         `json:"free_tier" mapstructure:"free_tier"`
+	QueryPort      int32        `json:"query_port" mapstructure:"query_port"`
 }
 
 type ScaleInReq struct {
