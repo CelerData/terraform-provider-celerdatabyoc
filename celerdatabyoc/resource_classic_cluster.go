@@ -200,7 +200,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		DeployCredlId:      d.Get("deployment_credential_id").(string),
 		DataCredId:         d.Get("data_credential_id").(string),
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
-		QueryPort:          d.Get("query_port").(int32),
+		QueryPort:          int32(d.Get("query_port").(int)),
 	}
 
 	if v, ok := d.GetOk("resource_tags"); ok {
