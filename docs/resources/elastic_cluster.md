@@ -171,7 +171,8 @@ resource "celerdatabyoc_elastic_cluster" "elastic" {
     - logs_dir - (ForceNew) Storage path for script execution results.
     - script_path - (ForceNew) The S3 bucket address where the script is stored.
  * `run_scripts_parallel` - (Optional) Execute/not execute script in parallel, the default value is `false`.
- * `query_port` - (Optional) Customize cluster endpoints query port, the default value is 9030.
+ * `query_port` - (Optional) Customize cluster endpoints query port, the port range should be 1-65535 and cannot be
+  443, default value is 9030.
 ### Supplementary material
 
 [The AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)<br />

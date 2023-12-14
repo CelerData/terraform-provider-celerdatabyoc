@@ -138,8 +138,23 @@ func resourceElasticCluster() *schema.Resource {
 			"query_port": {
 				Type:     schema.TypeInt,
 				Optional: true,
-				ForceNew: true,
 				Default:  9030,
+				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+					v, ok := i.(int)
+					if !ok {
+						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+						return warnings, errors
+					}
+					if v < 1 || v > 65535 {
+						errors = append(errors, fmt.Errorf("the %s range should be 1-65535", k))
+						return warnings, errors
+					}
+					if v == 443 {
+						errors = append(errors, fmt.Errorf("%s : duplicate port 443 definitions", k))
+						return warnings, errors
+					}
+					return warnings, errors
+				},
 			},
 		},
 		Importer: &schema.ResourceImporter{
