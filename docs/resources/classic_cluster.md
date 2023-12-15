@@ -184,6 +184,7 @@ resource "celerdatabyoc_classic_cluster" "classic" {
       script_path = "script-s3-path/test1.sh" 
   }
   run_scripts_parallel = false
+  query_port = 9030
 }
 
 ```

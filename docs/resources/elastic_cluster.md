@@ -144,6 +144,7 @@ resource "celerdatabyoc_elastic_cluster" "elastic" {
       script_path = "script-s3-path/test.sh" 
   }
   run_scripts_parallel = false
+  query_port = 9030
 }
 ```
 

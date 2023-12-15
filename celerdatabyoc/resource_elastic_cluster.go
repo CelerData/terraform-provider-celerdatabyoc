@@ -415,6 +415,9 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 	clusterID := d.Id()
 	clusterAPI := cluster.NewClustersAPI(c)
 	log.Printf("[DEBUG] resourceElasticClusterUpdate cluster id:%s", clusterID)
+	if d.HasChange("query_port") {
+		return diag.FromErr(fmt.Errorf("the `query_port` field is not allowed to be modified"))
+	}
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 	if needResume(d) {
