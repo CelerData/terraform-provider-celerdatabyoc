@@ -213,6 +213,7 @@ resource "celerdatabyoc_classic_cluster" "classic" {
   - logs_dir - (ForceNew) Storage path for script execution results.
   - script_path - (ForceNew) The S3 bucket address where the script is stored.
 * `run_scripts_parallel` - (Optional) Execute/not execute script in parallel, the default value is false.
+* `query_port` - (Optional) Customize the cluster endpoint query port, which should be in the range of 1-65535, not 443, and defaults to 9030. Note: This value is only used at creation time and is not supported for modification at this time.
 
 ### Supplementary material
 
