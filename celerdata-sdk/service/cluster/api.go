@@ -181,7 +181,7 @@ func (c *clusterAPI) CreateDatabaseUser(ctx context.Context, req *CreateDatabase
 
 func (c *clusterAPI) ResetDatabaseUserPassword(ctx context.Context, req *ResetDatabaseUserPasswordReq) (*ResetDatabaseUserPasswordResp, error) {
 	resp := &ResetDatabaseUserPasswordResp{}
-	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/database/users/password", c.apiVersion), req, resp)
+	err := c.cli.Put(ctx, fmt.Sprintf("/api/%s/database/users/password", c.apiVersion), req, resp)
 	if err != nil {
 		return nil, err
 	}
@@ -190,6 +190,7 @@ func (c *clusterAPI) ResetDatabaseUserPassword(ctx context.Context, req *ResetDa
 
 func (c *clusterAPI) DropDatabaseUser(ctx context.Context, req *DropDatabaseUserReq) (*DropDatabaseUserResp, error) {
 	resp := &DropDatabaseUserResp{}
+
 	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/database/users", c.apiVersion), req, resp)
 	if err != nil {
 		return nil, err

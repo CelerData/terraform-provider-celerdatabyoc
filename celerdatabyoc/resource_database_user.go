@@ -70,7 +70,6 @@ func queryDatabaseUser(ctx context.Context, data *schema.ResourceData, i interfa
 		ClusterId: clusterId,
 		UserInfo: cluster.DatabaseUserInfo{
 			UserName: data.Get("user_name").(string),
-			Password: data.Get("user_password").(string),
 		},
 		LoginUserInfo: cluster.DatabaseUserInfo{
 			UserName: data.Get("admin_user_name").(string),
@@ -132,7 +131,6 @@ func deleteDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 		ClusterId: clusterId,
 		UserInfo: cluster.DatabaseUserInfo{
 			UserName: data.Get("user_name").(string),
-			Password: data.Get("user_password").(string),
 		},
 		LoginUserInfo: cluster.DatabaseUserInfo{
 			UserName: data.Get("admin_user_name").(string),
