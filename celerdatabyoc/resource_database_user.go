@@ -83,6 +83,8 @@ func queryDatabaseUser(ctx context.Context, data *schema.ResourceData, i interfa
 
 	if !checkDatabaseUserResp.Exist {
 		data.SetId("")
+	} else {
+		data.SetId(genDatabaseUserId(clusterId, data.Get("user_name").(string)))
 	}
 	return diag.Diagnostics{}
 }
@@ -113,10 +115,14 @@ func createDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 		return diag.Errorf("Failed to create database user %s errMsg:%s", data.Get("user_name").(string), err.Error())
 	}
 
-	key := fmt.Sprintf("%s-%s", clusterId, data.Get("user_name").(string))
-	id := fmt.Sprintf("%x", md5.Sum([]byte(key)))
-	data.SetId(id)
+	data.SetId(genDatabaseUserId(clusterId, data.Get("user_name").(string)))
 	return queryDatabaseUser(ctx, data, i)
+}
+
+func genDatabaseUserId(clusterId string, userName string) string {
+	key := fmt.Sprintf("%s-%s", clusterId, userName)
+	id := fmt.Sprintf("%x", md5.Sum([]byte(key)))
+	return id
 }
 
 func deleteDatabaseUser(ctx context.Context, data *schema.ResourceData, i interface{}) diag.Diagnostics {
