@@ -47,7 +47,6 @@ func resourceDatabaseUser() *schema.Resource {
 			"user_password": {
 				Type:         schema.TypeString,
 				Required:     true,
-				ForceNew:     true,
 				Sensitive:    true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
@@ -157,7 +156,7 @@ func updateDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 		return diagnostics
 	}
 
-	_, err := clusterApi.DropDatabaseUser(ctx, &cluster.DropDatabaseUserReq{
+	_, err := clusterApi.ResetDatabaseUserPassword(ctx, &cluster.ResetDatabaseUserPasswordReq{
 		ClusterId: clusterId,
 		UserInfo: cluster.DatabaseUserInfo{
 			UserName: data.Get("user_name").(string),
