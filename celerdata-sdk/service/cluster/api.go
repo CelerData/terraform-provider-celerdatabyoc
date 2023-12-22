@@ -191,7 +191,13 @@ func (c *clusterAPI) ResetDatabaseUserPassword(ctx context.Context, req *ResetDa
 func (c *clusterAPI) DropDatabaseUser(ctx context.Context, req *DropDatabaseUserReq) (*DropDatabaseUserResp, error) {
 	resp := &DropDatabaseUserResp{}
 
-	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/database/users", c.apiVersion), req, resp)
+	paramMap := make(map[string]string)
+	paramMap["cluster_id"] = req.ClusterId
+	paramMap["admin_user_name"] = req.LoginUserInfo.UserName
+	paramMap["admin_user_password"] = req.LoginUserInfo.Password
+	paramMap["user_name"] = req.UserInfo.UserName
+
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/database/users", c.apiVersion), paramMap, resp)
 	if err != nil {
 		return nil, err
 	}
