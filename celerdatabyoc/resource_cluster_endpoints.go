@@ -57,10 +57,10 @@ func resourceClusterEndpoints() *schema.Resource {
 func resourceClusterEndpointsCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 	clusterAPI := cluster.NewClustersAPI(c)
-	clsterId := d.Get("cluster_id").(string)
+	clusterId := d.Get("cluster_id").(string)
 
-	log.Printf("[DEBUG] get cluster, cluster[%s]", clsterId)
-	resp, err := clusterAPI.Get(ctx, &cluster.GetReq{ClusterID: clsterId})
+	log.Printf("[DEBUG] get cluster, cluster[%s]", clusterId)
+	resp, err := clusterAPI.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
 	if err != nil {
 		log.Printf("[ERROR] get cluster, error:%s", err.Error())
 		return diag.FromErr(err)
@@ -68,11 +68,11 @@ func resourceClusterEndpointsCreate(ctx context.Context, d *schema.ResourceData,
 
 	if resp.Cluster == nil || resp.Cluster.ClusterState == cluster.ClusterStateReleased {
 		d.SetId("")
-		return diag.FromErr(fmt.Errorf("cluster %s not found", clsterId))
+		return diag.FromErr(fmt.Errorf("cluster %s not found", clusterId))
 	}
 
 	err = clusterAPI.AllocateClusterEndpoints(ctx, &cluster.AllocateClusterEndpointsReq{
-		ClusterId: clsterId,
+		ClusterId: clusterId,
 	})
 
 	if err != nil {
@@ -82,7 +82,7 @@ func resourceClusterEndpointsCreate(ctx context.Context, d *schema.ResourceData,
 
 	stateResp, err := WaitClusterEndpointsStateChangeComplete(ctx, &waitEndpointsStateReq{
 		clusterAPI: clusterAPI,
-		clusterId:  clsterId,
+		clusterId:  clusterId,
 		timeout:    30 * time.Minute,
 		pendingStates: []string{
 			strconv.Itoa(int(cluster.DomainAllocateStateUnknown)),
@@ -102,20 +102,20 @@ func resourceClusterEndpointsCreate(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(errors.New("failed to get cluster endpoints"))
 	}
 
-	d.SetId(clsterId)
+	d.SetId(clusterId)
 	return resourceClusterEndpointsRead(ctx, d, m)
 }
 
 func resourceClusterEndpointsRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 	clusterAPI := cluster.NewClustersAPI(c)
-	clsterId := d.Id()
+	clusterId := d.Id()
 
 	log.Printf("[DEBUG] resourceClusterEndpointsRead, cluster id:%s", d.Id())
 	var diags diag.Diagnostics
 	stateResp, err := WaitClusterEndpointsStateChangeComplete(ctx, &waitEndpointsStateReq{
 		clusterAPI: clusterAPI,
-		clusterId:  clsterId,
+		clusterId:  clusterId,
 		timeout:    30 * time.Minute,
 		pendingStates: []string{
 			strconv.Itoa(int(cluster.DomainAllocateStateUnknown)),
