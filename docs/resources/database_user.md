@@ -8,6 +8,8 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify the user experience.
 
+**Note** : The cluster needs to be in the 'Running' state when creating a database user.
+
 ### Example Usage
 
 ```terraform
