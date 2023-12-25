@@ -193,8 +193,8 @@ func (c *clusterAPI) DropDatabaseUser(ctx context.Context, req *DropDatabaseUser
 
 	paramMap := make(map[string]string)
 	paramMap["cluster_id"] = req.ClusterId
-	paramMap["admin_user_name"] = req.LoginUserInfo.UserName
-	paramMap["admin_user_password"] = req.LoginUserInfo.Password
+	paramMap["login_user"] = req.LoginUserInfo.UserName
+	paramMap["login_password"] = req.LoginUserInfo.Password
 	paramMap["user_name"] = req.UserInfo.UserName
 
 	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/database/users", c.apiVersion), paramMap, resp)

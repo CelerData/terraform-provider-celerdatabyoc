@@ -25,13 +25,13 @@ func resourceDatabaseUser() *schema.Resource {
 				Required:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
-			"admin_user_name": {
+			"login_user": {
 				Description:  "User who has the authority to create new users",
 				Type:         schema.TypeString,
 				Required:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
-			"admin_user_password": {
+			"login_password": {
 				Type:         schema.TypeString,
 				Required:     true,
 				Sensitive:    true,
@@ -72,8 +72,8 @@ func queryDatabaseUser(ctx context.Context, data *schema.ResourceData, i interfa
 			UserName: data.Get("user_name").(string),
 		},
 		LoginUserInfo: cluster.DatabaseUserInfo{
-			UserName: data.Get("admin_user_name").(string),
-			Password: data.Get("admin_user_password").(string),
+			UserName: data.Get("login_user").(string),
+			Password: data.Get("login_password").(string),
 		},
 	})
 	if err != nil {
@@ -105,8 +105,8 @@ func createDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 			Password: data.Get("user_password").(string),
 		},
 		LoginUserInfo: cluster.DatabaseUserInfo{
-			UserName: data.Get("admin_user_name").(string),
-			Password: data.Get("admin_user_password").(string),
+			UserName: data.Get("login_user").(string),
+			Password: data.Get("login_password").(string),
 		},
 	})
 
@@ -139,8 +139,8 @@ func deleteDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 			UserName: data.Get("user_name").(string),
 		},
 		LoginUserInfo: cluster.DatabaseUserInfo{
-			UserName: data.Get("admin_user_name").(string),
-			Password: data.Get("admin_user_password").(string),
+			UserName: data.Get("login_user").(string),
+			Password: data.Get("login_password").(string),
 		},
 	})
 
@@ -167,8 +167,8 @@ func updateDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 			Password: data.Get("user_password").(string),
 		},
 		LoginUserInfo: cluster.DatabaseUserInfo{
-			UserName: data.Get("admin_user_name").(string),
-			Password: data.Get("admin_user_password").(string),
+			UserName: data.Get("login_user").(string),
+			Password: data.Get("login_password").(string),
 		},
 	})
 
