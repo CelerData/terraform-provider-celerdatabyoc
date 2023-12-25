@@ -27,23 +27,28 @@ output "endpoints"{
 ```
 
 ### Schema
+<hr/>
+
 #### Required
 
-* cluster_id - (ForceNew) The resource id of the `celerdatabyoc_elastic_cluster` or `celerdatabyoc_classtic_cluster`.
+* `cluster_id` (String, ForceNew) The resource id of the `celerdatabyoc_classtic_cluster` resource or 
+  `celerdatabyoc_elastic_cluster` resource.
 
 #### Read-Only
-- id (String) ID of the cluster resource.
-- endpoints (Attributes List) List of public and private endpoints [see below for nested schema](#nestedatt-endpoints)
+- `id` (String) The ID of this resource.
+- `endpoints` (Attributes List) List of public and private endpoints [see below for nested schema](#nestedatt-endpoints)
 
 <a id="nestedatt-endpoints"></a>
 ### Nested Schema for endpoints
 Read-Only:
 
-- host (String) Endpoint host.
-- port (Number) Endpoint port.
-- network_method (String) connection network method, "Public" or "Private"
+- `host` (String) Endpoint host.
+- `port` (Number) Endpoint port.
+- `network_method` (String) connection network method, "Public" or "Private"
 
 ### Related Resources
+<hr/>
+
 For information on how to create classic/elastic cluster resource, see the:
 - [Create a classic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/classic_cluster)
 - [Create a elastic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/elastic_cluster)
