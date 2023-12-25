@@ -29,10 +29,10 @@ resource "celerdatabyoc_database_user" "user_01" {
 
 * `cluster_id` (String, ForceNew) The resource ID of the `celerdatabyoc_classtic_cluster` resource or 
   `celerdatabyoc_elastic_cluster` resource.
-* `login_user` User who has the authority to create new users.
-* `login_password`  Password for login user.
-* `user_name` The user to be created.
-* `user_password` Password for the user to be created.
+* `login_user` (String) User who has the authority to create new users.
+* `login_password` (String) Password for login user.
+* `user_name` (String) The user to be created.
+* `user_password` (String) Password for the user to be created.
 
 
 #### Read-Only
