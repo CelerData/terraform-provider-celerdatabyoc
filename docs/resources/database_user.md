@@ -18,7 +18,7 @@ resource "celerdatabyoc_database_user" "user_01" {
   cluster_id     = celerdatabyoc_classic_cluster.classic.id
   login_user     = "admin"
   login_password = "admin_123456"
-  user_name      = "test_user_01"
+  user_name      = "user_01"
   user_password  = "test_123456"
 }
 

@@ -10,6 +10,7 @@ import (
 	"log"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
+	"terraform-provider-celerdatabyoc/common"
 )
 
 func resourceDatabaseUser() *schema.Resource {
@@ -45,10 +46,10 @@ func resourceDatabaseUser() *schema.Resource {
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
 			"user_password": {
-				Type:         schema.TypeString,
-				Required:     true,
-				Sensitive:    true,
-				ValidateFunc: validation.StringIsNotEmpty,
+				Type:             schema.TypeString,
+				Required:         true,
+				Sensitive:        true,
+				ValidateDiagFunc: common.ValidatePassword(),
 			},
 		},
 		Importer: &schema.ResourceImporter{
@@ -61,8 +62,22 @@ func queryDatabaseUser(ctx context.Context, data *schema.ResourceData, i interfa
 
 	clusterApi := getApiClient(i)
 	clusterId := data.Get("cluster_id").(string)
-	_, diagnostics := getCluster(ctx, clusterApi, clusterId, true)
-	if len(diagnostics) > 0 {
+
+	var diagnostics diag.Diagnostics
+	resp, err := clusterApi.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
+
+	if err != nil {
+		return genErrorDiag(clusterId, err)
+	}
+
+	clusterInfo := resp.Cluster
+	if clusterInfo == nil || clusterInfo.ClusterState == cluster.ClusterStateReleased {
+		data.SetId("")
+		return diag.Diagnostics{}
+	}
+
+	diagnostics, hasDiag := checkClusterIsRunning(clusterInfo, diagnostics, false)
+	if hasDiag {
 		return diagnostics
 	}
 
@@ -93,12 +108,26 @@ func createDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 
 	clusterApi := getApiClient(i)
 	clusterId := data.Get("cluster_id").(string)
-	_, diagnostics := getCluster(ctx, clusterApi, clusterId, true)
-	if len(diagnostics) > 0 {
+
+	var diagnostics diag.Diagnostics
+	resp, err := clusterApi.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
+
+	if err != nil {
+		return genErrorDiag(clusterId, err)
+	}
+
+	clusterInfo := resp.Cluster
+	diagnostics, hasDiag := checkIsClusterExist(clusterInfo, clusterId)
+	if hasDiag {
 		return diagnostics
 	}
 
-	_, err := clusterApi.CreateDatabaseUser(ctx, &cluster.CreateDatabaseUserReq{
+	diagnostics, hasDiag = checkClusterIsRunning(clusterInfo, diagnostics, true)
+	if hasDiag {
+		return diagnostics
+	}
+
+	_, err = clusterApi.CreateDatabaseUser(ctx, &cluster.CreateDatabaseUserReq{
 		ClusterId: clusterId,
 		NewUserInfo: cluster.DatabaseUserInfo{
 			UserName: data.Get("user_name").(string),
@@ -114,9 +143,46 @@ func createDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 		log.Printf("[ERROR] create database user %s error:%s", data.Get("user_name").(string), err.Error())
 		return diag.Errorf("Failed to create database user %s errMsg:%s", data.Get("user_name").(string), err.Error())
 	}
-
 	data.SetId(genDatabaseUserId(clusterId, data.Get("user_name").(string)))
-	return queryDatabaseUser(ctx, data, i)
+	return diag.Diagnostics{}
+}
+
+func checkClusterIsRunning(clusterInfo *cluster.Cluster, diagnostics diag.Diagnostics, needRunning bool) (diag.Diagnostics, bool) {
+	if clusterInfo.ClusterState != cluster.ClusterStateRunning {
+
+		severity := diag.Warning
+		if needRunning {
+			severity = diag.Error
+		}
+
+		diagnostics = append(diagnostics, diag.Diagnostic{
+			Severity: severity,
+			Summary:  "cluster not in \"running\" state",
+			Detail: fmt.Sprintf("cluster[%s] not in \"running\" state, "+
+				"database operations require cluster to be in \"running\" state",
+				clusterInfo.ClusterName),
+		})
+		return diagnostics, true
+	}
+	return nil, false
+}
+
+func genErrorDiag(clusterId string, err error) diag.Diagnostics {
+	log.Printf("[ERROR] get cluster, error:%s", err.Error())
+	return diag.FromErr(err)
+}
+
+func checkIsClusterExist(clusterInfo *cluster.Cluster, clusterId string) (diag.Diagnostics, bool) {
+	var diagnostics diag.Diagnostics
+	if clusterInfo == nil || clusterInfo.ClusterState == cluster.ClusterStateReleased {
+		diagnostics = append(diagnostics, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "cluster doesn't exist",
+			Detail:   fmt.Sprintf("cluster[%s] does not exist", clusterId),
+		})
+		return diagnostics, true
+	}
+	return diagnostics, false
 }
 
 func genDatabaseUserId(clusterId string, userName string) string {
@@ -128,12 +194,31 @@ func genDatabaseUserId(clusterId string, userName string) string {
 func deleteDatabaseUser(ctx context.Context, data *schema.ResourceData, i interface{}) diag.Diagnostics {
 	clusterApi := getApiClient(i)
 	clusterId := data.Get("cluster_id").(string)
-	_, diagnostics := getCluster(ctx, clusterApi, clusterId, true)
-	if len(diagnostics) > 0 {
+
+	var diagnostics diag.Diagnostics
+	resp, err := clusterApi.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
+
+	if err != nil {
+		return genErrorDiag(clusterId, err)
+	}
+
+	clusterInfo := resp.Cluster
+	if clusterInfo == nil || clusterInfo.ClusterState == cluster.ClusterStateReleased {
+		data.SetId("")
+		diagnostics = append(diagnostics, diag.Diagnostic{
+			Severity: diag.Warning,
+			Summary:  "cluster doesn't exist",
+			Detail:   fmt.Sprintf("cluster[%s] does not exist", clusterId),
+		})
 		return diagnostics
 	}
 
-	_, err := clusterApi.DropDatabaseUser(ctx, &cluster.DropDatabaseUserReq{
+	diagnostics, hasDiag := checkClusterIsRunning(clusterInfo, diagnostics, false)
+	if hasDiag {
+		return diagnostics
+	}
+
+	_, err = clusterApi.DropDatabaseUser(ctx, &cluster.DropDatabaseUserReq{
 		ClusterId: clusterId,
 		UserInfo: cluster.DatabaseUserInfo{
 			UserName: data.Get("user_name").(string),
@@ -155,12 +240,26 @@ func deleteDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 func updateDatabaseUser(ctx context.Context, data *schema.ResourceData, i interface{}) diag.Diagnostics {
 	clusterApi := getApiClient(i)
 	clusterId := data.Get("cluster_id").(string)
-	_, diagnostics := getCluster(ctx, clusterApi, clusterId, true)
-	if len(diagnostics) > 0 {
+
+	var diagnostics diag.Diagnostics
+	resp, err := clusterApi.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
+
+	if err != nil {
+		return genErrorDiag(clusterId, err)
+	}
+
+	clusterInfo := resp.Cluster
+	diagnostics, hasDiag := checkIsClusterExist(clusterInfo, clusterId)
+	if hasDiag {
 		return diagnostics
 	}
 
-	_, err := clusterApi.ResetDatabaseUserPassword(ctx, &cluster.ResetDatabaseUserPasswordReq{
+	diagnostics, hasDiag = checkClusterIsRunning(clusterInfo, diagnostics, true)
+	if hasDiag {
+		return diagnostics
+	}
+
+	_, err = clusterApi.ResetDatabaseUserPassword(ctx, &cluster.ResetDatabaseUserPasswordReq{
 		ClusterId: clusterId,
 		UserInfo: cluster.DatabaseUserInfo{
 			UserName: data.Get("user_name").(string),
@@ -182,47 +281,4 @@ func updateDatabaseUser(ctx context.Context, data *schema.ResourceData, i interf
 func getApiClient(i interface{}) cluster.IClusterAPI {
 	c := i.(*client.CelerdataClient)
 	return cluster.NewClustersAPI(c)
-}
-
-func getCluster(ctx context.Context, clusterApi cluster.IClusterAPI, clusterId string,
-	needRunning bool) (*cluster.Cluster,
-	diag.Diagnostics) {
-
-	var diagnostics diag.Diagnostics
-	log.Printf("[DEBUG] get cluster, cluster[%s]", clusterId)
-	resp, err := clusterApi.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
-	if err != nil {
-		log.Printf("[ERROR] get cluster, error:%s", err.Error())
-		diagnostics = append(diagnostics, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  "server error",
-			Detail:   fmt.Sprintf("query cluster info failed, error:%s", err.Error()),
-		})
-	}
-
-	clusterInfo := resp.Cluster
-	if clusterInfo == nil {
-		diagnostics = append(diagnostics, diag.Diagnostic{
-			Severity: diag.Error,
-			Summary:  "cluster not found",
-			Detail:   fmt.Sprintf("cluster %s not found", clusterId),
-		})
-	}
-
-	if clusterInfo.ClusterState != cluster.ClusterStateRunning {
-		var severity diag.Severity
-		if needRunning {
-			severity = diag.Error
-		} else {
-			severity = diag.Warning
-		}
-		diagnostics = append(diagnostics, diag.Diagnostic{
-			Severity: severity,
-			Summary:  "cluster is not running",
-			Detail: fmt.Sprintf("cluster [%s] is not running, database operations require the cluster to be running",
-				clusterInfo.ClusterName),
-		})
-	}
-
-	return clusterInfo, diagnostics
 }
