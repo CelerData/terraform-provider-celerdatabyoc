@@ -8,7 +8,7 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify the user experience.
 
-**Note** : The cluster needs to be in the 'Running' state when creating a database user.
+**Note** : The cluster must be in the "Running" state when creating database users. And you need to provide a login user with `create user` privilege so that we can perform the create user operation.
 
 ### Example Usage
 
