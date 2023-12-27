@@ -203,3 +203,51 @@ type GetClusterEndpointsResp struct {
 type AllocateClusterEndpointsReq struct {
 	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
 }
+
+type DatabaseUserInfo struct {
+	UserName string `json:"user_name" mapstructure:"user_name"`
+	Password string `json:"password" mapstructure:"password"`
+}
+
+type CheckDatabaseUserReq struct {
+	ClusterId     string           `json:"cluster_id" mapstructure:"cluster_id"`
+	LoginUserInfo DatabaseUserInfo `json:"login_user_info" mapstructure:"login_user_info"`
+	UserInfo      DatabaseUserInfo `json:"user_info" mapstructure:"user_info"`
+}
+
+type CheckDatabaseUserResp struct {
+	Exist bool `json:"exist" mapstructure:"exist"`
+}
+
+type CreateDatabaseUserReq struct {
+	ClusterId     string           `json:"cluster_id" mapstructure:"cluster_id"`
+	LoginUserInfo DatabaseUserInfo `json:"login_user_info" mapstructure:"login_user_info"`
+	NewUserInfo   DatabaseUserInfo `json:"new_user_info" mapstructure:"new_user_info"`
+}
+
+type CreateDatabaseUserResp struct {
+	Code   int32  `json:"code" mapstructure:"code"`
+	ErrMsg string `json:"err_msg" mapstructure:"err_msg"`
+}
+
+type ResetDatabaseUserPasswordReq struct {
+	ClusterId     string           `json:"cluster_id" mapstructure:"cluster_id"`
+	LoginUserInfo DatabaseUserInfo `json:"login_user_info" mapstructure:"login_user_info"`
+	UserInfo      DatabaseUserInfo `json:"user_info" mapstructure:"user_info"`
+}
+
+type ResetDatabaseUserPasswordResp struct {
+	Code   int32  `json:"code" mapstructure:"code"`
+	ErrMsg string `json:"err_msg" mapstructure:"err_msg"`
+}
+
+type DropDatabaseUserReq struct {
+	ClusterId     string           `json:"cluster_id" mapstructure:"cluster_id"`
+	LoginUserInfo DatabaseUserInfo `json:"login_user_info" mapstructure:"login_user_info"`
+	UserInfo      DatabaseUserInfo `json:"user_info" mapstructure:"user_info"`
+}
+
+type DropDatabaseUserResp struct {
+	Code   int32  `json:"code" mapstructure:"code"`
+	ErrMsg string `json:"err_msg" mapstructure:"err_msg"`
+}

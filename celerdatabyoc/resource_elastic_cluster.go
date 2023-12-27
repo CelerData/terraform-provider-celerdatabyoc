@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
+	"terraform-provider-celerdatabyoc/common"
 	"time"
 
 	"github.com/google/uuid"
@@ -80,11 +81,11 @@ func resourceElasticCluster() *schema.Resource {
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
 			"default_admin_password": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ForceNew:     true,
-				Sensitive:    true,
-				ValidateFunc: validation.StringIsNotEmpty,
+				Type:             schema.TypeString,
+				Required:         true,
+				ForceNew:         true,
+				Sensitive:        true,
+				ValidateDiagFunc: common.ValidatePassword(),
 			},
 			"data_credential_id": {
 				Type:     schema.TypeString,

@@ -21,6 +21,11 @@ type IClusterAPI interface {
 	UnlockFreeTier(ctx context.Context, clusterID string) error
 	GetClusterEndpoints(ctx context.Context, req *GetClusterEndpointsReq) (*GetClusterEndpointsResp, error)
 	AllocateClusterEndpoints(ctx context.Context, req *AllocateClusterEndpointsReq) error
+
+	CheckDatabaseUser(ctx context.Context, req *CheckDatabaseUserReq) (*CheckDatabaseUserResp, error)
+	CreateDatabaseUser(ctx context.Context, req *CreateDatabaseUserReq) (*CreateDatabaseUserResp, error)
+	ResetDatabaseUserPassword(ctx context.Context, req *ResetDatabaseUserPasswordReq) (*ResetDatabaseUserPasswordResp, error)
+	DropDatabaseUser(ctx context.Context, req *DropDatabaseUserReq) (*DropDatabaseUserResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -154,4 +159,47 @@ func (c *clusterAPI) AllocateClusterEndpoints(ctx context.Context, req *Allocate
 		return err
 	}
 	return nil
+}
+
+func (c *clusterAPI) CheckDatabaseUser(ctx context.Context, req *CheckDatabaseUserReq) (*CheckDatabaseUserResp, error) {
+	resp := &CheckDatabaseUserResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/database/users/info", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CreateDatabaseUser(ctx context.Context, req *CreateDatabaseUserReq) (*CreateDatabaseUserResp, error) {
+	resp := &CreateDatabaseUserResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/database/users", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ResetDatabaseUserPassword(ctx context.Context, req *ResetDatabaseUserPasswordReq) (*ResetDatabaseUserPasswordResp, error) {
+	resp := &ResetDatabaseUserPasswordResp{}
+	err := c.cli.Put(ctx, fmt.Sprintf("/api/%s/database/users/password", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) DropDatabaseUser(ctx context.Context, req *DropDatabaseUserReq) (*DropDatabaseUserResp, error) {
+	resp := &DropDatabaseUserResp{}
+
+	paramMap := make(map[string]string)
+	paramMap["cluster_id"] = req.ClusterId
+	paramMap["login_user"] = req.LoginUserInfo.UserName
+	paramMap["login_password"] = req.LoginUserInfo.Password
+	paramMap["user_name"] = req.UserInfo.UserName
+
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/database/users", c.apiVersion), paramMap, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }

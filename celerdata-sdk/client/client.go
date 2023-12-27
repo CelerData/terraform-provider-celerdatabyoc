@@ -125,8 +125,8 @@ func (c *CelerdataClient) Patch(ctx context.Context, path string, request any, r
 }
 
 // Put on path
-func (c *CelerdataClient) Put(ctx context.Context, path string, request any) error {
-	return c.Do(ctx, http.MethodPut, path, request, nil)
+func (c *CelerdataClient) Put(ctx context.Context, path string, request any, response any) error {
+	return c.Do(ctx, http.MethodPut, path, request, response)
 }
 
 func (c *CelerdataClient) Do(ctx context.Context, method, path string,
