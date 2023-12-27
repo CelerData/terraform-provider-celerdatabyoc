@@ -210,7 +210,7 @@ resource "celerdatabyoc_classic_cluster" "classic" {
     - US West (Oregon) us-west-2
     - Europe (Ireland) eu-west-1
     - Europe (Frankfurt) eu-central-1
-* `init_scripts` - （Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is `20`. You can learn more about executable scripts with [Run scripts](https://docs-sandbox.celerdata.com/en-us/main/run_scripts).
+* `init_scripts` - （Optional）Configuration block to customize the script upload location. The maximum number of executable scripts is `20`. You can learn more about executable scripts with [Run scripts](https://docs.celerdata.com/en-us/main/run_scripts).
   - logs_dir - (ForceNew) Storage path for script execution results.
   - script_path - (ForceNew) The S3 bucket address where the script is stored.
 * `run_scripts_parallel` - (Optional) Execute/not execute script in parallel, the default value is false.
@@ -219,6 +219,6 @@ resource "celerdatabyoc_classic_cluster" "classic" {
 ### Supplementary material
 
 [The AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)<br />
-[How to create AWS data credential](https://docs-sandbox.celerdata.com/en-us/main/cloud_settings/manage_storage_configurations)<br />
-[How to create the AWS Deployment credential](https://docs-sandbox.celerdata.com/en-us/main/cloud_settings/manage_credentials)<br />
-[Create a network configuration](https://docs-sandbox.celerdata.com/en-us/main/cloud_settings/manage_network_configurations)
+[How to create AWS data credential](https://docs.celerdata.com/en-us/main/cloud_settings/manage_storage_configurations)<br />
+[How to create the AWS Deployment credential](https://docs.celerdata.com/en-us/main/cloud_settings/manage_credentials)<br />
+[Create a network configuration](https://docs.celerdata.com/en-us/main/cloud_settings/manage_network_configurations)
