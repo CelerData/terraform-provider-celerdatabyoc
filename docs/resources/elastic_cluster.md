@@ -176,6 +176,6 @@ resource "celerdatabyoc_elastic_cluster" "elastic" {
 ### Supplementary material
 
 [The AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)<br />
-[How to create AWS data credential](https://docs-sandbox.celerdata.com/en-us/main/cloud_settings/manage_storage_configurations)<br />
-[How to create the AWS Deployment credential](https://docs-sandbox.celerdata.com/en-us/main/cloud_settings/manage_credentials)<br />
-[Create a network configuration](https://docs-sandbox.celerdata.com/en-us/main/cloud_settings/manage_network_configurations)
+[How to create AWS data credential](https://docs.celerdata.com/en-us/main/cloud_settings/manage_storage_configurations)<br />
+[How to create the AWS Deployment credential](https://docs.celerdata.com/en-us/main/cloud_settings/manage_credentials)<br />
+[Create a network configuration](https://docs.celerdata.com/en-us/main/cloud_settings/manage_network_configurations)
