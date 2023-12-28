@@ -13,7 +13,7 @@ import (
 	"terraform-provider-celerdatabyoc/common"
 )
 
-func resourceDatabaseUser() *schema.Resource {
+func resourceClusterUser() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: createDatabaseUser,
 		ReadContext:   queryDatabaseUser,
