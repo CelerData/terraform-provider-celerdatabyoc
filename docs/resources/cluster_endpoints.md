@@ -12,7 +12,7 @@ Take the example of generating a mysql connection string for a classic / elastic
 If the subnet you use is a public one, BYOC will generate a public connection string and a private connection string.
 Instead, BYOC will only provide a private connection string.
 
-### Example Usage
+## Example Usage
 
 ```terraform
 
@@ -26,28 +26,25 @@ output "endpoints"{
 
 ```
 
-### Schema
-<hr/>
+## Schema
 
-#### Required
+### Required
 
 * `cluster_id` (String, ForceNew) The resource id of the `celerdatabyoc_classtic_cluster` resource or 
   `celerdatabyoc_elastic_cluster` resource.
 
-#### Read-Only
+### Read-Only
 - `id` (String) The ID of this resource.
 - `endpoints` (Attributes List) List of public and private endpoints [see below for nested schema](#nestedatt-endpoints)
 
 <a id="nestedatt-endpoints"></a>
 ### Nested Schema for endpoints
 Read-Only:
-
 - `host` (String) Endpoint host.
 - `port` (Number) Endpoint port.
 - `network_method` (String) connection network method, "Public" or "Private"
 
-### Related Resources
-<hr/>
+## Related Resources
 
 For information on how to create classic/elastic cluster resource, see the:
 - [Create a classic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/classic_cluster)

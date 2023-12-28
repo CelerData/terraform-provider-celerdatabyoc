@@ -9,7 +9,7 @@ description: |-
 ~> The resource's API may change in subsequent versions to simplify the user experience.
 
 This document can help you deploy a classic cluster in AWS EC2. Please follow the runnable example on AWS.
-When you create your first cluster consisting of a single FE node, a single BE node with an instance type of m6i.xlarge for this FE node and m5.xlarge for the BE node, this cluster will be automatically matched as a free tier cluster for you to experience the product features of the CelerData Cloud BYOC.
+When you create your first cluster consisting of a single FE node, a single BE node with an instance type of m6i.xlarge for this FE node and m5.xlarge for the BE node, this cluster will be automatically matched as a free tier cluster for you to experience the product features of the CelerData Cloud Private.
 
 ### Supported Instance type
 

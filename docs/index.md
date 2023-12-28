@@ -6,16 +6,16 @@ sidebar_current: "docs-celerdatabyoc-index"
 description: Terraform provider for the celerdatabyoc cloud
 ---
 
-# celerdatabyoc Provider
+# CelerData Cloud Private Provider
 
-You can use the CelerData Cloud BYOC provider to interact with most CelerData Cloud BYOC resources. By default, you have the required AWS skills before you can follow the tutorials in this article.
+You can use the CelerData Cloud Private provider to interact with most CelerData Cloud Private resources. By default, you have the required AWS skills before you can follow the tutorials in this article.
 
 ### What you should prepare
-1. A CelerData Cloud BYOC account
-2. You need to navigate to Application keys in CelerData Cloud BYOC console, click + New a secret in Application keys, and then find Client_id , Secret information.
+1. A CelerData Cloud Private account
+2. You need to navigate to Application keys in CelerData Cloud Private console, click + New a secret in Application keys, and then find Client_id , Secret information.
 
 ### Initialize provider
-All of the CelerData Cloud BYOC terraform provider resources can be created in a dedicated terraform module for your environment.
+All of the CelerData Cloud Private terraform provider resources can be created in a dedicated terraform module for your environment.
 
 ```terraform
 terraform {

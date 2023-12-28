@@ -28,7 +28,7 @@ resource "aws_iam_role" "celerdata_data_cred_role" {
 ```
 
 ### Argument Refernce
-* `data_role_arn` - (ForceNew) ARN of  CelerData Cloud BYOC deploy Credential
+* `data_role_arn` - (ForceNew) ARN of  CelerData Cloud Private deploy Credential
 
 ### Attribute Reference
 * `json` - AWS IAM Policy JSON document
