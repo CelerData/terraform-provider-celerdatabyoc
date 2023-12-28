@@ -45,8 +45,26 @@ This document can help you deploy an elastic cluster in AWS EC2. Please follow t
   </tr>
   <tr>
    <td rowspan="7">Compute node size (General Purpose)</td>
-   <td>m5d.2xlarge</td>
-   <td>8 Cores 32GB Memory</td>
+  </tr>
+  <tr>
+    <td>m5d.2xlarge</td>
+    <td>8 Cores 32GB Memory</td>
+  </tr>
+  <tr>
+    <td>r6id.2xlarge</td>
+    <td>8 Cores 64GB Memory</td>
+  </tr>
+  <tr>
+    <td>r6id.4xlarge</td>
+    <td>16 Cores 128GB Memory</td>
+  </tr>
+  <tr>
+    <td>r6id.8xlarge</td>
+    <td>32 Cores 256GB Memory</td>
+  </tr>
+  <tr>
+    <td>r6id.16xlarge</td>
+    <td>64 Cores 512GB Memory</td>
   </tr>
  </tbody>
 </table>
