@@ -73,6 +73,11 @@ func resourceClassicCluster() *schema.Resource {
 				Default:      3,
 				ValidateFunc: validation.IntAtLeast(1),
 			},
+			"be_storage_size_gb": {
+				Description: "Total disk size in GB",
+				Type:        schema.TypeInt,
+				Optional:    true,
+			},
 			"be_disk_per_size": {
 				Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 				Type:        schema.TypeInt,
@@ -94,11 +99,6 @@ func resourceClassicCluster() *schema.Resource {
 
 					return warnings, errors
 				},
-			},
-			"be_storage_size_gb": {
-				Description: "Total disk size in GB",
-				Type:        schema.TypeInt,
-				Computed:    true,
 			},
 			"be_disk_number": {
 				Description: "Specifies the number of disk. The default value is 2.",
