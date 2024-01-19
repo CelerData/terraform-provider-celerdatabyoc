@@ -121,11 +121,6 @@ func resourceClassicCluster() *schema.Resource {
 					return warnings, errors
 				},
 			},
-			"be_storage_split_number": {
-				Description:  "Number of Disk Splits",
-				Default:      2,
-				ValidateFunc: validation.IntAtLeast(1),
-			},
 			"resource_tags": {
 				Type:     schema.TypeMap,
 				Optional: true,
