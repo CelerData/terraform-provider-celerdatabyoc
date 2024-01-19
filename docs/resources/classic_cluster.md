@@ -169,8 +169,9 @@ resource "celerdatabyoc_classic_cluster" "classic" {
   data_credential_id = celerdatabyoc_aws_data_credential.new.id
   network_id = celerdatabyoc_aws_network.new.id
   be_instance_type = "[be type]"
-  be_node_count = 1
-  be_storage_size_gb = 100
+  be_node_count = 3
+  be_disk_number = 2
+  be_disk_per_size = 100
   default_admin_password = "[set initial SQL user password]"
   expected_cluster_state = "Suspended"
   resource_tags = {
@@ -200,7 +201,9 @@ resource "celerdatabyoc_classic_cluster" "classic" {
 * `network_id` - (ForceNew) Type as `celerdatabyoc_aws_network.new.id`
 * `be_instance_type` - (Required) Should select a be instance type from the table above.
 * `be_node_count` - (Optional)  Default number is `3`.
-* `be_storage_size_gb` - (Optional) The value set must be a multiple of `100`, and subsequent changes can only increase. The expansion interval must be greater than `6` hours.
+* `be_disk_number` - (ForceNew, Optional) Value range: [1,24], default value: `2`.
+* `be_disk_per_size` - (Optional) Unit:GB. The value has a maximum value of `16000`, and the value changes can only 
+  increase. The expansion interval must be greater than `6` hours, default value: `100`.
 * `default_admin_password` - (Required) Set initial SQL user password
 * `resource_tags` - (Optional)
 * `csp` - (Required) Now, we only support `aws`
