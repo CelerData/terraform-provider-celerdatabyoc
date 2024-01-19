@@ -104,6 +104,7 @@ func resourceClassicCluster() *schema.Resource {
 				Description: "Specifies the number of disk. The default value is 2.",
 				Type:        schema.TypeInt,
 				ForceNew:    true,
+				Optional:    true,
 				Default:     2,
 				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 					v, ok := i.(int)
