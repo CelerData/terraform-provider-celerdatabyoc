@@ -148,7 +148,7 @@ resource "celerdatabyoc_elastic_cluster" "elastic" {
   data_credential_id = celerdatabyoc_aws_data_credential.new.id
   network_id = celerdatabyoc_aws_network.new.id
   compute_node_size = "[compute node size]"
-  compute_node_count = 1
+  compute_node_count = 3
   default_admin_password = "[initial SQL user pwd]"
   expected_cluster_state = "[type cluster state]"
   resource_tags = {
