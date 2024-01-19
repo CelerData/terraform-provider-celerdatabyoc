@@ -31,12 +31,18 @@ type Kv struct {
 	Value string `json:"value"`
 }
 
+type DiskInfo struct {
+	Number  uint32 `json:"number"`
+	PerSize uint64 `json:"per_size"` // unit:GB
+}
+
 type ClusterItem struct {
 	Type          ClusterModuleType `json:"type"`
 	Name          string            `json:"name"`
 	Num           uint32            `json:"num"`
-	StorageSizeGB uint64            `json:"storage_size_gb"`
+	StorageSizeGB uint64            `json:"storage_size_gb"` // deprecated
 	InstanceType  string            `json:"instance_type"`
+	DiskInfo      *DiskInfo         `json:"disk_info"`
 }
 
 type Script struct {
@@ -120,6 +126,8 @@ type Module struct {
 	Num           uint32 `json:"num" mapstructure:"num"`
 	StorageSizeGB uint64 `json:"storage_size_gb" mapstructure:"storage_size_gb"`
 	InstanceType  string `json:"instance_type" mapstructure:"instance_type"`
+	VmVolSizeGB   int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
+	VmVolNum      int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 }
 
 type Cluster struct {
@@ -178,7 +186,8 @@ type IncrStorageSizeReq struct {
 	RequestId     string            `json:"request_id" mapstructure:"request_id"`
 	ClusterId     string            `json:"cluster_id" mapstructure:"cluster_id"`
 	ModuleType    ClusterModuleType `json:"module_type" mapstructure:"module_type"`
-	StorageSizeGB int64             `json:"storage_size_gb" mapstructure:"storage_size_gb"`
+	StorageSizeGB int64             `json:"storage_size_gb" mapstructure:"storage_size_gb"` // deprecated
+	DiskInfo      *DiskInfo         `json:"disk_info" mapstructure:"disk_info"`
 }
 
 type IncrStorageSizeResp struct {

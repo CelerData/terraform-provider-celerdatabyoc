@@ -73,10 +73,11 @@ func resourceClassicCluster() *schema.Resource {
 				Default:      3,
 				ValidateFunc: validation.IntAtLeast(1),
 			},
-			"be_storage_size_gb": {
-				Type:     schema.TypeInt,
-				Optional: true,
-				Default:  500,
+			"be_disk_per_size": {
+				Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     100,
 				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 					v, ok := i.(int)
 					if !ok {
@@ -84,14 +85,46 @@ func resourceClassicCluster() *schema.Resource {
 						return warnings, errors
 					}
 
-					if (v % 100) == 0 {
-						return warnings, errors
-
+					m := 16 * 1000
+					if v <= 0 {
+						errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
+					} else if v > m {
+						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
 					}
 
-					errors = append(errors, fmt.Errorf("expected %s to be a multiple of 100", k))
 					return warnings, errors
 				},
+			},
+			"be_storage_size_gb": {
+				Description: "Total disk size in GB",
+				Type:        schema.TypeInt,
+				Computed:    true,
+			},
+			"be_disk_number": {
+				Description: "Specifies the number of disk. The default value is 2.",
+				Type:        schema.TypeInt,
+				Optional:    true,
+				Default:     2,
+				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+					v, ok := i.(int)
+					if !ok {
+						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+						return warnings, errors
+					}
+
+					if v <= 0 {
+						errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
+					} else if v > 24 {
+						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+					}
+
+					return warnings, errors
+				},
+			},
+			"be_storage_split_number": {
+				Description:  "Number of Disk Splits",
+				Default:      2,
+				ValidateFunc: validation.IntAtLeast(1),
 			},
 			"resource_tags": {
 				Type:     schema.TypeMap,
@@ -236,11 +269,15 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	})
 
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
-		Type:          cluster.ClusterModuleTypeBE,
-		Name:          "BE",
-		Num:           uint32(d.Get("be_node_count").(int)),
-		InstanceType:  d.Get("be_instance_type").(string),
-		StorageSizeGB: uint64(d.Get("be_storage_size_gb").(int)),
+		Type:         cluster.ClusterModuleTypeBE,
+		Name:         "BE",
+		Num:          uint32(d.Get("be_node_count").(int)),
+		InstanceType: d.Get("be_instance_type").(string),
+		// StorageSizeGB: uint64(d.Get("be_storage_size_gb").(int)),
+		DiskInfo: &cluster.DiskInfo{
+			Number:  uint32(d.Get("be_disk_number").(int)),
+			PerSize: uint64(d.Get("be_disk_per_size").(int)),
+		},
 	})
 
 	resp, err := clusterAPI.Deploy(ctx, &cluster.DeployReq{
@@ -356,6 +393,8 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("be_instance_type", resp.Cluster.BeModule.InstanceType)
 	d.Set("be_node_count", int(resp.Cluster.BeModule.Num))
 	d.Set("be_storage_size_gb", int(resp.Cluster.BeModule.StorageSizeGB))
+	d.Set("be_disk_number", int(resp.Cluster.BeModule.VmVolNum))
+	d.Set("be_disk_per_size", int(resp.Cluster.BeModule.VmVolSizeGB))
 	d.Set("fe_instance_type", resp.Cluster.FeModule.InstanceType)
 	d.Set("fe_node_count", int(resp.Cluster.FeModule.Num))
 	d.Set("free_tier", resp.Cluster.FreeTier)
@@ -433,7 +472,8 @@ func needUnlock(d *schema.ResourceData) bool {
 			d.HasChange("fe_node_count") ||
 			d.HasChange("be_instance_type") ||
 			d.HasChange("be_node_count") ||
-			d.HasChange("be_storage_size_gb"))
+			d.HasChange("be_disk_number") ||
+			d.HasChange("be_disk_per_size"))
 }
 
 func needResume(d *schema.ResourceData) bool {
@@ -632,17 +672,23 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
-	if d.HasChange("be_storage_size_gb") && !d.IsNewResource() {
-		o, n := d.GetChange("be_storage_size_gb")
-		if o.(int) > n.(int) {
-			return diag.FromErr(fmt.Errorf("be_storage_size_gb: %dGB => %dGB, be storage size does not support decrease", o.(int), n.(int)))
+	if (d.HasChange("be_disk_number") || d.HasChange("be_disk_per_size")) && !d.IsNewResource() {
+		o1, n1 := d.GetChange("be_disk_number")
+		o2, n2 := d.GetChange("be_disk_per_size")
+
+		if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
+			return diag.FromErr(fmt.Errorf("be_storage_size_gb: %dGB => %dGB, be storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
 		}
 
 		resp, err := clusterAPI.IncrStorageSize(ctx, &cluster.IncrStorageSizeReq{
-			RequestId:     uuid.NewString(),
-			ClusterId:     clusterID,
-			ModuleType:    cluster.ClusterModuleTypeBE,
-			StorageSizeGB: int64(n.(int)),
+			RequestId:  uuid.NewString(),
+			ClusterId:  clusterID,
+			ModuleType: cluster.ClusterModuleTypeBE,
+			// StorageSizeGB: int64(n.(int)),
+			DiskInfo: &cluster.DiskInfo{
+				Number:  uint32(n1.(int)),
+				PerSize: uint64(n2.(int)),
+			},
 		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to increase be storage size: %s", d.Id(), err))
