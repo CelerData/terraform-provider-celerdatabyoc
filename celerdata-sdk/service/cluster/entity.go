@@ -260,3 +260,40 @@ type DropDatabaseUserResp struct {
 	Code   int32  `json:"code" mapstructure:"code"`
 	ErrMsg string `json:"err_msg" mapstructure:"err_msg"`
 }
+
+type CommonResp struct {
+	Code    int32  `json:"code" mapstructure:"code"`
+	Message string `json:"message" mapstructure:"message"`
+}
+
+type UpsertClusterSSLCertReq struct {
+	ClusterId string `json:"clusterId" mapstructure:"clusterId"`
+	Domain    string `json:"domain" mapstructure:"domain"`
+	CrtBucket string `json:"crtBucket" mapstructure:"crtBucket"`
+	CrtPath   string `json:"crtPath" mapstructure:"crtPath"`
+	KeyBucket string `json:"keyBucket" mapstructure:"keyBucket"`
+	KeyPath   string `json:"keyPath" mapstructure:"keyPath"`
+}
+
+type GetClusterDomainSSLCertReq struct {
+	ClusterId string `json:"clusterId" mapstructure:"clusterId"`
+	Domain    string `json:"domain" mapstructure:"domain"`
+}
+
+type GetClusterDomainSSLCertResp struct {
+	Exist      bool        `json:"exist" mapstructure:"exist"`
+	DomainCert *DomainCert `json:"domainCert" mapstructure:"domainCert"`
+}
+
+type DomainCert struct {
+	CertID     string `json:"certId" mapstructure:"certId"`
+	ClusterID  string `json:"clusterId" mapstructure:"clusterId"`
+	Domain     string `json:"domain" mapstructure:"domain"`
+	CrtBucket  string `json:"crtBucket" mapstructure:"crtBucket"`
+	CrtPath    string `json:"crtPath" mapstructure:"crtPath"`
+	KeyBucket  string `json:"keyBucket" mapstructure:"keyBucket"`
+	KeyPath    string `json:"keyPath" mapstructure:"keyPath"`
+	DomainType string `json:"domainType" mapstructure:"domainType"`
+	CertState  string `json:"certState" mapstructure:"certState"`
+	InUse      bool   `json:"inUse" mapstructure:"inUse"`
+}

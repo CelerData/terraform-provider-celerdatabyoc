@@ -77,6 +77,7 @@ func Provider() *schema.Provider {
 			"celerdatabyoc_aws_deployment_credential_policy":        resourceAwsDeploymentCredentialPolicy(),
 			"celerdatabyoc_cluster_endpoints":                       resourceClusterEndpoints(),
 			"celerdatabyoc_cluster_user":                            resourceClusterUser(),
+			"celerdatabyoc_cluster_domain_ssl_cert":                 resourceClusterSSLCert(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"celerdatabyoc_aws_data_credential_assume_policy": dataAwsDataCredentialAssumeRolePolicy(),
