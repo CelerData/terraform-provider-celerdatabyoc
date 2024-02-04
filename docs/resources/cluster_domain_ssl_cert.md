@@ -14,14 +14,13 @@ fe with your SSL certificate.
 ## Example Usage
 
 ```terraform
-
-resource "celerdatabyoc_cluster_domain_ssl_cert" "my_domain_ssl_cert" {
+resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
   cluster_id                = celerdatabyoc_classic_cluster.classic.id
-  domain                    = "sslcerttest04.cloud-app.xlf.test",
-  s3_bucket_name_of_ssl_crt = "saas-us-west-2",
-  s3_sub_path_of_ssl_crt    = "caxgqwn0a_certs/7f56loave.cloud-app.xlf.test.crt",
-  bucket_name_of_key        = "saas-us-west-2",
-  bucket_sub_path_of_key    = "caxgqwn0a_certs/7f56loave.cloud-app.xlf.test.key"
+  domain="your domain name"
+  s3_bucket_name_of_ssl_crt="s3 bucket name"
+  s3_s3_sub_path_of_ssl_crt="s3 bucket sub path"
+  s3_bucket_name_of_key="s3 bucket name"
+  s3_bucket_sub_path_of_key="s3 bucket sub path"
 }
 ```
 
@@ -33,9 +32,9 @@ resource "celerdatabyoc_cluster_domain_ssl_cert" "my_domain_ssl_cert" {
   `celerdatabyoc_elastic_cluster` resource.
 * `domain` (String) The domain name.
 * `s3_bucket_name_of_ssl_crt` (String) The ssl cert content.
-* `s3_sub_path_of_ssl_crt` (String) The ssl key content.
-* `bucket_name_of_key` (String) The ssl ca content.
-* `bucket_sub_path_of_key` (String) The ssl ca path.
+* `s3_s3_sub_path_of_ssl_crt` (String) The ssl key content.
+* `s3_bucket_name_of_key` (String) The ssl ca content.
+* `s3_bucket_sub_path_of_key` (String) The ssl ca path.
 
 ### Read-Only
 

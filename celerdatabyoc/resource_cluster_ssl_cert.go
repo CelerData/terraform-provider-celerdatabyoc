@@ -16,6 +16,7 @@ func resourceClusterSSLCert() *schema.Resource {
 		CreateContext: resourceClusterSSLCertCreate,
 		UpdateContext: resourceClusterSSLCertUpdate,
 		ReadContext:   resourceClusterSSLCertRead,
+		DeleteContext: resourceClusterSSLCertDelete,
 		Schema: map[string]*schema.Schema{
 			"cluster_id": {
 				Type:     schema.TypeString,
@@ -50,6 +51,10 @@ func resourceClusterSSLCert() *schema.Resource {
 	}
 }
 
+func resourceClusterSSLCertDelete(ctx context.Context, data *schema.ResourceData, i interface{}) diag.Diagnostics {
+	return resourceClusterSSLCertRead(ctx, data, i)
+}
+
 func resourceClusterSSLCertCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 	clusterAPI := cluster.NewClustersAPI(c)
@@ -67,7 +72,7 @@ func resourceClusterSSLCertCreate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(fmt.Errorf("cluster %s not found", clusterId))
 	}
 
-	if resp.Cluster.ClusterState == cluster.ClusterStateRunning {
+	if resp.Cluster.ClusterState != cluster.ClusterStateRunning {
 		return diag.FromErr(fmt.Errorf("cluster %s is not running, state: %s", clusterId, resp.Cluster.ClusterState))
 	}
 
