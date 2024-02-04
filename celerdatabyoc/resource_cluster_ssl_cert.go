@@ -25,16 +25,17 @@ func resourceClusterSSLCert() *schema.Resource {
 			}, "domain": {
 				Type:     schema.TypeString,
 				Required: true,
-			}, "s3_bucket_name_of_ssl_crt": {
+			}, "s3_bucket": {
 				Type:     schema.TypeString,
 				Required: true,
-			}, "s3_sub_path_of_ssl_crt": {
+			}, "s3_bucket_key_of_ssl_crt": {
 				Type:     schema.TypeString,
 				Required: true,
-			}, "s3_bucket_name_of_key": {
+			}, "s3_bucket_of_ssl_crt_key": {
 				Type:     schema.TypeString,
-				Required: true,
-			}, "s3_bucket_sub_path_of_key": {
+				Optional: true,
+				Default:  "",
+			}, "s3_bucket_key_of_ssl_crt_key": {
 				Type:     schema.TypeString,
 				Required: true,
 			}, "cert_id": {
@@ -76,14 +77,20 @@ func resourceClusterSSLCertCreate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(fmt.Errorf("cluster %s is not running, state: %s", clusterId, resp.Cluster.ClusterState))
 	}
 
-	err = clusterAPI.UpsertClusterSSLCert(ctx, &cluster.UpsertClusterSSLCertReq{
+	upsertCertReq := &cluster.UpsertClusterSSLCertReq{
 		ClusterId: clusterId,
 		Domain:    d.Get("domain").(string),
-		CrtBucket: d.Get("s3_bucket_name_of_ssl_crt").(string),
-		CrtPath:   d.Get("s3_sub_path_of_ssl_crt").(string),
-		KeyBucket: d.Get("s3_bucket_name_of_key").(string),
-		KeyPath:   d.Get("s3_bucket_sub_path_of_key").(string),
-	})
+		CrtBucket: d.Get("s3_bucket").(string),
+		CrtPath:   d.Get("s3_bucket_key_of_ssl_crt").(string),
+		KeyBucket: d.Get("s3_bucket").(string),
+		KeyPath:   d.Get("s3_bucket_key_of_ssl_crt_key").(string),
+	}
+
+	if len(d.Get("s3_bucket_of_ssl_crt_key").(string)) > 0 {
+		upsertCertReq.KeyBucket = d.Get("s3_bucket_of_ssl_crt_key").(string)
+	}
+
+	err = clusterAPI.UpsertClusterSSLCert(ctx, upsertCertReq)
 
 	if err != nil {
 		log.Printf("[ERROR] allocate cluster endpoints failed, error:%s", err.Error())
@@ -119,10 +126,10 @@ func resourceClusterSSLCertRead(ctx context.Context, d *schema.ResourceData, m i
 		d.Set("cert_id", domainCert.CertID)
 		d.Set("cert_state", domainCert.CertState)
 		d.Set("domain", domainCert.Domain)
-		d.Set("s3_bucket_name_of_key", domainCert.KeyBucket)
-		d.Set("s3_bucket_sub_path_of_key", domainCert.KeyPath)
-		d.Set("s3_bucket_name_of_ssl_crt", domainCert.CrtBucket)
-		d.Set("s3_sub_path_of_ssl_crt", domainCert.CrtPath)
+		d.Set("s3_bucket", domainCert.CrtBucket)
+		d.Set("s3_bucket_key_of_ssl_crt", domainCert.CrtPath)
+		d.Set("s3_bucket_key_of_ssl_crt_key", domainCert.KeyPath)
+		d.Set("s3_bucket_of_ssl_crt_key", domainCert.CrtBucket)
 		d.SetId(clusterId)
 	}
 
