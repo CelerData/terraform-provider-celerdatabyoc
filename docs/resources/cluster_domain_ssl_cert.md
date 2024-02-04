@@ -18,7 +18,7 @@ resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
   cluster_id                = celerdatabyoc_classic_cluster.classic.id
   domain="your domain name"
   s3_bucket_name_of_ssl_crt="s3 bucket name"
-  s3_s3_sub_path_of_ssl_crt="s3 bucket sub path"
+  s3_sub_path_of_ssl_crt="s3 bucket sub path"
   s3_bucket_name_of_key="s3 bucket name"
   s3_bucket_sub_path_of_key="s3 bucket sub path"
 }
@@ -32,7 +32,7 @@ resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
   `celerdatabyoc_elastic_cluster` resource.
 * `domain` (String) The domain name.
 * `s3_bucket_name_of_ssl_crt` (String) The ssl cert content.
-* `s3_s3_sub_path_of_ssl_crt` (String) The ssl key content.
+* `s3_sub_path_of_ssl_crt` (String) The ssl key content.
 * `s3_bucket_name_of_key` (String) The ssl ca content.
 * `s3_bucket_sub_path_of_key` (String) The ssl ca path.
 

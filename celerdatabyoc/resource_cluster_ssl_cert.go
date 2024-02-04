@@ -28,7 +28,7 @@ func resourceClusterSSLCert() *schema.Resource {
 			}, "s3_bucket_name_of_ssl_crt": {
 				Type:     schema.TypeString,
 				Required: true,
-			}, "s3_s3_sub_path_of_ssl_crt": {
+			}, "s3_sub_path_of_ssl_crt": {
 				Type:     schema.TypeString,
 				Required: true,
 			}, "s3_bucket_name_of_key": {
@@ -80,7 +80,7 @@ func resourceClusterSSLCertCreate(ctx context.Context, d *schema.ResourceData, m
 		ClusterId: clusterId,
 		Domain:    d.Get("domain").(string),
 		CrtBucket: d.Get("s3_bucket_name_of_ssl_crt").(string),
-		CrtPath:   d.Get("s3_s3_sub_path_of_ssl_crt").(string),
+		CrtPath:   d.Get("s3_sub_path_of_ssl_crt").(string),
 		KeyBucket: d.Get("s3_bucket_name_of_key").(string),
 		KeyPath:   d.Get("s3_bucket_sub_path_of_key").(string),
 	})
@@ -122,7 +122,7 @@ func resourceClusterSSLCertRead(ctx context.Context, d *schema.ResourceData, m i
 		d.Set("s3_bucket_name_of_key", domainCert.KeyBucket)
 		d.Set("s3_bucket_sub_path_of_key", domainCert.KeyPath)
 		d.Set("s3_bucket_name_of_ssl_crt", domainCert.CrtBucket)
-		d.Set("s3_s3_sub_path_of_ssl_crt", domainCert.CrtPath)
+		d.Set("s3_sub_path_of_ssl_crt", domainCert.CrtPath)
 		d.SetId(clusterId)
 	}
 
