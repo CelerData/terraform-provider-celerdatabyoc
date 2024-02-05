@@ -15,11 +15,11 @@ fe with your SSL certificate.
 
 ```terraform
 resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
-  cluster_id                   = celerdatabyoc_classic_cluster.classic.id
-  domain                       = "your domain name"
-  s3_bucket                    = "s3 bucket name"
-  s3_bucket_key_of_ssl_crt     = "s3 bucket key of ssl certificate"
-  s3_bucket_key_of_ssl_crt_key = "s3 bucket key of ssl certificate key"
+  cluster_id            = celerdatabyoc_classic_cluster.classic.id
+  domain                = "your domain name"
+  s3_bucket             = "your s3 bucket name"
+  s3_key_of_ssl_crt     = "s3 key of your ssl certificate"
+  s3_key_of_ssl_crt_key = "s3 key of your ssl certificate key"
 }
 ```
 
@@ -31,13 +31,8 @@ resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
   `celerdatabyoc_elastic_cluster` resource.
 * `domain` (String) The domain name.
 * `s3_bucket` (String) The s3 bucket key of ssl certificate.
-* `s3_bucket_key_of_ssl_crt` (String) The s3 bucket key of ssl certificate.
-* `s3_bucket_key_of_ssl_crt_key` (String) The s3 bucket key of ssl certificate key.
-
-### Optional
-
-- `s3_bucket_of_ssl_crt_key` (String) If your ssl certificate and ssl certificate key are not in the same s3 bucket, you
-  can specify the location with this parameter.
+* `s3_key_of_ssl_crt` (String) The s3 bucket key of ssl certificate.
+* `s3_key_of_ssl_crt_key` (String) The s3 bucket key of ssl certificate key.
 
 ### Read-Only
 

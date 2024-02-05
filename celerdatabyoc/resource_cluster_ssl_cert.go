@@ -28,14 +28,10 @@ func resourceClusterSSLCert() *schema.Resource {
 			}, "s3_bucket": {
 				Type:     schema.TypeString,
 				Required: true,
-			}, "s3_bucket_key_of_ssl_crt": {
+			}, "s3_key_of_ssl_crt": {
 				Type:     schema.TypeString,
 				Required: true,
-			}, "s3_bucket_of_ssl_crt_key": {
-				Type:     schema.TypeString,
-				Optional: true,
-				Default:  "",
-			}, "s3_bucket_key_of_ssl_crt_key": {
+			}, "s3_key_of_ssl_crt_key": {
 				Type:     schema.TypeString,
 				Required: true,
 			}, "cert_id": {
@@ -81,13 +77,9 @@ func resourceClusterSSLCertCreate(ctx context.Context, d *schema.ResourceData, m
 		ClusterId: clusterId,
 		Domain:    d.Get("domain").(string),
 		CrtBucket: d.Get("s3_bucket").(string),
-		CrtPath:   d.Get("s3_bucket_key_of_ssl_crt").(string),
+		CrtPath:   d.Get("s3_key_of_ssl_crt").(string),
 		KeyBucket: d.Get("s3_bucket").(string),
-		KeyPath:   d.Get("s3_bucket_key_of_ssl_crt_key").(string),
-	}
-
-	if len(d.Get("s3_bucket_of_ssl_crt_key").(string)) > 0 {
-		upsertCertReq.KeyBucket = d.Get("s3_bucket_of_ssl_crt_key").(string)
+		KeyPath:   d.Get("s3_key_of_ssl_crt_key").(string),
 	}
 
 	err = clusterAPI.UpsertClusterSSLCert(ctx, upsertCertReq)
@@ -127,9 +119,8 @@ func resourceClusterSSLCertRead(ctx context.Context, d *schema.ResourceData, m i
 		d.Set("cert_state", domainCert.CertState)
 		d.Set("domain", domainCert.Domain)
 		d.Set("s3_bucket", domainCert.CrtBucket)
-		d.Set("s3_bucket_key_of_ssl_crt", domainCert.CrtPath)
-		d.Set("s3_bucket_key_of_ssl_crt_key", domainCert.KeyPath)
-		d.Set("s3_bucket_of_ssl_crt_key", domainCert.CrtBucket)
+		d.Set("s3_key_of_ssl_crt", domainCert.CrtPath)
+		d.Set("s3_key_of_ssl_crt_key", domainCert.KeyPath)
 		d.SetId(clusterId)
 	}
 
