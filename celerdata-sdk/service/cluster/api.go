@@ -26,6 +26,9 @@ type IClusterAPI interface {
 	CreateDatabaseUser(ctx context.Context, req *CreateDatabaseUserReq) (*CreateDatabaseUserResp, error)
 	ResetDatabaseUserPassword(ctx context.Context, req *ResetDatabaseUserPasswordReq) (*ResetDatabaseUserPasswordResp, error)
 	DropDatabaseUser(ctx context.Context, req *DropDatabaseUserReq) (*DropDatabaseUserResp, error)
+
+	UpsertClusterSSLCert(ctx context.Context, req *UpsertClusterSSLCertReq) error
+	GetClusterDomainSSLCert(ctx context.Context, req *GetClusterDomainSSLCertReq) (*GetClusterDomainSSLCertResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -198,6 +201,24 @@ func (c *clusterAPI) DropDatabaseUser(ctx context.Context, req *DropDatabaseUser
 	paramMap["user_name"] = req.UserInfo.UserName
 
 	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/database/users", c.apiVersion), paramMap, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) UpsertClusterSSLCert(ctx context.Context, req *UpsertClusterSSLCertReq) error {
+	resp := &CommonResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cert", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *clusterAPI) GetClusterDomainSSLCert(ctx context.Context, req *GetClusterDomainSSLCertReq) (*GetClusterDomainSSLCertResp, error) {
+	resp := &GetClusterDomainSSLCertResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cert/detail", c.apiVersion, req.ClusterId), req, resp)
 	if err != nil {
 		return nil, err
 	}
