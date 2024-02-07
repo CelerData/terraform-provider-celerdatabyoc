@@ -8,14 +8,22 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify the user experience.
 
-Customize your own domain SSL certificate, then you can use mysql client or other tools to establish connection between
-fe with your SSL certificate.
+Customize your own domain SSL certificate for the specific CelerData cluster, then you can use mysql client or other tools to establish JDBC connection between
+cluster's fe node (or coordinator node) with your customer domain. It can be divided into four steps in total: 
+
+- Step1: You need to place the SSL certificate and SSL certificate key in the cluster's data credential related cloud storage (such as AWS S3 bucket).  
+
+- Step2: Call the terraform API when cluster is in the running status to ensure the SSL certificate can be feteched successfully into the cluster's nodes.
+
+- Step3: Reboot the cluster (suspend and then resume cluster) to ensure the newest SSL certificate work in the cluster.
+
+- Step4: Find the cluster's domain from JDBC connection endpoint in cluster's overview page. Then you need to CNAME your customer domain as the cluster's domain.
 
 ## Example Usage
 
 ```terraform
 resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
-  cluster_id            = celerdatabyoc_classic_cluster.classic.id
+  cluster_id            = "your cluster resource id"
   domain                = "your domain name"
   s3_bucket             = "your s3 bucket name"
   s3_key_of_ssl_crt     = "s3 key of your ssl certificate"
@@ -28,11 +36,11 @@ resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
 ### Required
 
 * `cluster_id` (String, ForceNew) The resource id of the `celerdatabyoc_classtic_cluster` resource or
-  `celerdatabyoc_elastic_cluster` resource.
-* `domain` (String) The domain name.
-* `s3_bucket` (String) The s3 bucket key of ssl certificate.
-* `s3_key_of_ssl_crt` (String) The s3 bucket key of ssl certificate.
-* `s3_key_of_ssl_crt_key` (String) The s3 bucket key of ssl certificate key.
+  `celerdatabyoc_elastic_cluster` resource. You can also directly find this ID in cluster's overview page. 
+* `domain` (String) The domain name you want to customize.
+* `s3_bucket` (String) The s3 bucket key where the ssl certificate is stored. We recommended that you place the SSL certificate into cluster data credential's S3 bucket.
+* `s3_key_of_ssl_crt` (String) The s3 key of ssl certificate.
+* `s3_key_of_ssl_crt_key` (String) The s3 key of ssl certificate key.
 
 ### Read-Only
 
