@@ -8,16 +8,15 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify the user experience.
 
-Customize your own domain SSL certificate for the specific CelerData cluster, then you can use mysql client or other tools to establish JDBC connection between
-cluster's fe node (or coordinator node) with your customer domain. It can be divided into four steps in total: 
+Customize your own domain SSL certificate for the specific CelerData cluster, then you can use a MySQL client or other tool to establish JDBC connections between the cluster's FE nodes (or coordinator nodes) and your customer domain or use HTTPS to communicate with the cluster. It can be divided into four steps in total:
 
-- Step1: You need to place the SSL certificate and SSL certificate key in the cluster's data credential related cloud storage (such as AWS S3 bucket).  
+- Step 1: You need to place the SSL certificate and SSL certificate key in the cluster's data credential related cloud storage (such as AWS S3 bucket).  
 
-- Step2: Call the terraform API when cluster is in the running status to ensure the SSL certificate can be feteched successfully into the cluster's nodes.
+- Step 2: Call the terraform API when cluster is in the running status to ensure the SSL certificate can be feteched successfully into the cluster's nodes.
 
-- Step3: Reboot the cluster (suspend and then resume cluster) to ensure the newest SSL certificate work in the cluster.
+- Step 3: Find the cluster's domain from JDBC connection endpoint in cluster's overview page. Then you need to CNAME your customer domain as the cluster's domain.
 
-- Step4: Find the cluster's domain from JDBC connection endpoint in cluster's overview page. Then you need to CNAME your customer domain as the cluster's domain.
+- (Optional) Step 4: If you want to set `ssl-mode` to `VERIFY_CA` or `VERIFY_IDENTITY` when establishing JDBC connections with the cluster, reboot the cluster (namely, suspend and then resume the cluster) to ensure the newest SSL certificate work in the cluster.
 
 ## Example Usage
 
