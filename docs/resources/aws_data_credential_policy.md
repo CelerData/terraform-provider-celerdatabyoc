@@ -45,7 +45,7 @@ resource "celerdatabyoc_aws_data_credential" "data_credential" {
 
 ## Argument Reference
 
-> NOTE: This section explains only the arguments of the `celerdatabyoc_aws_data_credential_policy` resource. For the explanation of arguments of other resources, see the corresponding resource topics. 
+~> This section explains only the arguments of the `celerdatabyoc_aws_data_credential_policy` resource. For the explanation of arguments of other resources, see the corresponding resource topics.
 
 This resource contains only the following required argument:
 

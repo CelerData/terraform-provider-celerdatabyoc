@@ -63,7 +63,7 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 
 ## Argument Reference
 
-This resource does not involve arguments. For the explanation of arguments of other resources, see the corresponding resource topics. 
+This resource does not involve arguments. For the explanation of arguments of other resources, see the corresponding resource topics.
 
 ## Attribute Reference
 

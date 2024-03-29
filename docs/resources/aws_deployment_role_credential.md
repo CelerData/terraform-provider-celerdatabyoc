@@ -66,7 +66,7 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 
 ## Argument Reference
 
-> NOTE: This section explains only the arguments of the `celerdatabyoc_aws_deployment_role_credential` resource. For the explanation of arguments of other resources, see the corresponding resource topics.
+~> This section explains only the arguments of the `celerdatabyoc_aws_deployment_role_credential` resource. For the explanation of arguments of other resources, see the corresponding resource topics.
 
 This resource contains the following required arguments and optional arguments:
 
