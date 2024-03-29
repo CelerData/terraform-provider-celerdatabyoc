@@ -8,47 +8,77 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify the user experience.
 
-The CelerData cluster generates a profile for each SQL Query. These profiles are stored in your AWS S3 bucket. To enable CelerData Cloud to read/write to your S3, you need to create a data credential or select an existing data credential.
-More you can see: How to create AWS data credential
+Creates an AWS data credential.
 
-### Example Usage
+The CelerData cluster generates a profile for each SQL Query. These profiles are stored in your AWS S3 bucket. To enable CelerData Cloud to read/write to your S3, you need to create a data credential or select an existing data credential.
+
+This resource depends on the following resources and the [celerdatabyoc_aws_data_credential_assume_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/data-sources/aws_data_credential_assume_policy) data source:
+
+- [celerdatabyoc_aws_data_credential_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_data_credential_policyresource,)
+- [aws_iam_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
+- [aws_iam_instance_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile)
+
+You must have configured these resources before you can implement this resource.
+
+## Example Usage
+
 ```terraform
-resource "celerdatabyoc_aws_data_credential_policy" "new" {
-   bucket = "[your S3 bucket]"
+resource "celerdatabyoc_aws_data_credential_policy" "data_credential" {
+   bucket = local.s3_bucket
 }
 
 data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
 
 resource "aws_iam_role" "celerdata_data_cred_role" {
-  name               = "celerdata_data_cred_role"
+  name               = "<celerdata_data_credential_role_name>"
   assume_role_policy = data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json
-  description        = "Celerdata Data Credential"
+  description        = "<celerdata_data_credential_role_description>"
   inline_policy {
-    name   = "celerdata_data_cred_role_policy"
-    policy = celerdatabyoc_aws_data_credential_policy.new.json
+    name   = "<celerdata_data_credential_role_policy_name>"
+    policy = celerdatabyoc_aws_data_credential_policy.role_policy.json
   }
 }
 
 resource "aws_iam_instance_profile" "celerdata_data_cred_profile" {
-  name = "celerdata_data_cred_profile"
+  name = "<celerdata_data_credential_profile_name>"
   role = aws_iam_role.celerdata_data_cred_role.name
 }
 
-resource "celerdatabyoc_aws_data_credential" "new" {
-  name = "celerdata_data_credential"
+resource "celerdatabyoc_aws_data_credential" "data_credential" {
+  name = "<celerdata_data_credential_name>"
   role_arn = aws_iam_role.celerdata_data_cred_role.arn 
   instance_profile_arn = aws_iam_instance_profile.celerdata_data_cred_profile.arn
-  bucket_name = "[your S3 bucket name]"
-  policy_version = celerdatabyoc_aws_data_credential_policy.new.version
+  bucket_name = local.s3_bucket
+  policy_version = celerdatabyoc_aws_data_credential_policy.role_policy.version
 }
 ```
 
-### Argument Reference
-* `name` - (ForceNew) The name of data credential
-* `role_arn` - (ForceNew) ARN of Celerdata Data Credential role
-* `instance_profile_arn` - (ForceNew) ARN of Celerdata Data Credential profile
-* `policy_version` - (ForceNew) Should type as `celerdatabyoc_aws_data_credential_policy.new.version`
-* `bucket_name` - (ForceNew) The name of  AWS S3 bucket for which to generate the policy document and stores the profile
+## Argument Reference
 
-### Attribute Reference
-* `id ` -  celerdatabyoc_aws_data_credential id
+~> This section explains only the arguments of the `celerdatabyoc_aws_data_credential` resource. For the explanation of arguments of other resources, see the corresponding resource topics. 
+
+This resource contains the following required arguments and optional arguments:
+
+**Required:**
+
+- `role_arn`: (Forces new resource) The ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
+- `instance_profile_arn`: (Forces new resource) The instance profile ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_instance_profile.celerdata_data_cred_profile.arn`.
+- `bucket_name`: (Forces new resource) The name of the AWS S3 bucket for which to generate the policy document and that stores query profiles. Set the value to `local.s3_bucket`.
+- `policy_version`: (Forces new resource) Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
+
+**Optional:**
+
+- `name`: (Forces new resource) The name of the data credential.
+
+## Attribute Reference
+
+This resource exports the following attribute:
+
+- `id`: The ID of the data credential.
+
+## See Also
+
+- [Create an AWS data credential](https://docs-sandbox.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials#create-a-data-credential)
+- [celerdatabyoc_aws_data_credential_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_data_credential_policyresource,)
+- [aws_iam_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
+- [aws_iam_instance_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile)

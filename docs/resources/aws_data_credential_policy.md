@@ -6,23 +6,26 @@ description: |-
   
 ---
 
-This is a pre-requisite step for the implementation of celerdatabyoc_aws_data_credential.
+Creates an AWS data credential policy.
 
-### Example Usage
+This resource is a pre-requisite step for the implementation of the [celerdatabyoc_aws_data_credential](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_data_credential) resource.
+
+## Example Usage
+
 ```terraform
-resource "celerdatabyoc_aws_data_credential_policy" "new" {
-   bucket = "[your S3 bucket]"
+resource "celerdatabyoc_aws_data_credential_policy" "role_policy" {
+   bucket = local.s3_bucket
 }
 
 data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
 
 resource "aws_iam_role" "celerdata_data_cred_role" {
-  name               = "celerdata_data_cred_role"
+  name               = "<celerdata_data_credential_role_name>"
   assume_role_policy = data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json
-  description        = "Celerdata Data Credential"
+  description        = "<celerdata_data_credential_role_description>"
   inline_policy {
-    name   = "celerdata_data_cred_role_policy"
-    policy = celerdatabyoc_aws_data_credential_policy.new.json
+    name   = "<celerdata_data_credential_role_policy_name>"
+    policy = celerdatabyoc_aws_data_credential_policy.role_policy.json
   }
 }
 
@@ -31,18 +34,30 @@ resource "aws_iam_instance_profile" "celerdata_data_cred_profile" {
   role = aws_iam_role.celerdata_data_cred_role.name
 }
 
-resource "celerdatabyoc_aws_data_credential" "new" {
-  name = "celerdata_data_credential"
+resource "celerdatabyoc_aws_data_credential" "data_credential" {
+  name = "<celerdata_data_credential_name>"
   role_arn = aws_iam_role.celerdata_data_cred_role.arn 
   instance_profile_arn = aws_iam_instance_profile.celerdata_data_cred_profile.arn
-  bucket_name = "[your S3 bucket name]"
-  policy_version = celerdatabyoc_aws_data_credential_policy.new.version
+  bucket_name = local.s3_bucket
+  policy_version = celerdatabyoc_aws_data_credential_policy.role_policy.version
 }
 ```
 
-### Argument Reference
-* `bucket` - (ForceNew) the name of  AWS S3 bucket for which to generate the policy document and stores the profile
+## Argument Reference
 
-### Attribute Reference
-* `json ` - AWS IAM Policy JSON document
-* `version` - Provides support for policy version comparisons, the result of which only affect newly created clusters and have no effect on existing clusters
+~> This section explains only the arguments of the `celerdatabyoc_aws_data_credential_policy` resource. For the explanation of arguments of other resources, see the corresponding resource topics.
+
+This resource contains only the following required argument:
+
+- `bucket`: (Forces new resource) The name of the AWS S3 bucket for which to generate the JSON policy document and that stores query profiles. Set the value to `local.s3_bucket`.
+
+## Attribute Reference
+
+This resource exports the following attributes:
+
+- `json`: The JSON policy document used to create an AWS IAM policy.
+- `version`: Provides support for policy version comparisons, the result of which only affects newly created clusters and have no effect on existing clusters.
+
+## See Also
+
+- [celerdatabyoc_aws_data_credential](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_data_credential)
