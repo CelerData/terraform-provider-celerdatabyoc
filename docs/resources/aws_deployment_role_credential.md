@@ -70,13 +70,13 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 
 This resource contains the following required arguments and optional arguments:
 
-Required:
+**Required:**
 
 - `role_arn`: (Forces new resource) Set the value to `aws_iam_role.deploy_cred_role.arn`.
 - `external_id`: (Forces new resource) Set the value to `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id`.
 - `policy_version`: (Forces new resource) Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.version`.
 
-Optional:
+**Optional:**
 
 - `name`: (Forces new resource) The name of the deployment credential.
 
