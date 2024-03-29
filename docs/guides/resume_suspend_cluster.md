@@ -8,7 +8,7 @@ description: |-
 
 # Resume or suspend a cluster
 
-Resumes or suspends a CelerData cluster.
+This topic describes how to resume or suspend a CelerData cluster.
 
 > **NOTE**
 >
