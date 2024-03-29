@@ -6,14 +6,32 @@ description: |-
   
 ---
 
-~> The resource's API may change in subsequent versions to simplify the user experience.
-Because CelerData needs to deploy the cluster in user’s VPC, thus during the deploying process, user need to define which Subnet the cluster is deployed in. And Security Group describle how these cluster nodes integrate with each other. More information about how to setup Subnet and Security Group, see Create a network configuration.
+~> The resource's API may change in subsequent versions to simplify user experience.
+Because CelerData needs to deploy clusters in users' VPC, thus during the deploying process, users need to define the subnet to which they want to deploy a cluster. They also need to define a security group which controls how the cluster nodes integrate with each other. For more information about how to set up the subnet and security group, see [Create a network configuration](https://docs.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations#create-a-network-configuration).
 
-### Example Usage
+Manages network configurations for AWS in CelerData Cloud Private.
+
+A network configuration for AWS in CelerData enables connectivity between cluster nodes within your own VPC and between CelerData's VPC and your own VPC.
+
+This resource depends on the following resources:
+
+- [celerdatabyoc_aws_data_credential_policy](../resources/aws_data_credential_policy.md)
+- [celerdatabyoc_aws_data_credential_assume_policy](../resources/aws_deployment_credential_assume_policy.md)
+- [aws_iam_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
+- [aws_iam_instance_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile)
+- [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
+- celerdatabyoc_aws_deployment_credential_assume_policy
+- [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md)
+- [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
+
+You must have configured these resources before you can implement this resource.
+
+## Example Usage
 
 ```terraform
-resource "celerdatabyoc_aws_data_credential_policy" "new" {
-   bucket = "[your S3 bucket]"
+# Prerequisites for the celerdatabyoc_aws_network resource
+resource "celerdatabyoc_aws_data_credential_policy" "role" {
+   bucket = "<S3_bucket>"
 }
 
 data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
@@ -24,7 +42,7 @@ resource "aws_iam_role" "celerdata_data_cred_role" {
   description        = "Celerdata Data Credential"
   inline_policy {
     name   = "celerdata_data_cred_role_policy"
-    policy = celerdatabyoc_aws_data_credential_policy.new.json
+    policy = celerdatabyoc_aws_data_credential_policy.role.json
   }
 }
 
@@ -34,61 +52,90 @@ resource "aws_iam_instance_profile" "celerdata_data_cred_profile" {
 }
 
 
-resource "celerdatabyoc_aws_deployment_credential_policy" "new" {
+resource "celerdatabyoc_aws_deployment_credential_policy" "role_policy" {
   bucket = local.s3_bucket
   data_role_arn = aws_iam_role.celerdata_data_cred_role.arn 
 }
 
-resource "celerdatabyoc_aws_deployment_credential_assume_policy" "new" {}
+resource "celerdatabyoc_aws_deployment_credential_assume_policy" "role_policy" {}
 
 resource "aws_iam_role" "deploy_cred_role" {
   name               = "deploy_cred_role"
-  assume_role_policy = celerdatabyoc_aws_deployment_credential_assume_policy.new.json
+  assume_role_policy = celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.json
   description        = "Celerdata Deploy Credential"
   inline_policy {
     name   = "deploy_cred_role-policy"
-    policy = celerdatabyoc_aws_deployment_credential_policy.new.json 
+    policy = celerdatabyoc_aws_deployment_credential_policy.role_policy.json 
   }
 }
 
-resource "celerdatabyoc_aws_data_credential" "new" {
+resource "celerdatabyoc_aws_data_credential" "data_credential" {
   name = "data-credential"
   role_arn = aws_iam_role.celerdata_data_cred_role.arn 
   instance_profile_arn = aws_iam_instance_profile.celerdata_data_cred_profile.arn
   bucket_name = local.s3_bucket
-  policy_version = celerdatabyoc_aws_data_credential_policy.new.version
+  policy_version = celerdatabyoc_aws_data_credential_policy.role.version
 }
 
-resource "celerdatabyoc_aws_deployment_role_credential" "new" {
+resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credential" {
   name = "deployment-role-credential"
   role_arn = aws_iam_role.deploy_cred_role.arn
-  external_id = celerdatabyoc_aws_deployment_credential_assume_policy.new.external_id 
-  policy_version = celerdatabyoc_aws_deployment_credential_policy.new.version 
+  external_id = celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id 
+  policy_version = celerdatabyoc_aws_deployment_credential_policy.role_policy.version 
 }
 
-resource "celerdatabyoc_aws_network" "new" {
-  name = "[name your net work]"
-  subnet_id = "[your subnet id]"
-  security_group_id = "[your security group id]"
-  region = "[your AWS VPC region]"
-  deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.new.id
-  vpc_endpoint_id = "[your vpc endpoint id]"
+# The celerdatabyoc_aws_network resource
+resource "celerdatabyoc_aws_network" "network" {
+  name = "<network_name>"
+  subnet_id = "<subnet_id>"
+  security_group_id = "<security_group_id>"
+  region = "<AWS_VPC_region>"
+  deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
+  vpc_endpoint_id = "<vpc_endpoint_id>"
 }
 ```
 
-### Argument Reference
+## Argument Reference
 
-* `name` - (ForceNew) Your network name
-* `subnet_id` - (ForceNew) Type your subnet id
-* `security_group_id` - (ForceNew) Type your security group id
-* `region` - (ForceNew) Region of AWS VPC. The optional regions are as follows：
-  - Asia Pacific (Singapore) ap-southeast-1
-  - US East (N. Virginia) us-east-1
-  - US West (Oregon) us-west-2
-  - Europe (Ireland) eu-west-1
-* `deployment_credential_id` - (ForceNew) Should type as `celerdatabyoc_aws_deployment_role_credential.new.id`
-* `vpc_end_point_id` - (Optional) If you need to achieve more stringent network communication method, you can set the vpc endpoint ID
+~> This section explains only the arguments of the `celerdatabyoc_aws_network` resource. For the explanation of arguments of other resources, see the corresponding resource topics. 
 
-### Attribute Reference
+This resource contains the following required and optional arguments:
 
-* `id`  -  celerdatabyoc_aws_network id
+**Required**
+
+- `name`: (String, Forces new resource) The name of the network configuration.
+
+  ~> The name must be unique within your CelerData cloud account.
+
+- `subnet_id`: (String, Forces new resource) The ID of the subnet in which you use to deploy cluster nodes.
+
+- `security_group_id`: (String, Forces new resource) The ID of the security group that you use to enable connectivity between cluster nodes within your own VPC and between CelerData's VPC and your own VPC over TLS.
+
+- `region`: (String, Forces new resource) The AWS region in which you want to create deployments. The following AWS regions are supported.
+
+  | **Region**               | **Region ID**  |
+  | ------------------------ | -------------- |
+  | Asia Pacific (Singapore) | ap-southeast-1 |
+  | US East (N. Virginia)    | us-east-1      |
+  | US West (Oregon)         | us-west-2      |
+  | Europe (Ireland)         | eu-west-1      |
+  | Europe (Frankfurt)       | eu-central-1   |
+
+- `deployment_credential_id`: (String, Forces new resource) The ID of your deployment credential. Set it to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
+
+**Optional**
+
+- `vpc_endpoint_id`: (String) The ID of the VPC from which you want to connect to your CelerData cluster. You need to specify this argument if you want to connect to your CelerData cluster from your own VPC using [PrivateLink](https://docs.aws.amazon.com/whitepapers/latest/aws-vpc-connectivity-options/aws-privatelink.html).
+  
+  ~> Your VPC must be in the same AWS region where your CelerData cluster is located. Additionally, if you do not specify a VPC endpoint ID, CelerData's VPC communicates with your own VPC over the Internet.
+
+## Attribute Reference
+
+This resource exports the following attribute:
+
+- `id`: (String) The ID of this resource.
+
+## See Also
+
+- [Manage network configurations for AWS](https://docs.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)
+- [Create a VPC endpoint](https://docs.celerdata.com/en-us/main/aws/create_vpc_endpoint)
