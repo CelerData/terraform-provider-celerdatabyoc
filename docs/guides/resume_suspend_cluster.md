@@ -39,7 +39,7 @@ This topic describes how to resume or suspend a CelerData cluster.
 
 ## Example Usage - Suspend Cluster
 
-1. Add the `expected_cluster_state` argument to `Suspended` in the Terraform configuration, as shown below:
+1. Set the `expected_cluster_state` argument to `Suspended` in the Terraform configuration, as shown below:
 
    ```terraform
    resource "celerdatabyoc_classic_cluster" "classic_cluster" {
