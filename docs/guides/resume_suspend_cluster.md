@@ -10,9 +10,7 @@ description: |-
 
 This topic describes how to resume or suspend a CelerData cluster.
 
-> **NOTE**
->
-> The following examples assume that the cluster you want to resume or suspend is a classic cluster, and the ellipses (...) in the following examples refer to the other existing arguments you have specified in the `celerdatabyoc_classic_cluster` resource.
+~> The following examples assume that the cluster you want to resume or suspend is a classic cluster, and the ellipses (...) in the following examples refer to the other existing arguments you have specified in the `celerdatabyoc_classic_cluster` resource.
 
 ## Example Usage - Resume Cluster
 
