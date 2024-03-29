@@ -6,50 +6,55 @@ description: |-
 
 ---
 
-~> The resource's API may change in subsequent versions to simplify the user experience.
+~> The resource's API may change in subsequent versions to simplify user experience.
 
-Customize your own domain SSL certificate for the specific CelerData cluster, then you can use a MySQL client or other tool to establish JDBC connections between the cluster's FE nodes (or coordinator nodes) and your customer domain or use HTTPS to communicate with the cluster. It can be divided into four steps in total:
+Manages the domain name and the SSL certificate for connections to a CelerData cluster.
 
-- Step 1: You need to place the SSL certificate and SSL certificate key in the cluster's data credential related cloud storage (such as AWS S3 bucket).  
+You can customize a domain name for your CelerData cluster and encrypt it with an SSL certificate. It allows you to secure connections encrypted by SSL, which provides endpoint verification and data encryption to ensure that the data transmitted between clients and CelerData clusters cannot be read by unauthorized users.
 
-- Step 2: Call the terraform API when cluster is in the running status to ensure the SSL certificate can be feteched successfully into the cluster's nodes.
+Take note of the following points:
 
-- Step 3: Find the cluster's domain from JDBC connection endpoint in cluster's overview page. Then you need to CNAME your customer domain as the cluster's domain.
-
-- (Optional) Step 4: If you want to set `ssl-mode` to `VERIFY_CA` or `VERIFY_IDENTITY` when establishing JDBC connections with the cluster, reboot the cluster (namely, suspend and then resume the cluster) to ensure the newest SSL certificate work in the cluster.
+- You need to store your SSL certificate files in the S3 bucket referenced in the data credential of your cluster.
+- You can call this API only when the cluster is in the **Running** state so that the certificate files can be successfully fetched to the cluster.
+- After this resource is added successfully, you must suspend and then resume the cluster to allow the certificate to take effect.
+- To connect to your cluster with the domain name you have specified in this resource, you must map your customer domain name to the cluster's domain name using CNAME. You can find the domain name of your cluster by following these steps:
+  - Sign in to the [CelerData Cloud Private console](https://cloud.celerdata.com/login).
+  - On the **Clusters** page, click the cluster that you want to view.
+  - In the **Connection** section of the **Overview** tab, find the cluster's domain name.
 
 ## Example Usage
 
 ```terraform
 resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
-  cluster_id            = "your cluster resource id"
-  domain                = "your domain name"
-  s3_bucket             = "your s3 bucket name"
-  s3_key_of_ssl_crt     = "s3 key of your ssl certificate"
-  s3_key_of_ssl_crt_key = "s3 key of your ssl certificate key"
+  cluster_id            = "<cluster_resource_id>"
+  domain                = "<domain_name>"
+  s3_bucket             = "<s3_bucket_name>"
+  s3_key_of_ssl_crt     = "<s3_key_to_your_ssl_certificate>"
+  s3_key_of_ssl_crt_key = "<s3_key_to_your_ssl_certificate_key>"
 }
 ```
 
-## Schema
+## Argument Reference
 
-### Required
+This resource contains the following required arguments:
 
-* `cluster_id` (String, ForceNew) The resource id of the `celerdatabyoc_classtic_cluster` resource or
-  `celerdatabyoc_elastic_cluster` resource. You can also directly find this ID in cluster's overview page. 
-* `domain` (String) The domain name you want to customize.
-* `s3_bucket` (String) The s3 bucket key where the ssl certificate is stored. We recommended that you place the SSL certificate into cluster data credential's S3 bucket.
-* `s3_key_of_ssl_crt` (String) The s3 key of ssl certificate.
-* `s3_key_of_ssl_crt_key` (String) The s3 key of ssl certificate key.
+- `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.
+  - If the cluster is a classic cluster, set this argument to `celerdatabyoc_classic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
+  - If the cluster is an elastic cluster, set this argument to `celerdatabyoc_elastic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
+- `domain`: The domain name you want to customize.
+- `s3_bucket`: The S3 bucket used to store your SSL certificate files. You need to store your certificate files in the bucket referenced in the data credential of your cluster.
+- `s3_key_of_ssl_crt`: The S3 bucket key to your SSL certificate file.
+- `s3_key_of_ssl_crt_key`: The S3 bucket key to your SSL certificate key file.
 
-### Read-Only
+## Attribute Reference
 
-- `id` (String) The ID of this resource.
-- `cert_id` (String) The id of ssl cert in CelerData Cloud Private.
-- `cert_state` (String) The state of ssl cert.
+This resource exports the following attributes:
 
-## Related Resources
+- `id`: (String) The ID of the cluster.
+- `cert_id`: (String) The ID of the SSL certificate in CelerData Cloud Private.
+- `cert_state`: The status of the SSL certificate.
 
-For information on how to create classic/elastic cluster resource, see the:
+## See Also
 
-- [Create a classic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/classic_cluster)
-- [Create a elastic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/elastic_cluster)
+- [Use SSL connection](https://docs.celerdata.com/en-us/main/security/ssl_connection)
+- [Connect to a CelerData cluster](https://docs.celerdata.com/en-us/main/get_started/connect_cluster)

@@ -6,39 +6,46 @@ description: |-
   
 ---
 
-~> The resource's API may change in subsequent versions to simplify the user experience.
+~> The resource's API may change in subsequent versions to simplify user experience.
 
-**Note** : The cluster must be in the "Running" state when creating database users. And you need to provide a login user with `create user` privilege so that we can perform the create user operation.
+Creates a database user for a CelerData cluster.
+
+Note that you can create a database user for a cluster only when the cluster is in the **Running** state. If the cluster is not running, you can resume it by following the instructions provided in [Resume or suspend a cluster](../guides/resume_suspend_cluster.md).
+
+Also, you will need to provide a database user (for example, the user `admin`) who has permission to create database users.
 
 ## Example Usage
 
 ```terraform
-
 resource "celerdatabyoc_cluster_user" "user_01" {
-  cluster_id     = celerdatabyoc_classic_cluster.classic.id
-  login_user     = "admin"
-  login_password = "admin_123456"
-  user_name      = "user_01"
-  user_password  = "test_123456"
+  cluster_id     = <cluster_resource_id>
+  login_user     = "<authorized_database_username>"
+  login_password = "<authorized_database_user_password>"
+  user_name      = "<new_database_username>"
+  user_password  = "<new_database_user_password>"
 }
-
 ```
 
-## Schema 
+## Argument Reference
 
-### Required
-* `cluster_id` (String, ForceNew) The resource ID of the `celerdatabyoc_classtic_cluster` resource or 
-  `celerdatabyoc_elastic_cluster` resource.
-* `login_user` (String) User who has the authority to create new users.
-* `login_password` (String) Password for login user.
-* `user_name` (String) The user to be created.
-* `user_password` (String) Password for the user to be created.
+This resource contains the following required arguments:
 
-### Read-Only
-- `id` (String) The ID of this resource.
+- `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.
+  - If the cluster is a classic cluster, set this argument to `celerdatabyoc_classic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
+  - If the cluster is an elastic cluster, set this argument to `celerdatabyoc_elastic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
+- `login_user`: (String) The name of the database user who has permission to create other database users.
+- `login_password`: (String) The password for the preceding authorized database user.
+- `user_name`: (String) The name of the database user to be created.
+- `user_password`: (String) The password of the preceding database user to be created.
 
-## Related Resources
+## Attribute Reference
 
-For information on how to create classic/elastic cluster resource, see the:
-- [Create a classic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/classic_cluster)
-- [Create a elastic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/elastic_cluster)
+This resource exports the following attribute:
+
+- `id`: The ID of this resource.
+
+## See Also
+
+- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
+- [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md)
+- [Resume or suspend a cluster](../guides/resume_suspend_cluster.md)

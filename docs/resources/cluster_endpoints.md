@@ -6,46 +6,44 @@ description: |-
   
 ---
 
-~> The resource's API may change in subsequent versions to simplify the user experience.
+~> The resource's API may change in subsequent versions to simplify user experience.
 
-Take the example of generating a mysql connection string for a classic / elastic cluster. 
-If the subnet you use is a public one, BYOC will generate a public connection string and a private connection string.
-Instead, BYOC will only provide a private connection string.
+Returns the endpoints of a CelerData cluster.
+
+If your CelerData cluster is deployed under a public subnet, both public and private endpoints will be returned. If your CelerData cluster is deployed under a private subnet, only the private endpoint will be returned.
 
 ## Example Usage
 
 ```terraform
-
 resource "celerdatabyoc_cluster_endpoints" "endpoints"{
-    cluster_id = celerdatabyoc_classic_cluster.classic.id
+  cluster_id            = "<cluster_resource_id>"
 }
 
+# Output the `endpoints` attribute.
 output "endpoints"{
     value = celerdatabyoc_cluster_endpoints.endpoints.endpoints
 }
-
 ```
 
-## Schema
+## Argument Reference
 
-### Required
+This resource contains the following required arguments:
 
-* `cluster_id` (String, ForceNew) The resource id of the `celerdatabyoc_classtic_cluster` resource or 
-  `celerdatabyoc_elastic_cluster` resource.
+- `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.
+  - If the cluster is a classic cluster, set this argument to `celerdatabyoc_classic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
+  - If the cluster is an elastic cluster, set this argument to `celerdatabyoc_elastic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
 
-### Read-Only
-- `id` (String) The ID of this resource.
-- `endpoints` (Attributes List) List of public and private endpoints [see below for nested schema](#nestedatt-endpoints)
+## Attribute Reference
 
-<a id="nestedatt-endpoints"></a>
-### Nested Schema for endpoints
-Read-Only:
-- `host` (String) Endpoint host.
-- `port` (Number) Endpoint port.
-- `network_method` (String) connection network method, "Public" or "Private"
+This resource exports the following attributes:
 
-## Related Resources
+- `id`: (String) The ID of the cluster.
+- `endpoints`: (List of String) The list of endpoints. The attributes of an endpoint include:
+  - `host`: The host of the endpoint.
+  - `network_method`: The type of the endpoint. Valid values: `Public` and `Private`.
+  - `port`: The port of the endpoint.
 
-For information on how to create classic/elastic cluster resource, see the:
-- [Create a classic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/classic_cluster)
-- [Create a elastic cluster resource](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/elastic_cluster)
+## See Also
+
+- [Connect to a CelerData cluster](https://docs.celerdata.com/en-us/main/get_started/connect_cluster)
+- [Connect from a client application to a CelerData cluster](https://docs.celerdata.com/en-us/main/cluster_management/connect_application_to_cluster)

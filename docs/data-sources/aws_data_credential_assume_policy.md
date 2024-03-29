@@ -6,30 +6,23 @@ description: |-
   
 ---
 
-This is a pre-requisite step for the implementation of celerdatabyoc_aws_deployment_role_credential.
+This data source is a prerequisite for the implementation of the [celerdatabyoc_aws_deployment_role_credential](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_deployment_role_credential) resource.
 
 ### Example Usage
 
 ```terraform
-resource "celerdatabyoc_aws_data_credential_policy" "new" {
-   bucket = "[your S3 bucket]"
-}
 data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
-
-resource "aws_iam_role" "celerdata_data_cred_role" {
-  name               = "celerdata_data_cred_role"
-  assume_role_policy = data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json
-  description        = "Celerdata Data Credential"
-  inline_policy {
-    name   = "celerdata_data_cred_role_policy"
-    policy = celerdatabyoc_aws_data_credential_policy.new.json
-  }
-}
 ```
 
-### Argument Refernce
-* `data_role_arn` - (ForceNew) ARN of  CelerData Cloud Private deploy Credential
-
 ### Attribute Reference
-* `json` - AWS IAM Policy JSON document
-* `version` - Provides support for policy version comparisons, the result of which only affect newly created clusters and have no effect on existing clusters
+
+This data source exports the following attributes:
+
+- `json`: The JSON policy document used to create an AWS IAM policy.
+- `version`: Provides support for policy version comparisons, the result of which only affects newly created clusters and have no effect on existing clusters.
+
+## See Also
+
+- [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
+- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
+- [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md)
