@@ -52,9 +52,9 @@ func azureResourceNetwork() *schema.Resource {
 			"public_accessible": {
 				Type:        schema.TypeBool,
 				Description: "You can optionally specify whether the cluster can be accessed from public networks by selecting or clearing the check box next to Public accessible. If you select Public accessible, CelerData Cloud will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you do not select Public accessible, the cluster is accessible only through a private domain name.",
-				Required:    false,
-				Default:     false,
+				Optional:    true,
 				ForceNew:    true,
+				Default:     false,
 			},
 		},
 		Importer: &schema.ResourceImporter{
