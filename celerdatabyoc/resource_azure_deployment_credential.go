@@ -2,14 +2,11 @@ package celerdatabyoc
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"regexp"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/credential"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
@@ -27,14 +24,9 @@ func azureResourceDeploymentCredential() *schema.Resource {
 			},
 			"name": {
 				Type:         schema.TypeString,
-				Optional:     true,
+				Required:     true,
 				ForceNew:     true,
 				ValidateFunc: validation.StringMatch(regexp.MustCompile(`^[0-9a-zA-Z_-]{1,128}$`), "The name is restricted to a maximum length of 128 characters and can only consist of alphanumeric characters (a-z, A-Z, 0-9), hyphens (-), and underscores (_)."),
-				DefaultFunc: func() (any, error) {
-					currDate := time.Now().Format("20060102")
-					randomStr := uuid.NewString()
-					return fmt.Sprintf("azure-deployment-credential-%s-%s", currDate, randomStr[:6]), nil
-				},
 			},
 			"application_id": {
 				Type:        schema.TypeString,
