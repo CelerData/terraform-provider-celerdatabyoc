@@ -12,6 +12,7 @@ type CreateNetworkReq struct {
 }
 
 type CreateAzureNetworkReq struct {
+	DeploymentCredentialID   string `json:"deployment_credential_id" mapstructure:"deployment_credential_id"`
 	Csp                      string `json:"csp" mapstructure:"csp"`
 	Region                   string `json:"region" mapstructure:"region"`
 	Name                     string `json:"name" mapstructure:"name"`

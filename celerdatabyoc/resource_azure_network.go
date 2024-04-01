@@ -29,6 +29,11 @@ func azureResourceNetwork() *schema.Resource {
 				ForceNew:     true,
 				ValidateFunc: validation.StringMatch(regexp.MustCompile(`^[0-9a-zA-Z_-]{1,128}$`), "The name is restricted to a maximum length of 128 characters and can only consist of alphanumeric characters (a-z, A-Z, 0-9), hyphens (-), and underscores (_)."),
 			},
+			"deployment_credential_id": {
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+			},
 			"region": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -66,6 +71,7 @@ func azureResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m i
 	networkCli := network.NewNetworkAPI(c)
 	req := &network.CreateAzureNetworkReq{
 		Csp:                      "azure",
+		DeploymentCredentialID:   d.Get("deployment_credential_id").(string),
 		Region:                   d.Get("region").(string),
 		Name:                     d.Get("name").(string),
 		VirtualNetworkResourceId: d.Get("virtual_network_resource_id").(string),
