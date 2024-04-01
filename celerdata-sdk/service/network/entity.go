@@ -11,6 +11,15 @@ type CreateNetworkReq struct {
 	DeployCredID    string `json:"deploy_cred_id" mapstructure:"deploy_cred_id"`
 }
 
+type CreateAzureNetworkReq struct {
+	Csp                      string `json:"csp" mapstructure:"csp"`
+	Region                   string `json:"region" mapstructure:"region"`
+	Name                     string `json:"name" mapstructure:"name"`
+	VirtualNetworkResourceId string `json:"virtual_network_resource_id" mapstructure:"virtual_network_resource_id"`
+	SubnetName               string `json:"subnet_name" mapstructure:"subnet_name"`
+	PublicAccess             bool   `json:"public_access" mapstructure:"public_access"`
+}
+
 type CreateNetworkResp struct {
 	NetworkID   string `json:"network_id" mapstructure:"network_id"`
 	CheckErrMsg string `json:"check_err_msg" mapstructure:"check_err_msg"`

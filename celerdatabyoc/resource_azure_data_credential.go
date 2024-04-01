@@ -2,7 +2,6 @@ package celerdatabyoc
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"regexp"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
@@ -57,15 +56,15 @@ func azureResourceDataCredentialCreate(ctx context.Context, d *schema.ResourceDa
 	c := m.(*client.CelerdataClient)
 
 	credCli := credential.NewCredentialAPI(c)
-	req := &credential.CreateDataCredReq{
-		Csp:                "azure",
-		Name:               d.Get("name").(string),
-		InstanceProfileArn: d.Get("managed_identity_resource_id").(string),
-		BucketName:         fmt.Sprintf("%s/%s", d.Get("storage_account_name").(string), d.Get("container_name").(string)),
-		PolicyVersion:      "temp",
+	req := &credential.CreateAzureDataCredReq{
+		Csp:                       "azure",
+		Name:                      d.Get("name").(string),
+		ManagedIdentityResourceId: d.Get("managed_identity_resource_id").(string),
+		StorageAccountName:        d.Get("storage_account_name").(string),
+		ContainerName:             d.Get("container_name").(string),
 	}
 	log.Printf("[DEBUG] create data credential, req:%+v", req)
-	resp, err := credCli.CreateDataCredential(ctx, req)
+	resp, err := credCli.CreateAzureDataCredential(ctx, req)
 	if err != nil {
 		return diag.FromErr(err)
 	}

@@ -10,6 +10,7 @@ import (
 
 type INetworkAPI interface {
 	CreateNetwork(ctx context.Context, req *CreateNetworkReq) (*CreateNetworkResp, error)
+	CreateAzureNetwork(ctx context.Context, req *CreateAzureNetworkReq) (*CreateNetworkResp, error)
 	GetNetwork(ctx context.Context, netID string) (*GetNetworkResp, error)
 	DeleteNetwork(ctx context.Context, netID string) error
 }
@@ -26,6 +27,20 @@ type networkAPI struct {
 func (c *networkAPI) CreateNetwork(ctx context.Context, req *CreateNetworkReq) (*CreateNetworkResp, error) {
 	resp := &CreateNetworkResp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/networks", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.CheckErrMsg) > 0 {
+		return nil, errors.New(resp.CheckErrMsg)
+	}
+
+	return resp, nil
+}
+
+func (c *networkAPI) CreateAzureNetwork(ctx context.Context, req *CreateAzureNetworkReq) (*CreateNetworkResp, error) {
+	resp := &CreateNetworkResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/azure-networks", c.apiVersion), req, resp)
 	if err != nil {
 		return nil, err
 	}

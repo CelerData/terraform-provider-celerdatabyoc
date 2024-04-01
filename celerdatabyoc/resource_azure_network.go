@@ -2,7 +2,6 @@ package celerdatabyoc
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"regexp"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
@@ -29,6 +28,11 @@ func azureResourceNetwork() *schema.Resource {
 				Required:     true,
 				ForceNew:     true,
 				ValidateFunc: validation.StringMatch(regexp.MustCompile(`^[0-9a-zA-Z_-]{1,128}$`), "The name is restricted to a maximum length of 128 characters and can only consist of alphanumeric characters (a-z, A-Z, 0-9), hyphens (-), and underscores (_)."),
+			},
+			"region": {
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
 			},
 			"virtual_network_resource_id": {
 				Type:        schema.TypeString,
@@ -60,15 +64,16 @@ func azureResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m i
 	c := m.(*client.CelerdataClient)
 
 	networkCli := network.NewNetworkAPI(c)
-	req := &network.CreateNetworkReq{
-		Csp:             "azure",
-		Name:            d.Get("name").(string),
-		PublicAccess:    d.Get("public_accessible").(bool),
-		SubnetId:        fmt.Sprintf("%s/subnets/%s", d.Get("virtual_network_resource_id").(string), d.Get("subnet_name").(string)),
-		SecurityGroupId: "temp",
+	req := &network.CreateAzureNetworkReq{
+		Csp:                      "azure",
+		Region:                   d.Get("region").(string),
+		Name:                     d.Get("name").(string),
+		VirtualNetworkResourceId: d.Get("virtual_network_resource_id").(string),
+		SubnetName:               d.Get("subnet_name").(string),
+		PublicAccess:             d.Get("public_accessible").(bool),
 	}
 
-	resp, err := networkCli.CreateNetwork(ctx, req)
+	resp, err := networkCli.CreateAzureNetwork(ctx, req)
 	if err != nil {
 		return diag.FromErr(err)
 	}

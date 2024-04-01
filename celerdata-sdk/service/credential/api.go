@@ -19,6 +19,7 @@ type ICredentialAPI interface {
 	CreateDeploymentAkSkCredential(ctx context.Context, req *CreateDeployAkSkCredReq) (*CreateDeployAkSkCredResp, error)
 	GetDeploymentAkSkCredential(ctx context.Context, credID string) (*GetDeployAkSkCredResp, error)
 	DeleteDeploymentAkSkCredential(ctx context.Context, credID string) error
+	CreateAzureDataCredential(ctx context.Context, req *CreateAzureDataCredReq) (*CreateDataCredResp, error)
 }
 
 func NewCredentialAPI(cli *client.CelerdataClient) ICredentialAPI {
@@ -28,6 +29,20 @@ func NewCredentialAPI(cli *client.CelerdataClient) ICredentialAPI {
 type credentialAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+func (c *credentialAPI) CreateAzureDataCredential(ctx context.Context, req *CreateAzureDataCredReq) (*CreateDataCredResp, error) {
+	resp := &CreateDataCredResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/azure-data-credentials", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.CheckErrMsg) > 0 {
+		return nil, errors.New(resp.CheckErrMsg)
+	}
+
+	return resp, nil
 }
 
 func (c *credentialAPI) CreateDeploymentAkSkCredential(ctx context.Context, req *CreateDeployAkSkCredReq) (*CreateDeployAkSkCredResp, error) {

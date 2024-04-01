@@ -36,6 +36,14 @@ type CreateDataCredReq struct {
 	PolicyVersion      string `json:"policy_version" mapstructure:"policy_version"`
 }
 
+type CreateAzureDataCredReq struct {
+	Csp                       string `json:"csp" mapstructure:"csp"`
+	Name                      string `json:"name" mapstructure:"name"`
+	ManagedIdentityResourceId string `json:"managed_identity_resource_id" mapstructure:"managed_identity_resource_id"`
+	StorageAccountName        string `json:"storage_account_name" mapstructure:"storage_account_name"`
+	ContainerName             string `json:"container_name" mapstructure:"container_name"`
+}
+
 type CreateDataCredResp struct {
 	CredID      string `json:"cred_id" mapstructure:"cred_id"`
 	CheckErrMsg string `json:"check_err_msg" mapstructure:"check_err_msg"`
