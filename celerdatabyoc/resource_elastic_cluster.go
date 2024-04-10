@@ -284,7 +284,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		enable := true
 		clusterId := resp.ClusterID
 		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
-		errDiag := updateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
+		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
 		if errDiag != nil {
 			return errDiag
 		}
