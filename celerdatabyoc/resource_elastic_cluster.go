@@ -297,10 +297,6 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
-	if int32(d.Get("idle_suspend_interval").(int)) > 0 {
-
-	}
-
 	return resourceElasticClusterRead(ctx, d, m)
 }
 
