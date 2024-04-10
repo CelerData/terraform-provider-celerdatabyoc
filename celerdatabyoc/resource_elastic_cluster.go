@@ -157,6 +157,27 @@ func resourceElasticCluster() *schema.Resource {
 					return warnings, errors
 				},
 			},
+			"idle_suspend_interval": {
+				Type:        schema.TypeInt,
+				Description: "Specifies the amount of time (in minutes) during which a cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended.",
+				Optional:    true,
+				Default:     0,
+				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+					v, ok := i.(int)
+					if !ok {
+						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+						return warnings, errors
+					}
+
+					if v != 0 {
+						if v < 60 || v > 999999 {
+							errors = append(errors, fmt.Errorf("the %s range should be [60,999999]", k))
+							return warnings, errors
+						}
+					}
+					return warnings, errors
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -259,11 +280,25 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
+	if d.Get("idle_suspend_interval").(int) > 0 {
+		enable := true
+		clusterId := resp.ClusterID
+		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
+		errDiag := updateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if errDiag != nil {
 			return errDiag
 		}
+	}
+
+	if int32(d.Get("idle_suspend_interval").(int)) > 0 {
+
 	}
 
 	return resourceElasticClusterRead(ctx, d, m)
@@ -333,6 +368,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	d.Set("coordinator_node_count", int(resp.Cluster.FeModule.Num))
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
+	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
 	return diags
 }
 
@@ -419,6 +455,22 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 	if d.HasChange("query_port") {
 		return diag.FromErr(fmt.Errorf("the `query_port` field is not allowed to be modified"))
 	}
+
+	if d.HasChange("idle_suspend_interval") && !d.IsNewResource() {
+		o, n := d.GetChange("idle_suspend_interval")
+
+		v := n.(int)
+		enable := n.(int) > 0
+		if !enable {
+			v = o.(int)
+		}
+		intervalTimeMills := uint64(v * 60 * 1000)
+		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterID, intervalTimeMills, enable)
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
 	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 	if needResume(d) {

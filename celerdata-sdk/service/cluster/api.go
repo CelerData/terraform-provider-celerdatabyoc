@@ -29,6 +29,7 @@ type IClusterAPI interface {
 
 	UpsertClusterSSLCert(ctx context.Context, req *UpsertClusterSSLCertReq) error
 	GetClusterDomainSSLCert(ctx context.Context, req *GetClusterDomainSSLCertReq) (*GetClusterDomainSSLCertResp, error)
+	UpsertClusterIdleConfig(ctx context.Context, req *UpsertClusterIdleConfigReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -223,4 +224,14 @@ func (c *clusterAPI) GetClusterDomainSSLCert(ctx context.Context, req *GetCluste
 		return nil, err
 	}
 	return resp, nil
+}
+
+type UpsertClusterIdleConfigReq struct {
+	ClusterId  string `json:"clusterId"`
+	IntervalMs uint64 `json:"intervalMs"`
+	Enable     bool   `json:"enable"`
+}
+
+func (c *clusterAPI) UpsertClusterIdleConfig(ctx context.Context, req *UpsertClusterIdleConfigReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/idle-config", c.apiVersion, req.ClusterId), req, nil)
 }
