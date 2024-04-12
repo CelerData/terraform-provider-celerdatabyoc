@@ -55,7 +55,7 @@ resource "celerdatabyoc_aws_data_credential" "data_credential" {
 
 ## Argument Reference
 
-~> This section explains only the arguments of the `celerdatabyoc_aws_data_credential` resource. For the explanation of arguments of other resources, see the corresponding resource topics. 
+~> This section explains only the arguments of the `celerdatabyoc_aws_data_credential` resource. For the explanation of arguments of other resources, see the corresponding resource topics.
 
 This resource contains the following required arguments and optional arguments:
 
@@ -63,12 +63,12 @@ This resource contains the following required arguments and optional arguments:
 
 - `role_arn`: (Forces new resource) The ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
 - `instance_profile_arn`: (Forces new resource) The instance profile ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_instance_profile.celerdata_data_cred_profile.arn`.
-- `bucket_name`: (Forces new resource) The name of the AWS S3 bucket for which to generate the policy document and that stores query profiles. Set the value to `local.s3_bucket`.
-- `policy_version`: (Forces new resource) Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
+- `bucket_name`: (Forces new resource) The name of the AWS S3 bucket for which to generate the policy document and that stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+- `policy_version`: (Forces new resource) The version of the policy. Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the data credential.
+- `name`: (Forces new resource) The name of the data credential. Enter a unique name. If omitted, Terraform will assign a random, unique name.
 
 ## Attribute Reference
 

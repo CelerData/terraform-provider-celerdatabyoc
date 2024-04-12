@@ -72,19 +72,19 @@ This resource contains the following required arguments and optional arguments:
 
 **Required:**
 
-- `role_arn`: (Forces new resource) Set the value to `aws_iam_role.deploy_cred_role.arn`.
-- `external_id`: (Forces new resource) Set the value to `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id`.
-- `policy_version`: (Forces new resource) Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.version`.
+- `role_arn`: (Forces new resource) The ARN of the cross-account IAM role referenced in the deployment credential. Set the value to `aws_iam_role.deploy_cred_role.arn`.
+- `external_id`: (Forces new resource) The external ID that is used to create the cross-account IAM role referenced in the deployment credential. Set the value to `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id`.
+- `policy_version`: (Forces new resource) The version of the policy. Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.version`.
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the deployment credential.
+- `name`: (Forces new resource) The name of the deployment credential. Enter a unique name. If omitted, Terraform will assign a random, unique name.
 
 ## Attribute Reference
 
 This resource exports the following attribute:
 
-- `id` - The ID of the deployment credential.
+- `id`: The ID of the deployment credential.
 
 ## See Also
 

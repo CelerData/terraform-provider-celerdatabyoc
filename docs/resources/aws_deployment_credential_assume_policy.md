@@ -63,7 +63,12 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 
 ## Argument Reference
 
-This resource does not involve arguments. For the explanation of arguments of other resources, see the corresponding resource topics. 
+~> This section explains only the arguments of the `celerdatabyoc_aws_data_credential` resource. For the explanation of arguments of other resources, see the corresponding resource topics.
+
+This resource contains the following required arguments:
+
+- `bucket_name`: (Forces new resource) The name of the AWS S3 bucket. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+- `data_role_arn`: (Forces new resource) The ARN of the IAM role referenced in the deployment credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
 
 ## Attribute Reference
 

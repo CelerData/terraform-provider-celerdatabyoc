@@ -211,7 +211,7 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
 
 This resource contains only the following required argument:
 
-- `bucket`: (Forces new resource) The name of the AWS S3 bucket for which to generate the JSON policy document and that stores query profiles. Set the value to `local.s3_bucket`.
+- `bucket`: (Forces new resource) The name of the AWS S3 bucket for which to generate the JSON policy document and that stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
 #### aws_iam_role (celerdata_data_cred_role)
 
@@ -223,7 +223,7 @@ This resource contains the following required arguments and optional arguments:
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the IAM role referenced in the data credential. If omitted, Terraform will assign a random, unique name. See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
+- `name`: (Forces new resource) The name of the IAM role referenced in the data credential. Enter a unique name. If omitted, Terraform will assign a random, unique name. See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
 - `description`: The description of the IAM role.
 - `inline_policy`: The configuration block that defines an exclusive set of IAM inline policies associated with the IAM role. See below. If no blocks are configured, Terraform will not manage any inline policies in this resource. Configuring one empty block (namely, `inline_policy {}`) will cause Terraform to remove all inline policies added out of band on `apply`.
   - `name`: The name of the IAM policy that will be attached to the IAM role referenced in the data credential.
@@ -237,12 +237,12 @@ This resource contains the following required arguments and optional arguments:
 
 - `role_arn`: (Forces new resource) The ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
 - `instance_profile_arn`: (Forces new resource) The instance profile ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_instance_profile.celerdata_data_cred_profile.arn`.
-- `bucket_name`: (Forces new resource) The name of the AWS S3 bucket for which to generate the policy document and that stores query profiles. Set the value to `local.s3_bucket`.
+- `bucket_name`: (Forces new resource) The name of the AWS S3 bucket for which to generate the policy document and that stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 - `policy_version`: (Forces new resource) Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the data credential.
+- `name`: (Forces new resource) The name of the data credential. Enter a unique name. If omitted, Terraform will assign a random, unique name.
 
 ### Deployment credential-related resources
 
@@ -250,14 +250,14 @@ This resource contains the following required arguments and optional arguments:
 
 This resource contains only the following optional arguments:
 
-- `name`: (Forces new resource) The name of the instance profile. If omitted, Terraform will assign a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`, `.`, `@`, `-`. Spaces are not allowed.
+- `name`: (Forces new resource) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`, `.`, `@`, `-`. Spaces are not allowed.
 - `role`: The name of the IAM role to add to the instance profile. Set the value to `aws_iam_role.celerdata_data_cred_role.name`.
 
 #### celerdatabyoc_aws_deployment_credential_policy
 
 This resource contains only the following required arguments:
 
-- `bucket`: The name of the AWS S3 bucket. Set the value to `local.s3_bucket`.
+- `bucket`: The name of the AWS S3 bucket. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 - `data_role_arn`: (Forces new resource) The ARN of the IAM role referenced in the deployment credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
 
 #### aws_iam_role (deploy_cred_role)
@@ -270,7 +270,7 @@ This resource contains the following required arguments and optional arguments:
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the IAM role referenced in the deployment credential. If omitted, Terraform will assign a random, unique name. See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
+- `name`: (Forces new resource) The name of the IAM role referenced in the deployment credential. Enter a unique name. If omitted, Terraform will assign a random, unique name. See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
 - `description`: The description of the IAM role.
 - `inline_policy`: The configuration block that defines an exclusive set of IAM inline policies associated with the IAM role. See below. If no blocks are configured, Terraform will not manage any inline policies in this resource. Configuring one empty block (namely, `inline_policy {}`) will cause Terraform to remove all inline policies added out of band on `apply`.
   - `name`: The name of the IAM policy that will be attached to the IAM role.
@@ -288,7 +288,7 @@ This resource contains the following required arguments and optional arguments:
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the deployment credential.
+- `name`: (Forces new resource) The name of the deployment credential. Enter a unique name. If omitted, Terraform will assign a random, unique name.
 
 ### Network configuration-related resources
 
@@ -296,21 +296,13 @@ The `celerdatabyoc_aws_network` resource contains the following required argumen
 
 **Required:**
 
-- `name`: (Forces new resource) The name of the AWS VPC hosting the cluster.
+- `name`: (Forces new resource) The name of the AWS VPC hosting the cluster. Enter a unique name.
 
 - `subnet_id`: (Forces new resource) The ID of the subnet within the AWS VPC.
 
 - `security_group_id`: (Forces new resource) The ID of the security group within the AWS VPC.
 
-- `region`: (Forces new resource) The ID of the AWS region to which the AWS VPC belongs. The following AWS regions are supported.
-
-  | Region                   | Region ID      |
-  | ------------------------ | -------------- |
-  | Asia Pacific (Singapore) | ap-southeast-1 |
-  | US East (N. Virginia)    | us-east-1      |
-  | US West (Oregon)         | us-west-2      |
-  | Europe (Ireland)         | eu-west-1      |
-  | Europe (Frankfurt)       | eu-central-1   |
+- `region`: (Forces new resource) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions).
 
 - `deployment_credential_id`: (Forces new resource) Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 
@@ -324,7 +316,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 **Required:**
 
-- `cluster_name`: (Forces new resource) The desired name for the cluster.
+- `cluster_name`: (Forces new resource) The desired name for the cluster. Enter a unique name.
 
 - `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported Instance Types](#supported-instance-types)". For example, you can set this argument to `m6i.4xlarge`.
 

@@ -49,7 +49,7 @@ resource "celerdatabyoc_aws_data_credential" "data_credential" {
 
 This resource contains only the following required argument:
 
-- `bucket`: (Forces new resource) The name of the AWS S3 bucket for which to generate the JSON policy document and that stores query profiles. Set the value to `local.s3_bucket`.
+- `bucket`: (Forces new resource) The name of the AWS S3 bucket for which to generate the JSON policy document and that stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
 ## Attribute Reference
 
