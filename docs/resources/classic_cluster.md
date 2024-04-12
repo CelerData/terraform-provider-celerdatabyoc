@@ -199,6 +199,7 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   }
   run_scripts_parallel = false
   query_port = 9030
+  idle_suspend_interval = 64
 }
 ```
 
@@ -363,6 +364,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
   - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
+- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. Valid values are `0` and integers with the range of 60-99999. Note that the Auto Suspend feature is disabled if you set this argument to `0`.
 
 ## See Also
 
