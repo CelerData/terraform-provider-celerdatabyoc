@@ -15,6 +15,7 @@ import (
 func azureResourceDeploymentCredential() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: azureResourceDeploymentCredentialCreate,
+		UpdateContext: azureResourceDeploymentCredentialUpdate,
 		ReadContext:   azureResourceDeploymentCredentialRead,
 		DeleteContext: azureResourceDeploymentCredentialDelete,
 		Schema: map[string]*schema.Schema{
@@ -44,7 +45,6 @@ func azureResourceDeploymentCredential() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "The client secret value of the App registration. Client secret values cannot be viewed, except for immediately after creation. Be sure to save the secret when created before leaving the Azure console.",
 				Required:    true,
-				ForceNew:    true,
 				Sensitive:   true,
 			},
 			"ssh_key_resource_id": {
@@ -79,6 +79,30 @@ func azureResourceDeploymentCredentialCreate(ctx context.Context, d *schema.Reso
 		return diag.FromErr(err)
 	}
 	d.SetId(resp.CredID)
+
+	return diags
+}
+
+func azureResourceDeploymentCredentialUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+
+	var diags diag.Diagnostics
+
+	if !d.IsNewResource() && d.HasChange("client_secret_value") {
+		log.Printf("[DEBUG] rotate deployment credential")
+		c := m.(*client.CelerdataClient)
+
+		credCli := credential.NewCredentialAPI(c)
+		credID := d.Id()
+
+		err := credCli.RotateAkSkCredential(ctx, &credential.RotateAkSkCredentialReq{
+			CredID: credID,
+			Ak:     d.Get("application_id").(string),
+			Sk:     d.Get("client_secret_value").(string),
+		})
+		if err != nil {
+			return diag.FromErr(err)
+		}
+	}
 
 	return diags
 }

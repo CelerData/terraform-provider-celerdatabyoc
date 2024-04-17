@@ -76,6 +76,12 @@ type CreateDeployAkSkCredResp struct {
 	CheckErrMsg string `json:"check_err_msg" mapstructure:"check_err_msg"`
 }
 
+type RotateAkSkCredentialReq struct {
+	CredID string `json:"cred_id" mapstructure:"cred_id"`
+	Ak     string `json:"ak" mapstructure:"ak"`
+	Sk     string `json:"sk" mapstructure:"sk"`
+}
+
 type GetDeployAkSkCredResp struct {
 	DeployRoleCred *DeploymentAkSkCredential `json:"deploy_role_cred" mapstructure:"deploy_role_cred"`
 }

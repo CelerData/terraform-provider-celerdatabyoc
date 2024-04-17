@@ -18,6 +18,7 @@ type ICredentialAPI interface {
 
 	CreateDeploymentAkSkCredential(ctx context.Context, req *CreateDeployAkSkCredReq) (*CreateDeployAkSkCredResp, error)
 	GetDeploymentAkSkCredential(ctx context.Context, credID string) (*GetDeployAkSkCredResp, error)
+	RotateAkSkCredential(ctx context.Context, req *RotateAkSkCredentialReq) error
 	DeleteDeploymentAkSkCredential(ctx context.Context, credID string) error
 	CreateAzureDataCredential(ctx context.Context, req *CreateAzureDataCredReq) (*CreateDataCredResp, error)
 }
@@ -29,6 +30,12 @@ func NewCredentialAPI(cli *client.CelerdataClient) ICredentialAPI {
 type credentialAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+// RotateAkSkCredential implements ICredentialAPI.
+func (c *credentialAPI) RotateAkSkCredential(ctx context.Context, req *RotateAkSkCredentialReq) error {
+
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/deploy-ak-sk-credentials/%s/rotate", c.apiVersion, req.CredID), req, nil)
 }
 
 func (c *credentialAPI) CreateAzureDataCredential(ctx context.Context, req *CreateAzureDataCredReq) (*CreateDataCredResp, error) {
