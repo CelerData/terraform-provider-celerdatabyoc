@@ -131,22 +131,23 @@ type Module struct {
 }
 
 type Cluster struct {
-	ClusterID      string       `json:"cluster_id" mapstructure:"cluster_id"`
-	ClusterName    string       `json:"cluster_name" mapstructure:"cluster_name"`
-	ClusterState   ClusterState `json:"cluster_state"  mapstructure:"cluster_state"`
-	ClusterVersion string       `json:"cluster_version" mapstructure:"cluster_version"`
-	ClusterType    ClusterType  `json:"cluster_type" mapstructure:"cluster_type"`
-	Csp            string       `json:"csp" mapstructure:"csp"`
-	Region         string       `json:"region" mapstructure:"region"`
-	AccountID      string       `json:"account_id" mapstructure:"account_id"`
-	FeModule       *Module      `json:"fe_module" mapstructure:"fe_module"`
-	BeModule       *Module      `json:"be_module" mapstructure:"be_module"`
-	SSLConnEnable  bool         `json:"ssl_conn_enable" mapstructure:"ssl_conn_enable"`
-	NetIfaceID     string       `json:"net_iface_id" mapstructure:"net_iface_id"`
-	DeployCredID   string       `json:"deploy_cred_id" mapstructure:"deploy_cred_id"`
-	DataCredID     string       `json:"data_cred_id" mapstructure:"data_cred_id"`
-	FreeTier       bool         `json:"free_tier" mapstructure:"free_tier"`
-	QueryPort      int32        `json:"query_port" mapstructure:"query_port"`
+	ClusterID           string       `json:"cluster_id" mapstructure:"cluster_id"`
+	ClusterName         string       `json:"cluster_name" mapstructure:"cluster_name"`
+	ClusterState        ClusterState `json:"cluster_state"  mapstructure:"cluster_state"`
+	ClusterVersion      string       `json:"cluster_version" mapstructure:"cluster_version"`
+	ClusterType         ClusterType  `json:"cluster_type" mapstructure:"cluster_type"`
+	Csp                 string       `json:"csp" mapstructure:"csp"`
+	Region              string       `json:"region" mapstructure:"region"`
+	AccountID           string       `json:"account_id" mapstructure:"account_id"`
+	FeModule            *Module      `json:"fe_module" mapstructure:"fe_module"`
+	BeModule            *Module      `json:"be_module" mapstructure:"be_module"`
+	SSLConnEnable       bool         `json:"ssl_conn_enable" mapstructure:"ssl_conn_enable"`
+	NetIfaceID          string       `json:"net_iface_id" mapstructure:"net_iface_id"`
+	DeployCredID        string       `json:"deploy_cred_id" mapstructure:"deploy_cred_id"`
+	DataCredID          string       `json:"data_cred_id" mapstructure:"data_cred_id"`
+	FreeTier            bool         `json:"free_tier" mapstructure:"free_tier"`
+	QueryPort           int32        `json:"query_port" mapstructure:"query_port"`
+	IdleSuspendInterval int32        `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
 }
 
 type ScaleInReq struct {
