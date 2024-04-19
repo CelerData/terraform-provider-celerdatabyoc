@@ -45,9 +45,13 @@ This resource contains the following required arguments and optional arguments:
 **Required:**
 
 - `name`: (Forces new resource) The name of the network configuration. Enter a unique name.
+
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential.
+
 - `virtual_network_resource_id`: (Forces new resource) The resource ID of the Azure virtual network.
+
 - `subnet_name`: (Forces new resource) The name of the subnet.
+
 - `region`: (Forces new resource) The ID of the Azure region. Set the value to `local.cluster_region`, as we recommend that you set the region element as a local value in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
 **Optional:**

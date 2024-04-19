@@ -45,9 +45,13 @@ resource "celerdatabyoc_azure_deployment_credential" "example" {
 This resource contains the following required arguments:
 
 - `name`: (Forces new resource) The name of the deployment credential. Enter a unique name.
+
 - `application_id`: (Forces new resource) The application (client) ID of the registered application.
+
 - `directory_id`: (Forces new resource) The directory (tenant) ID of the registered application.
+
 - `client_secret_value`: (Forces new resource) The value of the client secret of the registered application.
+
 - `ssh_key_resource_id`: (Forces new resource) The ID of the SSH public key.
 
 ## Attribute Reference

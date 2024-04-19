@@ -44,8 +44,11 @@ resource "celerdatabyoc_azure_data_credential" "example" {
 This resource contains the following required arguments:
 
 - `name`: (Forces new resource) The name of the data credential. Enter a unique name.
+
 - `managed_identity_resource_id`: (Forces new resource) The ID of the managed identity.
+
 - `storage_account_name`: (Forces new resource) The name of the storage account.
+
 - `container_name`: (Forces new resource) The name of the container.
 
 ## Attribute Reference
