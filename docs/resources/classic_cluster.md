@@ -10,7 +10,7 @@ description: |-
 
 Deploys a classic CelerData cluster on AWS EC2 instances or on Azure virtual machines.
 
-If you are setting up your first cluster and it consists of one FE node and one BE node, both with instance types that offer up to 4 CPU cores and 16 GB RAM, then the cluster will be automatically created as a [Free Developer Tier](https://dhttps://docs.celerdata.com/private/main/get_started/free_developer_tier) cluster. This allows you to explore and experience the features of CelerData Cloud Private at a minimal cost.
+If you are setting up your first cluster and it consists of one FE node and one BE node, both with instance types that offer up to 4 CPU cores and 16 GB RAM, then the cluster will be automatically created as a [Free Developer Tier](https://docs.celerdata.com/private/main/get_started/free_developer_tier) cluster. This allows you to explore and experience the features of CelerData Cloud Private at a minimal cost.
 
 The implementation of this resource is part of the whole cluster deployment procedure. You can find details about the cluster deployment procedure in [Provision CelerData Cloud Private on Azure](../guides/azure_deployment_guide.md).
 
@@ -296,7 +296,7 @@ This resource contains the following required arguments and optional arguments:
 **Required:**
 
 - `cluster_name`: (Forces new resource) The desired name for the cluster.
-- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported Instance Types](...)".
+- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported Instance Types](#supported-instance-types)".
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential.
   - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_deployment_role_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_deployment_role_credential` resource.
   - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_deployment_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_deployment_credential` resource.
@@ -306,7 +306,7 @@ This resource contains the following required arguments and optional arguments:
 - `network_id`: (Forces new resource) The ID of the network configuration.
   - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_network.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_network` resource.
   - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_network.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_network` resource.
-- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported Instance Types](...)".
+- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported Instance Types](#supported-instance-types)".
 - `default_admin_password`: The initial password of the cluster `admin` user.
 - `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
 - `csp`: The cloud service provider of the cluster.
@@ -321,7 +321,7 @@ This resource contains the following required arguments and optional arguments:
 - `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
 - `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
 - `resource_tags`: The tags to be attached to the cluster.
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/en-us/main/run_scripts).
+- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/private/main/run_scripts).
   - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
