@@ -255,7 +255,7 @@ This section provides a sample infrastructure configuration that automates the d
 
 To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers and Azure objects.
 
-### celerdatabyoc_azure_data_credential
+### [celerdatabyoc_azure_data_credential](../resources/azure_data_credential.md)
 
 ```terraform
 resource "celerdatabyoc_azure_data_credential" "example" {
@@ -273,7 +273,7 @@ This resource contains the following required arguments:
 - `storage_account_name`: (Forces new resource) The name of the storage account. Set this argument to `azurerm_storage_account.example.name`.
 - `container_name`: (Forces new resource) The name of the container. Set this argument to `azurerm_storage_container.example.name`.
 
-### celerdatabyoc_azure_deployment_credential
+### [celerdatabyoc_azure_deployment_credential](../resources/azure_deployment_credential.md)
 
 ```terraform
 resource "celerdatabyoc_azure_deployment_credential" "example" {
@@ -293,7 +293,7 @@ This resource contains the following required arguments:
 - `client_secret_value`: (Forces new resource) The value of the client secret of the registered application. Set this argument to `azuread_application_password.example.value`.
 - `ssh_key_resource_id`: (Forces new resource) The ID of the SSH public key. Set this argument to `azurerm_ssh_public_key.example.id`.
 
-### celerdatabyoc_azure_network
+### [celerdatabyoc_azure_network](../resources/azure_network.md)
 
 ```terraform
 resource "celerdatabyoc_azure_network" "example" {
@@ -320,7 +320,7 @@ This resource contains the following required arguments and optional arguments:
 
 - `public_accessible`: Whether the cluster can be accessed from public networks. Valid values: `true` and `false`. If you set this argument to `true`, CelerData will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you set this argument to `false`, the cluster is accessible only through a private domain name.
 
-### celerdatabyoc_classic_cluster
+### [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
 
 ```terraform
 resource "celerdatabyoc_classic_cluster" "azure_terraform_test" {
