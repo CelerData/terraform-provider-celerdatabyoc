@@ -162,7 +162,7 @@ resource "celerdatabyoc_aws_data_credential" "data_credential" {
 }
 ```
 
-#### celerdatabyoc_aws_data_credential_policy
+#### [celerdatabyoc_aws_data_credential_policy](../resources/aws_data_credential_policy.md)
 
 This resource contains only the following required argument:
 
@@ -184,7 +184,7 @@ This resource contains the following required arguments and optional arguments:
   - `name`: The name of the IAM policy that will be attached to the IAM role referenced in the data credential.
   - `policy`: The IAM policy that will be attached to the IAM role. Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.json`.
 
-#### celerdatabyoc_aws_data_credential
+#### [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -239,7 +239,7 @@ This resource contains only the following optional arguments:
 - `name`: (Forces new resource) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`, `.`, `@`, `-`. Spaces are not allowed.
 - `role`: The name of the IAM role to add to the instance profile. Set the value to `aws_iam_role.celerdata_data_cred_role.name`.
 
-#### celerdatabyoc_aws_deployment_credential_policy
+#### [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
 
 This resource contains only the following required arguments:
 
@@ -262,7 +262,7 @@ This resource contains the following required arguments and optional arguments:
   - `name`: The name of the IAM policy that will be attached to the IAM role.
   - `policy`: The IAM policy that will be attached to the IAM role referenced in the deployment credential. Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.json`.
 
-#### celerdatabyoc_aws_deployment_role_credential
+#### [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -289,7 +289,7 @@ resource "celerdatabyoc_aws_network" "network" {
 }
 ```
 
-The `celerdatabyoc_aws_network` resource contains the following required arguments and optional arguments:
+The [`celerdatabyoc_aws_network`](../resources/aws_network.md) resource contains the following required arguments and optional arguments:
 
 **Required:**
 
@@ -335,7 +335,7 @@ resource "celerdatabyoc_classic_cluster" "demo_cluster" {
 }
 ```
 
-The `celerdatabyoc_classic_cluster` resource contains the following required arguments and optional arguments:
+The [`celerdatabyoc_classic_cluster`](../resources/classic_cluster.md) resource contains the following required arguments and optional arguments:
 
 ~> For information about the resource used to deploy an elastic CelerData cluster on AWS through Terraform, see [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md).
 
