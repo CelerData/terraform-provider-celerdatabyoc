@@ -294,13 +294,9 @@ The `celerdatabyoc_aws_network` resource contains the following required argumen
 **Required:**
 
 - `name`: (Forces new resource) The name of the AWS VPC hosting the cluster. Enter a unique name.
-
 - `subnet_id`: (Forces new resource) The ID of the subnet within the AWS VPC.
-
 - `security_group_id`: (Forces new resource) The ID of the security group within the AWS VPC.
-
 - `region`: (Forces new resource) The ID of the AWS region to which the AWS VPC belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions#aws).
-
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential.  Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 
 **Optional:**
@@ -346,23 +342,14 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 **Required:**
 
 - `cluster_name`: (Forces new resource) The desired name for the cluster.
-
 - `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)". For example, you can set this argument to `m6i.4xlarge`.
-
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
-
 - `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_aws_data_credential.data_credential.id`.
-
 - `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_aws_network.network.id`.
-
 - `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)". For example, you can set this argument to `m5.xlarge`.
-
 - `default_admin_password`: The initial password of the cluster `admin` user.
-
 - `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
-
 - `csp`: The cloud service provider of the cluster. Set this argument to `aws`.
-
 - `region`: The ID of the AWS region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions#aws).
 
 **Optional:**
