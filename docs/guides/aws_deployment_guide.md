@@ -126,7 +126,7 @@ The parameters you need to specify are as follows:
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See "[For CelerData](#preparations)."
 - `region_name`: Enter the ID of the AWS region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions#aws).
 - `access_key` and `secret_key`: Enter the access key ID ("access key" for short) and secret access key ("secret key" for short) of your access key pair. See "[For AWS](#preparations)." For security purposes, you can set the access key and secret key as [environment variables](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#provider-configuration).
-- `s3_bucket`: Enter the name of your S3 bucket.
+- `s3_bucket`: Enter the name of your S3 bucket. This way, the bucket element is set as a local value `s3_bucket`, and you can then directly set the argument for the bucket argument in your Terraform configuration to `local.s3_bucket` to save time. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
 ## Describe infrastructure
 
