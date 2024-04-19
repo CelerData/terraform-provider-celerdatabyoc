@@ -12,7 +12,7 @@ Deploys a classic CelerData cluster on AWS EC2 instances or on Azure virtual mac
 
 If you are setting up your first cluster and it consists of one FE node and one BE node, both with instance types that offer up to 4 CPU cores and 16 GB RAM, then the cluster will be automatically created as a [Free Developer Tier](https://docs.celerdata.com/private/main/get_started/free_developer_tier) cluster. This allows you to explore and experience the features of CelerData Cloud Private at a minimal cost.
 
-The implementation of this resource is part of the whole cluster deployment procedure. You can find details about the cluster deployment procedure in [Provision CelerData Cloud Private on Azure](../guides/azure_deployment_guide.md).
+The implementation of this resource is part of the whole cluster deployment procedure and depends on the implementation of a data credential, a deployment credential, and a network configuration. For detailed procedures of cluster deployments on AWS and Azure, see [Provision CelerData Cloud Private on AWS](../guides/aws_deployment_guide.md) and [Provision CelerData Cloud Private on Azure](../guides/azure_deployment_guide.md).
 
 ## Supported Instance Types
 
