@@ -14,6 +14,7 @@ This article walks you through the following steps necessary to deploy a CelerDa
 - [Configure providers](#configure-providers)
 - [Describe infrastructure](#describe-infrastructure)
 - [Apply configurations](#apply-configurations)
+
 Read this article before you start a Terraform configuration for your cluster deployment on AWS.
 
 ## Preparations
