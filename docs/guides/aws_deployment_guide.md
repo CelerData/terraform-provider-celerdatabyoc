@@ -342,11 +342,11 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 **Required:**
 
 - `cluster_name`: (Forces new resource) The desired name for the cluster.
-- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)". For example, you can set this argument to `m6i.4xlarge`.
+- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#for-aws)".
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 - `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_aws_data_credential.data_credential.id`.
 - `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_aws_network.network.id`.
-- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)". For example, you can set this argument to `m5.xlarge`.
+- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#for-aws)".
 - `default_admin_password`: The initial password of the cluster `admin` user.
 - `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
 - `csp`: The cloud service provider of the cluster. Set this argument to `aws`.

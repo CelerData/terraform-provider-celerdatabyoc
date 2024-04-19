@@ -200,8 +200,11 @@ This resource contains the following required arguments and optional arguments:
 **Optional:**
 
 - `name`: (Forces new resource) The name of the IAM role referenced in the data credential. Enter a unique name. If omitted, Terraform will assign a random, unique name. See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
+
 - `description`: The description of the IAM role.
+
 - `inline_policy`: The configuration block that defines an exclusive set of IAM inline policies associated with the IAM role. See below. If no blocks are configured, Terraform will not manage any inline policies in this resource. Configuring one empty block (namely, `inline_policy {}`) will cause Terraform to remove all inline policies added out of band on `apply`.
+
   - `name`: The name of the IAM policy that will be attached to the IAM role referenced in the data credential.
   - `policy`: The IAM policy that will be attached to the IAM role. Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.json`.
 
@@ -212,8 +215,11 @@ This resource contains the following required arguments and optional arguments:
 **Required:**
 
 - `role_arn`: (Forces new resource) The ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
+
 - `instance_profile_arn`: (Forces new resource) The instance profile ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_instance_profile.celerdata_data_cred_profile.arn`.
+
 - `bucket_name`: (Forces new resource) The name of the AWS S3 bucket for which to generate the policy document and that stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+
 - `policy_version`: (Forces new resource) Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
 
 **Optional:**
@@ -227,6 +233,7 @@ This resource contains the following required arguments and optional arguments:
 This resource contains only the following optional arguments:
 
 - `name`: (Forces new resource) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`, `.`, `@`, `-`. Spaces are not allowed.
+
 - `role`: The name of the IAM role to add to the instance profile. Set the value to `aws_iam_role.celerdata_data_cred_role.name`.
 
 #### celerdatabyoc_aws_deployment_credential_policy
@@ -234,6 +241,7 @@ This resource contains only the following optional arguments:
 This resource contains only the following required arguments:
 
 - `bucket`: The name of the AWS S3 bucket. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+
 - `data_role_arn`: (Forces new resource) The ARN of the IAM role referenced in the deployment credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
 
 #### aws_iam_role (deploy_cred_role)
@@ -247,8 +255,11 @@ This resource contains the following required arguments and optional arguments:
 **Optional:**
 
 - `name`: (Forces new resource) The name of the IAM role referenced in the deployment credential. Enter a unique name. If omitted, Terraform will assign a random, unique name. See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
+
 - `description`: The description of the IAM role.
+
 - `inline_policy`: The configuration block that defines an exclusive set of IAM inline policies associated with the IAM role. See below. If no blocks are configured, Terraform will not manage any inline policies in this resource. Configuring one empty block (namely, `inline_policy {}`) will cause Terraform to remove all inline policies added out of band on `apply`.
+
   - `name`: The name of the IAM policy that will be attached to the IAM role.
   - `policy`: The IAM policy that will be attached to the IAM role referenced in the deployment credential. Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.json`.
 
@@ -259,7 +270,9 @@ This resource contains the following required arguments and optional arguments:
 **Required:**
 
 - `role_arn`: (Forces new resource) Set the value to `aws_iam_role.deploy_cred_role.arn`.
+
 - `external_id`: (Forces new resource) Set the value to `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id`.
+
 - `policy_version`: (Forces new resource) Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.version`.
 
 **Optional:**
@@ -315,18 +328,25 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 **Optional:**
 
 - `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
+
 - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
+
 - `resource_tags`: The tags to be attached to the cluster.
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/en-us/main/run_scripts).
+
+- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/private/main/run_scripts).
+
   - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
+
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
+
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
+
 - `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 60-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 ## See Also
 
 - [AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)
-- [Manage data credentials for AWS](https://docs.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials)
-- [Manage deployment credentials for AWS](https://docs.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials)
-- [Manage network configurations for AWS](https://docs.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)
+- [Manage data credentials for AWS](https://docs.celerdata.com/private/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials)
+- [Manage deployment credentials for AWS](https://docs.celerdata.com/private/main/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials)
+- [Manage network configurations for AWS](https://docs.celerdata.com/private/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)

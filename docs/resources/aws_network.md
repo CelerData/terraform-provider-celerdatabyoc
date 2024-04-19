@@ -7,7 +7,7 @@ description: |-
 ---
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
-Because CelerData needs to deploy clusters in users' VPC, thus during the deploying process, users need to define the subnet to which they want to deploy a cluster. They also need to define a security group which controls how the cluster nodes integrate with each other. For more information about how to set up the subnet and security group, see [Create a network configuration](https://docs.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations#create-a-network-configuration).
+Because CelerData needs to deploy clusters in users' VPC, thus during the deploying process, users need to define the subnet to which they want to deploy a cluster. They also need to define a security group which controls how the cluster nodes integrate with each other. For more information about how to set up the subnet and security group, see [Create a network configuration](https://docs.celerdata.com/private/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations#create-a-network-configuration).
 
 Manages network configurations for AWS in CelerData Cloud Private.
 
@@ -129,5 +129,5 @@ This resource exports the following attribute:
 
 ## See Also
 
-- [Manage network configurations for AWS](https://docs.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)
-- [Create a VPC endpoint](https://docs.celerdata.com/en-us/main/aws/create_vpc_endpoint)
+- [Manage network configurations for AWS](https://docs.celerdata.com/private/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)
+- [Create a VPC endpoint](https://docs.celerdata.com/private/main/aws/create_vpc_endpoint)

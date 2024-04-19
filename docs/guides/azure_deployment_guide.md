@@ -106,14 +106,14 @@ The cluster deployment on Azure depends on the following Azure objects:
 - A storage account and a container within the storage account, which will be used to store your data.
 - A managed identity, to which you also need to grant the required permissions, so the cluster will be able to store query profiles to the container.
 - An app registration to authorize Terraform as a service principal, and a client secret for the registered application. You also need to add role assignments to the application, so Terraform can launch the resources necessary to deploy the cluster within your Azure service account.
-- An SSH public key, which gives access to your virtual machines for automatic deployment, so Terraform can deploy the required service processes on your virtual machines.
+- An SSH public key, which gives access to your virtual machines (VMs) for automatic deployment, so Terraform can deploy the required service processes on your VMs.
 
   You need to create an SSH public key on your local computer, because you will need to fill the path in the `public_key` element of this object.
 
-- A virtual network and a subnet within the virtual network for the virtual machines on which the cluster depends.
+- A virtual network and a subnet within the virtual network for the VMs on which the cluster depends.
 - A security group to which the subnet is assigned.
 
-To create these Azure objects, you need to declare the following resources in the **.tf** file in which you have configured the providers:
+To create these Azure objects, you need to declare the following resources in the **.tf** file (for example, **main.tf**) in which you have configured the providers:
 
 ```terraform
 provider "azuread" {}
@@ -253,7 +253,27 @@ See the following documents for more information:
 
 This section provides a sample infrastructure configuration that automates the deployment of a classic CelerData cluster on Azure to help you understand how you can work with the CelerData Cloud Private provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the Azure objects](#configure-azure-objects).
 
-To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file in which you have configured the providers and Azure objects:
+To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers and Azure objects.
+
+### celerdatabyoc_azure_data_credential
+
+```terraform
+resource "celerdatabyoc_azure_data_credential" "example" {
+  name                         = "<data_credential_name>"
+  managed_identity_resource_id = azurerm_user_assigned_identity.example.id
+  storage_account_name         = azurerm_storage_account.example.name
+  container_name               = azurerm_storage_container.example.name
+}
+```
+
+This resource contains the following required arguments:
+
+- `name`: (Forces new resource) The name of the data credential. Enter a unique name.
+- `managed_identity_resource_id`: (Forces new resource) The ID of the managed identity. Set this argument to `azurerm_user_assigned_identity.example.id`.
+- `storage_account_name`: (Forces new resource) The name of the storage account. Set this argument to `azurerm_storage_account.example.name`.
+- `container_name`: (Forces new resource) The name of the container. Set this argument to `azurerm_storage_container.example.name`.
+
+### celerdatabyoc_azure_deployment_credential
 
 ```terraform
 resource "celerdatabyoc_azure_deployment_credential" "example" {
@@ -263,14 +283,19 @@ resource "celerdatabyoc_azure_deployment_credential" "example" {
   client_secret_value = azuread_application_password.example.value
   ssh_key_resource_id = azurerm_ssh_public_key.example.id
 }
+```
 
-resource "celerdatabyoc_azure_data_credential" "example" {
-  name                         = "<data_credential_name>"
-  managed_identity_resource_id = azurerm_user_assigned_identity.example.id
-  storage_account_name         = azurerm_storage_account.example.name
-  container_name               = azurerm_storage_container.example.name
-}
+This resource contains the following required arguments:
 
+- `name`: (Forces new resource) The name of the deployment credential. Enter a unique name.
+- `application_id`: (Forces new resource) The application (client) ID of the registered application. Set this argument to `azuread_application_registration.example.client_id`.
+- `directory_id`: (Forces new resource) The directory (tenant) ID of the registered application. Set this argument to `azuread_service_principal.app_service_principal.application_tenant_id`.
+- `client_secret_value`: (Forces new resource) The value of the client secret of the registered application. Set this argument to `azuread_application_password.example.value`.
+- `ssh_key_resource_id`: (Forces new resource) The ID of the SSH public key. Set this argument to `azurerm_ssh_public_key.example.id`.
+
+### celerdatabyoc_azure_network
+
+```terraform
 resource "celerdatabyoc_azure_network" "example" {
   name                        = "<network_credential_name>"
   deployment_credential_id    = celerdatabyoc_azure_deployment_credential.example.id
@@ -279,7 +304,25 @@ resource "celerdatabyoc_azure_network" "example" {
   region                      = local.cluster_region
   public_accessible           = true
 }
+```
 
+This resource contains the following required arguments and optional arguments:
+
+**Required:**
+
+- `name`: (Forces new resource) The name of the network configuration. Enter a unique name.
+- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set this argument to `celerdatabyoc_azure_deployment_credential.example.id`.
+- `virtual_network_resource_id`: (Forces new resource) The resource ID of the Azure virtual network. Set this argument to `azurerm_virtual_network.example.id`.
+- `subnet_name`: (Forces new resource) The name of the subnet. Set this argument to `azurerm_subnet.example.name`.
+- `region`: (Forces new resource) The ID of the Azure region. Set this argument to `local.cluster_region`, as we recommend that you set the region element as a local value in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+
+**Optional:**
+
+- `public_accessible`: Whether the cluster can be accessed from public networks. Valid values: `true` and `false`. If you set this argument to `true`, CelerData will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you set this argument to `false`, the cluster is accessible only through a private domain name.
+
+### celerdatabyoc_classic_cluster
+
+```terraform
 resource "celerdatabyoc_classic_cluster" "azure_terraform_test" {
   cluster_name             = "<cluster_name>"
   fe_instance_type         = "<fe_node_instance_type>"
@@ -302,12 +345,28 @@ resource "celerdatabyoc_classic_cluster" "azure_terraform_test" {
 }
 ```
 
-See the following documents for more information:
+The `celerdatabyoc_classic_cluster` resource contains the following required arguments and optional arguments:
 
-- [celerdatabyoc_azure_data_credential](../resources/azure_data_credential.md)
-- [celerdatabyoc_azure_deployment_credential](../resources/azure_deployment_credential.md)
-- [celerdatabyoc_azure_network](../resources/azure_network.md)
-- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
+**Required:**
+
+- `cluster_name`: (Forces new resource) The desired name for the cluster.
+- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#for-azure)".
+- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_azure_deployment_credential.example.id`.
+- `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_azure_data_credential.example.id`.
+- `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_azure_network.example.id`.
+- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#for-azure)".
+- `default_admin_password`: The initial password of the cluster `admin` user.
+- `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
+- `csp`: The cloud service provider of the cluster. Set this argument to `azure`.
+- `region`: The ID of the Azure region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions#aws). Set this argument to `local.cluster_region`, as we recommend that you set the bucket element as a local value `cluster_region` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+
+**Optional:**
+
+- `fe_node_count`: The number of FE nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
+- `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
+- `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
+- `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
+- `resource_tags`: The tags to be attached to the cluster.
 
 ## Apply configurations
 

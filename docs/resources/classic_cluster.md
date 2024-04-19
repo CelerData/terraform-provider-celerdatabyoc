@@ -100,159 +100,82 @@ The implementation of this resource is part of the whole cluster deployment proc
 ### For Azure
 
 <html>
-
  <head></head>
-
  <body>
-
   <table>
-
    <tbody>
-
 ​    <tr>
-
 ​     <td rowspan="2"></td>
-
 ​     <td rowspan="2">Instance type</td>
-
 ​     <td rowspan="2">Instance size</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td rowspan="7">FE</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_D4s_v5</td>
-
 ​     <td>4 Cores 16GB Memory 100 GB Storage</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_D8s_v5</td>
-
 ​     <td>8 Cores 32GB Memory 100 GB Storage</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_D16s_v5 </td>
-
 ​     <td>16 Cores 64GB Memory 100 GB Storage</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_D32s_v5</td>
-
 ​     <td>32 Cores 128GB Memory 100 GB Storage</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td rowspan="6">BE (General Purpose)</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_D4s_v5</td>
-
 ​     <td>4 Cores 16GB Memory</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_D8s_v5</td>
-
 ​     <td>8 Cores 32GB Memory</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_D16s_v5 </td>
-
 ​     <td>16 Cores 64GB Memory</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_D32s_v5</td>
-
 ​     <td>32 Cores 128GB Memory</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td rowspan="7">BE (Memory Optimized)</td>
-
 ​    <tr>
-
 ​     <td>Standard_E4s_v5 </td>
-
 ​     <td>4 Cores 32GB Memory</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_E8s_v5</td>
-
 ​     <td>8 Cores 64GB Memory</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_E16s_v5</td>
-
 ​     <td>16 Cores 128GB Memory</td>
-
 ​    </tr>
-
 ​    <tr>
-
 ​     <td>Standard_E32s_v5</td>
-
 ​     <td>32 Cores 256GB Memory</td>
-
 ​    </tr>
-
    </tbody>
-
   </table>
-
  </body>
-
 </html>
 
 ## Example Usage

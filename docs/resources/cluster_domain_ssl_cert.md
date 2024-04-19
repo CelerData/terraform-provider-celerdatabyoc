@@ -56,5 +56,5 @@ This resource exports the following attributes:
 
 ## See Also
 
-- [Use SSL connection](https://docs.celerdata.com/en-us/main/security/ssl_connection)
-- [Connect to a CelerData cluster](https://docs.celerdata.com/en-us/main/get_started/connect_cluster)
+- [Use SSL connection](https://docs.celerdata.com/private/main/security/ssl_connection)
+- [Connect to a CelerData cluster](https://docs.celerdata.com/private/main/get_started/connect_cluster)
