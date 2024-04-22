@@ -319,7 +319,7 @@ resource "celerdatabyoc_classic_cluster" "demo_cluster" {
   be_disk_per_size = 100
   default_admin_password = "<SQL_user_initial_password>"
 
-  expected_cluster_state = "{Suspended | Running}"
+  expected_cluster_state = "Running"
   resource_tags = {
     celerdata = "<tag_name>"
   }
