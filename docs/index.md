@@ -16,3 +16,27 @@ The CelerData Cloud Private provider is used to configure the infrastructure tha
 To learn more about the basics of Terraform using this provider, follow the hands-on tutorials provided in "Guides" in the navigation to the left.
 
 You can also find documentation regarding the resources and data sources supported by this provider in the navigation to the left.
+
+## Authentication
+
+Currently, Terraform supports using an application key to authenticate into the CelerData Cloud Private platform.
+
+Before you start a cluster deployment through Terraform, you must create an application key by following these steps:
+
+1. Sign in to the [CelerData Cloud Private console](https://cloud.celerdata.com/login).
+
+2. In the left-side navigation pane, choose **Application keys**.
+
+3. On the **Application keys** page, click **New secret**.
+
+4. In the dialog box that appears, optionally enter a description, and then click **Generate now** to generate an application key. Then, copy the **Secret** and **Client ID** before you close the dialog box.
+
+   ~> The **Secret** can be viewed only when the application key is created. Make sure that you copy and save the **Secret** before closing the dialog box.
+
+The CelerData Cloud Private provider will use the **Secret** and **Client ID** of your application key to provision and manage CelerData resources.
+
+For more information about managing application keys, see [Application keys](https://docs.celerdata.com/private/main/security/application_keys).
+
+## Privileges
+
+Cluster deployments require the cloud settings management privilege. Make sure that the account with which you have logged in and created an application key used for cluster deployments through Terraform has the cloud settings management privilege. See [Privileges](https://docs.celerdata.com/private/main/security/cloud_access_control/cloud_access_control_overview#privileges).
