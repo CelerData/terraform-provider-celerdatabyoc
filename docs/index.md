@@ -39,4 +39,4 @@ For more information about managing application keys, see [Application keys](htt
 
 ## Privileges
 
-Cluster deployments require the cloud settings management privilege. Make sure that the account with which you have logged in and created an application key used for cluster deployments through Terraform has the cloud settings management privilege. See [Privileges](https://docs.celerdata.com/private/main/security/cloud_access_control/cloud_access_control_overview#privileges).
+Cluster deployments require the cloud settings management privilege. Make sure that the CelerData cloud account you used to create an application key for the cluster deployments through Terraform has the cloud settings management privilege. See [Privileges](https://docs.celerdata.com/private/main/security/cloud_access_control/cloud_access_control_overview#privileges).
