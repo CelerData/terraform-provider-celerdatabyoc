@@ -33,8 +33,6 @@ For Azure, you need to:
 
 For CelerData, you need to obtain the credentials with which you can authenticate into the CelerData Cloud Private platform. For details, see [Authentication](../index.md#authentication).
 
-For more information about managing application keys, see [Application keys](https://docs.celerdata.com/private/main/security/application_keys).
-
 ### For Terraform
 
 For Terraform, you need to:
