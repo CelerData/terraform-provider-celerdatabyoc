@@ -60,21 +60,7 @@ For AWS, you need to:
 
 ### For CelerData
 
-For CelerData, you need to obtain CelerData credentials.
-
-The CelerData Cloud Private provider will use the **Secret** and **Client ID** of your application key to provision and manage CelerData resources. Follow these steps to obtain these credentials:
-
-1. Sign in to the [CelerData Cloud Private console](https://cloud.celerdata.com/login).
-
-2. In the left-side navigation pane, choose **Application keys**.
-
-3. On the **Application keys** page, click **New secret**.
-
-4. In the dialog box that appears, optionally enter a description, and then click **Generate now** to generate an application key. Then, copy the **Secret** and **Client ID** before you close the dialog box.
-
-   ~> The **Secret** can be viewed only when the application key is created. Make sure that you copy and save the **Secret** before closing the dialog box.
-
-For more information about managing application keys, see [Application keys](https://docs.celerdata.com/private/main/security/application_keys).
+For CelerData, you need to obtain the credentials with which you can authenticate into the CelerData Cloud Private platform. For details, see [Authentication](../index.md#authentication).
 
 ### For Terraform
 
