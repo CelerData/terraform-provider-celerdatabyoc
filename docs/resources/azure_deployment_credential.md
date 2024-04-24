@@ -8,11 +8,11 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
 
-Creates a deployment credential for Azure in CelerData Cloud Private.
+Creates a deployment credential for Azure in CelerData Cloud BYOC.
 
 A deployment credential for Azure includes a service principal and an SSH public key. The service principal allows Terraform to launch the necessary resources required for your deployment and follow-up scaling, while the SSH public key provides Terraform access to deploy services on your Azure virtual network.
 
-The implementation of this resource can be part of the cluster deployment procedure. You can find details about the cluster deployment procedure in [Provision CelerData Cloud Private on Azure](../guides/azure_deployment_guide.md). You can also implement this resource separately to create a data credential, which then can be reused together with the matching data credential and network configuration many times to deploy clusters.
+The implementation of this resource can be part of the cluster deployment procedure. You can find details about the cluster deployment procedure in [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md). You can also implement this resource separately to create a data credential, which then can be reused together with the matching data credential and network configuration many times to deploy clusters.
 
 This resource depends on the implementation of the following resources:
 
@@ -62,7 +62,7 @@ This resource exports the following attributes:
 
 ## See Also
 
-- [Provision CelerData Cloud Private on Azure](../guides/azure_deployment_guide.md)
+- [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md)
 - [celerdatabyoc_azure_data_credential](../resources/azure_data_credential.md)
 - [celerdatabyoc_azure_network](../resources/azure_network.md)
 - [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)

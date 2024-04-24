@@ -18,7 +18,7 @@ Take note of the following points:
 - You can call this API only when the cluster is in the **Running** state so that the certificate files can be successfully fetched to the cluster.
 - After this resource is added successfully, you must suspend and then resume the cluster to allow the certificate to take effect.
 - To connect to your cluster with the domain name you have specified in this resource, you must map your customer domain name to the cluster's domain name using CNAME. You can find the domain name of your cluster by following these steps:
-  - Sign in to the [CelerData Cloud Private console](https://cloud.celerdata.com/login).
+  - Sign in to the [CelerData Cloud BYOC console](https://cloud.celerdata.com/login).
   - On the **Clusters** page, click the cluster that you want to view.
   - In the **Connection** section of the **Overview** tab, find the cluster's domain name.
 
@@ -51,7 +51,7 @@ This resource contains the following required arguments:
 This resource exports the following attributes:
 
 - `id`: (String) The ID of the cluster.
-- `cert_id`: (String) The ID of the SSL certificate in CelerData Cloud Private.
+- `cert_id`: (String) The ID of the SSL certificate in CelerData Cloud BYOC.
 - `cert_state`: The status of the SSL certificate.
 
 ## See Also

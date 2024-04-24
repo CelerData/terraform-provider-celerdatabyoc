@@ -6,12 +6,12 @@ sidebar_current: "docs-celerdatabyoc-index"
 description: Terraform provider for the celerdatabyoc cloud
 ---
 
-# CelerData Cloud Private Provider
+# CelerData Cloud BYOC Provider
 
-The CelerData Cloud Private provider is used to configure the infrastructure that hosts your CelerData resources. You must configure the provider with proper credentials before you can use it. Currently the provider supports deployments on both AWS and Azure:
+The CelerData Cloud BYOC provider is used to configure the infrastructure that hosts your CelerData resources. You must configure the provider with proper credentials before you can use it. Currently the provider supports deployments on both AWS and Azure:
 
-- On AWS, you can deploy cluster or elastic clusters. See [Provision CelerData Cloud Private on AWS](../docs/guides/aws_deployment_guide.md).
-- On Azure, you can deploy only classic clusters. See [Provision CelerData Cloud Private on Azure](../docs/guides/azure_deployment_guide.md).
+- On AWS, you can deploy cluster or elastic clusters. See [Provision CelerData Cloud BYOC on AWS](../docs/guides/aws_deployment_guide.md).
+- On Azure, you can deploy only classic clusters. See [Provision CelerData Cloud BYOC on Azure](../docs/guides/azure_deployment_guide.md).
 
 To learn more about the basics of Terraform using this provider, follow the hands-on tutorials provided in "Guides" in the navigation to the left.
 
@@ -19,11 +19,11 @@ You can also find documentation regarding the resources and data sources support
 
 ## Authentication
 
-Currently, Terraform supports using an application key to authenticate into the CelerData Cloud Private platform.
+Currently, Terraform supports using an application key to authenticate into the CelerData Cloud BYOC platform.
 
 Before you start a cluster deployment through Terraform, you must create an application key by following these steps:
 
-1. Sign in to the [CelerData Cloud Private console](https://cloud.celerdata.com/login).
+1. Sign in to the [CelerData Cloud BYOC console](https://cloud.celerdata.com/login).
 
 2. In the left-side navigation pane, choose **Application keys**.
 
@@ -33,7 +33,7 @@ Before you start a cluster deployment through Terraform, you must create an appl
 
    ~> The **Secret** can be viewed only when the application key is created. Make sure that you copy and save the **Secret** before closing the dialog box.
 
-The CelerData Cloud Private provider will use the **Secret** and **Client ID** of your application key to provision and manage CelerData resources.
+The CelerData Cloud BYOC provider will use the **Secret** and **Client ID** of your application key to provision and manage CelerData resources.
 
 For more information about managing application keys, see [Application keys](https://docs.celerdata.com/private/main/security/application_keys).
 

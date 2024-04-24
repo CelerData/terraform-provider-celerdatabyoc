@@ -8,11 +8,11 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
 
-Creates a network configuration for Azure in CelerData Cloud Private.
+Creates a network configuration for Azure in CelerData Cloud BYOC.
 
 A network configuration for Azure defines the network infrastructure such as the virtual network and subnet that hosts your CelerData cluster deployment, as well as the security rules that control the incoming and outgoing traffic of the CelerData cluster.
 
-The implementation of this resource can be part of the whole cluster deployment procedure. You can find details about the cluster deployment procedure in [Provision CelerData Cloud Private on Azure](../guides/azure_deployment_guide.md). You can also implement this resource separately to create a data credential, which then can be reused together with the matching data credential and deployment credential many times to deploy clusters.
+The implementation of this resource can be part of the whole cluster deployment procedure. You can find details about the cluster deployment procedure in [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md). You can also implement this resource separately to create a data credential, which then can be reused together with the matching data credential and deployment credential many times to deploy clusters.
 
 This resource also depends on the implementation of the following resources:
 
@@ -66,7 +66,7 @@ This resource exports the following attributes:'
 
 ## See Also
 
-- [Provision CelerData Cloud Private on Azure](../guides/azure_deployment_guide.md)
+- [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md)
 - [celerdatabyoc_azure_data_credential](../resources/azure_data_credential.md)
 - [celerdatabyoc_azure_deployment_credential](../resources/azure_deployment_credential.md)
 - [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
