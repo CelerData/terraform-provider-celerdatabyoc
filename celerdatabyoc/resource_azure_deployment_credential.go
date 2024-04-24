@@ -120,7 +120,7 @@ func azureResourceDeploymentCredentialRead(ctx context.Context, d *schema.Resour
 		return diag.FromErr(err)
 	}
 
-	if resp.DeployRoleCred == nil || len(resp.DeployRoleCred.BizID) == 0 {
+	if resp.DeployAkSkCred == nil || len(resp.DeployAkSkCred.BizID) == 0 {
 		d.SetId("")
 	}
 

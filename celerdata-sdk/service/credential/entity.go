@@ -83,7 +83,7 @@ type RotateAkSkCredentialReq struct {
 }
 
 type GetDeployAkSkCredResp struct {
-	DeployRoleCred *DeploymentAkSkCredential `json:"deploy_role_cred" mapstructure:"deploy_role_cred"`
+	DeployAkSkCred *DeploymentAkSkCredential `json:"deploy_ak_sk_cred" mapstructure:"deploy_ak_sk_cred"`
 }
 
 type DeploymentAkSkCredential struct {
