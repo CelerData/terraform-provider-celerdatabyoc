@@ -73,11 +73,6 @@ func resourceClassicCluster() *schema.Resource {
 				Default:      3,
 				ValidateFunc: validation.IntAtLeast(1),
 			},
-			"be_storage_size_gb": {
-				Description: "Total disk size in GB",
-				Type:        schema.TypeInt,
-				Optional:    true,
-			},
 			"be_disk_per_size": {
 				Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 				Type:        schema.TypeInt,
@@ -388,7 +383,6 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("deployment_credential_id", resp.Cluster.DeployCredID)
 	d.Set("be_instance_type", resp.Cluster.BeModule.InstanceType)
 	d.Set("be_node_count", int(resp.Cluster.BeModule.Num))
-	d.Set("be_storage_size_gb", int(resp.Cluster.BeModule.StorageSizeGB))
 	d.Set("be_disk_number", int(resp.Cluster.BeModule.VmVolNum))
 	d.Set("be_disk_per_size", int(resp.Cluster.BeModule.VmVolSizeGB))
 	d.Set("fe_instance_type", resp.Cluster.FeModule.InstanceType)
