@@ -667,7 +667,7 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		o2, n2 := d.GetChange("be_disk_per_size")
 
 		if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-			return diag.FromErr(fmt.Errorf("be_storage_size_gb: %dGB => %dGB, be storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
+			return diag.FromErr(fmt.Errorf("total be storage size: %dGB => %dGB, be storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
 		}
 
 		resp, err := clusterAPI.IncrStorageSize(ctx, &cluster.IncrStorageSizeReq{
