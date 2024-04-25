@@ -726,11 +726,12 @@ func WaitClusterStateChangeComplete(ctx context.Context, req *waitStateReq) (*cl
 		Target:     req.targetStates,
 		Refresh:    StatusClusterState(ctx, req.clusterAPI, req.actionID, req.clusterID),
 		Timeout:    req.timeout,
-		MinTimeout: 3 * time.Second,
+		MinTimeout: 5 * time.Second,
 	}
 
 	outputRaw, err := stateConf.WaitForStateContext(ctx)
 	if output, ok := outputRaw.(*cluster.GetStateResp); ok {
+		time.Sleep(time.Second * 5)
 		return output, err
 	}
 
