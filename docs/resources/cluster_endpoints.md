@@ -30,6 +30,7 @@ output "endpoints"{
 This resource contains the following required arguments:
 
 - `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.
+
   - If the cluster is a classic cluster, set this argument to `celerdatabyoc_classic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
   - If the cluster is an elastic cluster, set this argument to `celerdatabyoc_elastic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
 
@@ -38,12 +39,14 @@ This resource contains the following required arguments:
 This resource exports the following attributes:
 
 - `id`: (String) The ID of the cluster.
+
 - `endpoints`: (List of String) The list of endpoints. The attributes of an endpoint include:
+
   - `host`: The host of the endpoint.
   - `network_method`: The type of the endpoint. Valid values: `Public` and `Private`.
   - `port`: The port of the endpoint.
 
 ## See Also
 
-- [Connect to a CelerData cluster](https://docs.celerdata.com/en-us/main/get_started/connect_cluster)
-- [Connect from a client application to a CelerData cluster](https://docs.celerdata.com/en-us/main/cluster_management/connect_application_to_cluster)
+- [Connect to a CelerData cluster](https://docs.celerdata.com/private/main/get_started/connect_cluster)
+- [Connect from a client application to a CelerData cluster](https://docs.celerdata.com/private/main/cluster_management/connect_application_to_cluster)

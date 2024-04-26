@@ -8,7 +8,7 @@ description: |-
 
 Creates an AWS data credential policy.
 
-This resource is a pre-requisite step for the implementation of the [celerdatabyoc_aws_data_credential](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_data_credential) resource.
+This resource is a pre-requisite step for the implementation of the [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md) resource.
 
 ## Example Usage
 
@@ -56,8 +56,9 @@ This resource contains only the following required argument:
 This resource exports the following attributes:
 
 - `json`: The JSON policy document used to create an AWS IAM policy.
+
 - `version`: Provides support for policy version comparisons, the result of which only affects newly created clusters and have no effect on existing clusters.
 
 ## See Also
 
-- [celerdatabyoc_aws_data_credential](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_data_credential)
+- [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md)

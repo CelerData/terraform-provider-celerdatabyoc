@@ -10,12 +10,12 @@ description: |-
 
 To ensure a successful deployment in your VPC, you must create an AWS deployment credential. For more information, see [Create an AWS deployment credential](https://docs-sandbox.celerdata.com/en-us/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials.).
 
-This resource depends on the following resources and the [celerdatabyoc_aws_data_credential_assume_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/data-sources/aws_data_credential_assume_policy) data source:
+This resource depends on the following resources and the [celerdatabyoc_aws_data_credential_assume_policy](../data-sources/aws_data_credential_assume_policy.md) data source:
 
-- [celerdatabyoc_aws_data_credential_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_data_credential_policyresource,)
+- [celerdatabyoc_aws_data_credential_policy](../resources/aws_data_credential_policy.md)
 - [aws_iam_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (data credential role)
-- [celerdatabyoc_aws_deployment_credential_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_deployment_credential_policy)
-- [celerdatabyoc_aws_deployment_credential_assume_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_deployment_credential_assume_policy)
+- [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
+- [celerdatabyoc_aws_deployment_credential_assume_policy](../resources/aws_deployment_credential_assume_policy.md)
 - [aws_iam_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (deployment_credential_role)
 
 You must have configured these resources before you can implement this resource.
@@ -73,7 +73,9 @@ This resource contains the following required arguments and optional arguments:
 **Required:**
 
 - `role_arn`: (Forces new resource) The ARN of the cross-account IAM role referenced in the deployment credential. Set the value to `aws_iam_role.deploy_cred_role.arn`.
+
 - `external_id`: (Forces new resource) The external ID that is used to create the cross-account IAM role referenced in the deployment credential. Set the value to `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id`.
+
 - `policy_version`: (Forces new resource) The version of the policy. Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.version`.
 
 **Optional:**
@@ -88,6 +90,6 @@ This resource exports the following attribute:
 
 ## See Also
 
-- [celerdatabyoc_aws_deployment_credential_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_deployment_credential_policy)
-- [celerdatabyoc_aws_deployment_credential_assume_policy](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_deployment_credential_assume_policy)
+- [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
+- [celerdatabyoc_aws_deployment_credential_assume_policy](../resources/aws_deployment_credential_assume_policy.md)
 - [aws_iam_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
