@@ -30,6 +30,9 @@ type IClusterAPI interface {
 	UpsertClusterSSLCert(ctx context.Context, req *UpsertClusterSSLCertReq) error
 	GetClusterDomainSSLCert(ctx context.Context, req *GetClusterDomainSSLCertReq) (*GetClusterDomainSSLCertResp, error)
 	UpsertClusterIdleConfig(ctx context.Context, req *UpsertClusterIdleConfigReq) error
+
+	UpdateCustomConfig(ctx context.Context, req *SaveCustomConfigReq) error
+	GetCustomConfig(ctx context.Context, req *ListCustomConfigReq) (*ListCustomConfigResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -234,4 +237,19 @@ type UpsertClusterIdleConfigReq struct {
 
 func (c *clusterAPI) UpsertClusterIdleConfig(ctx context.Context, req *UpsertClusterIdleConfigReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/idle-config", c.apiVersion, req.ClusterId), req, nil)
+}
+
+func (c *clusterAPI) GetCustomConfig(ctx context.Context, req *ListCustomConfigReq) (*ListCustomConfigResp, error) {
+	resp := &ListCustomConfigResp{}
+
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/custom-config/detail", c.apiVersion, req.ClusterID), *req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func (c *clusterAPI) UpdateCustomConfig(ctx context.Context, req *SaveCustomConfigReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/custom-config", c.apiVersion, req.ClusterID), req, nil)
 }
