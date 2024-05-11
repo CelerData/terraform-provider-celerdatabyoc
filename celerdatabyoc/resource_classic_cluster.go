@@ -73,11 +73,6 @@ func resourceClassicCluster() *schema.Resource {
 				Default:      3,
 				ValidateFunc: validation.IntAtLeast(1),
 			},
-			"be_storage_size_gb": {
-				Description: "Total disk size in GB",
-				Type:        schema.TypeInt,
-				Optional:    true,
-			},
 			"be_disk_per_size": {
 				Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 				Type:        schema.TypeInt,
@@ -419,7 +414,6 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("deployment_credential_id", resp.Cluster.DeployCredID)
 	d.Set("be_instance_type", resp.Cluster.BeModule.InstanceType)
 	d.Set("be_node_count", int(resp.Cluster.BeModule.Num))
-	d.Set("be_storage_size_gb", int(resp.Cluster.BeModule.StorageSizeGB))
 	d.Set("be_disk_number", int(resp.Cluster.BeModule.VmVolNum))
 	d.Set("be_disk_per_size", int(resp.Cluster.BeModule.VmVolSizeGB))
 	d.Set("fe_instance_type", resp.Cluster.FeModule.InstanceType)
@@ -721,7 +715,7 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		o2, n2 := d.GetChange("be_disk_per_size")
 
 		if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-			return diag.FromErr(fmt.Errorf("be_storage_size_gb: %dGB => %dGB, be storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
+			return diag.FromErr(fmt.Errorf("total be storage size: %dGB => %dGB, be storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
 		}
 
 		resp, err := clusterAPI.IncrStorageSize(ctx, &cluster.IncrStorageSizeReq{
@@ -780,11 +774,12 @@ func WaitClusterStateChangeComplete(ctx context.Context, req *waitStateReq) (*cl
 		Target:     req.targetStates,
 		Refresh:    StatusClusterState(ctx, req.clusterAPI, req.actionID, req.clusterID),
 		Timeout:    req.timeout,
-		MinTimeout: 3 * time.Second,
+		MinTimeout: 5 * time.Second,
 	}
 
 	outputRaw, err := stateConf.WaitForStateContext(ctx)
 	if output, ok := outputRaw.(*cluster.GetStateResp); ok {
+		time.Sleep(time.Second * 5)
 		return output, err
 	}
 

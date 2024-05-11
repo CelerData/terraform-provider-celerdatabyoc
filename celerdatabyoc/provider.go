@@ -7,6 +7,7 @@ import (
 	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/config"
+	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -78,6 +79,9 @@ func Provider() *schema.Provider {
 			"celerdatabyoc_cluster_endpoints":                       resourceClusterEndpoints(),
 			"celerdatabyoc_cluster_user":                            resourceClusterUser(),
 			"celerdatabyoc_cluster_domain_ssl_cert":                 resourceClusterSSLCert(),
+			"celerdatabyoc_azure_data_credential":                   azureResourceDataCredential(),
+			"celerdatabyoc_azure_deployment_credential":             azureResourceDeploymentCredential(),
+			"celerdatabyoc_azure_network":                           azureResourceNetwork(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"celerdatabyoc_aws_data_credential_assume_policy": dataAwsDataCredentialAssumeRolePolicy(),
@@ -104,6 +108,16 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 			Severity: diag.Error,
 			Summary:  "Unable to create Celerdata client",
 			Detail:   "Unable to create Celerdata client",
+		})
+		return nil, diags
+	}
+
+	err = c.Get(ctx, fmt.Sprintf("/api/%s/ping", version.API_1_0), nil, nil)
+	if err != nil {
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Error,
+			Summary:  "Verify client_id/client_secret failed",
+			Detail:   err.Error(),
 		})
 		return nil, diags
 	}
