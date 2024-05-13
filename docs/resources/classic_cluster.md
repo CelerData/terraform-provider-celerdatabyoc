@@ -273,7 +273,7 @@ This resource contains the following required arguments and optional arguments:
   - If you deploy the cluster on AWS, set this argument to `aws`.
   - If you deploy the cluster on Azure, set this argument to `azure`.
 - `region`: The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions).
-- `depends_on`: required only for Azure clusters. If you want to deploy an Azure cluster, you must ensure that the resources used to declare the privileges of the resource group and managed identity are destroyed only after the cluster is released. To achieve this, you need to add this dependency.
+- `depends_on`: required only for Azure clusters. This argument creates a dependency between resources. If you want to deploy an Azure cluster, you must ensure that the resources used to declare the privileges of the resource group and managed identity are destroyed only after the cluster is released. To achieve this, you need to add this dependency.
 
 **Optional:**
 
