@@ -180,6 +180,8 @@ The implementation of this resource is part of the whole cluster deployment proc
 
 ## Example Usage
 
+### For AWS
+
 ```terraform
 resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   cluster_name = "<cluster_name>"
@@ -210,6 +212,41 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
 }
 ```
 
+### For Azure
+
+The configuration example for Azure is same to that for AWS, except that you need to add the `depends_on` argument for Azure.
+
+```terraform
+resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
+  cluster_name = "<cluster_name>"
+  fe_instance_type = "<fe_node_instance_type>"
+  fe_node_count = 1
+  deployment_credential_id = <deployment_credential_resource_ID>
+  data_credential_id = <data_credential_resource_ID>
+  network_id = <network_configuration_resource_ID>
+  be_instance_type = "<be_node_instance_type>"
+  be_node_count = 1
+  be_disk_number = 2
+  be_disk_per_size = 100
+  default_admin_password = "<SQL_user_initial_password>"
+
+  expected_cluster_state = "{Suspended | Running}"
+  resource_tags = {
+    celerdata = "<tag_name>"
+  }
+  csp = "{aws | azure}"
+  region = "<cloud_provider_region>"
+
+  init_scripts {
+      logs_dir    = "<log_s3_path>"
+      script_path = "<script_s3_path>"
+  }
+  run_scripts_parallel = false
+  query_port = 9030
+  depends_on = [azurerm_role_assignment.<name_of_resource_used_to_authorize_resource_group>,azurerm_role_assignment.<name_of_resource_used_to_authorize_managed_identity>]
+}
+```
+
 ## Argument Reference
 
 ~> This section explains only the arguments of the `celerdatabyoc_classic_cluster` resource. For the explanation of arguments of other resources, see the corresponding resource topics.
@@ -236,6 +273,7 @@ This resource contains the following required arguments and optional arguments:
   - If you deploy the cluster on AWS, set this argument to `aws`.
   - If you deploy the cluster on Azure, set this argument to `azure`.
 - `region`: The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions).
+- `depends_on`: required only for Azure clusters. If you want to deploy an Azure cluster, you must ensure that the resources used to declare the privileges of the resource group and managed identity are destroyed only after the cluster is released. To achieve this, you need to add this dependency.
 
 **Optional:**
 
@@ -244,7 +282,7 @@ This resource contains the following required arguments and optional arguments:
 - `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
 - `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
 
-~> You can use the `be_disk_number` and `be_disk_per_size` argumentAs to specify the disk space. The total disk space provisioned to a cluster is equal to `be_disk_number` * `be_disk_per_size`.
+~> You can use the `be_disk_number` and `be_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a cluster is equal to `be_disk_number` * `be_disk_per_size`.
 
 - `resource_tags`: The tags to be attached to the cluster.
 - `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/private/main/run_scripts).
@@ -252,7 +290,7 @@ This resource contains the following required arguments and optional arguments:
   - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
-- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 60-999999. To disable this feature again, remove this argument from your Terraform configuration.
+- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default, and therefore it is not included in the configuration example above. To enable the Auto Suspend feature, set this argument to an integer within the range of 60-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 ## See Also
 
