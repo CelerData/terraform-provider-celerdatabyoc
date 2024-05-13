@@ -28,10 +28,10 @@ Therefore, you must implement these resources before implementing this one. For 
 ```terraform
 resource "celerdatabyoc_azure_network" "example" {
   name                        = "<network_credential_name>"
-  deployment_credential_id    = celerdatabyoc_azure_deployment_credential.example.id
-  virtual_network_resource_id = azurerm_virtual_network.example.id
-  subnet_name                 = azurerm_subnet.example.name
-  region                      = local.cluster_region
+  deployment_credential_id    = "<deployment_credential_id>"
+  virtual_network_resource_id = "<virtual_network_id>"
+  subnet_name                 = "<subnet_name>"
+  region                      = "<region_id>"
   public_accessible           = true
 }
 ```

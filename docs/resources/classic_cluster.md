@@ -180,8 +180,6 @@ The implementation of this resource is part of the whole cluster deployment proc
 
 ## Example Usage
 
-### For AWS
-
 ```terraform
 resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   cluster_name = "<cluster_name>"
@@ -209,41 +207,6 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   }
   run_scripts_parallel = false
   query_port = 9030
-}
-```
-
-### For Azure
-
-The configuration example for Azure is same to that for AWS, except that you need to add the `depends_on` argument for Azure.
-
-```terraform
-resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
-  cluster_name = "<cluster_name>"
-  fe_instance_type = "<fe_node_instance_type>"
-  fe_node_count = 1
-  deployment_credential_id = <deployment_credential_resource_ID>
-  data_credential_id = <data_credential_resource_ID>
-  network_id = <network_configuration_resource_ID>
-  be_instance_type = "<be_node_instance_type>"
-  be_node_count = 1
-  be_disk_number = 2
-  be_disk_per_size = 100
-  default_admin_password = "<SQL_user_initial_password>"
-
-  expected_cluster_state = "{Suspended | Running}"
-  resource_tags = {
-    celerdata = "<tag_name>"
-  }
-  csp = "{aws | azure}"
-  region = "<cloud_provider_region>"
-
-  init_scripts {
-      logs_dir    = "<log_s3_path>"
-      script_path = "<script_s3_path>"
-  }
-  run_scripts_parallel = false
-  query_port = 9030
-  depends_on = [azurerm_role_assignment.<name_of_resource_used_to_authorize_resource_group>,azurerm_role_assignment.<name_of_resource_used_to_authorize_managed_identity>]
 }
 ```
 
@@ -273,7 +236,6 @@ This resource contains the following required arguments and optional arguments:
   - If you deploy the cluster on AWS, set this argument to `aws`.
   - If you deploy the cluster on Azure, set this argument to `azure`.
 - `region`: The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions).
-- `depends_on`: required only for Azure clusters. This argument creates a dependency between resources. If you want to deploy an Azure cluster, you must ensure that the resources used to declare the privileges of the resource group and managed identity are destroyed only after the cluster is released. To achieve this, you need to add this dependency.
 
 **Optional:**
 
