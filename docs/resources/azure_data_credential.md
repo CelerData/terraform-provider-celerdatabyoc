@@ -31,9 +31,9 @@ This resource is also a prerequisite for the implementation of the credential-re
 ```terraform
 resource "celerdatabyoc_azure_data_credential" "example" {
   name                         = "<data_credential_name>"
-  managed_identity_resource_id = azurerm_user_assigned_identity.example.id
-  storage_account_name         = azurerm_storage_account.example.name
-  container_name               = azurerm_storage_container.example.name
+  managed_identity_resource_id = "<managed_identity_id>"
+  storage_account_name         = "<storage_account_name>"
+  container_name               = "<container_name>"
 }
 ```
 

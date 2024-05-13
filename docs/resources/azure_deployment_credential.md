@@ -31,10 +31,10 @@ This resource is also a prerequisite for the implementation of the credential-re
 ```terraform
 resource "celerdatabyoc_azure_deployment_credential" "example" {
   name                = "<deployment_credential_name>"
-  application_id      = azuread_application_registration.example.client_id
-  directory_id        = azuread_service_principal.app_service_principal.application_tenant_id
-  client_secret_value = azuread_application_password.example.value
-  ssh_key_resource_id = azurerm_ssh_public_key.example.id
+  application_id      = "<application_id>"
+  directory_id        = "<directory_id>"
+  client_secret_value = "<client_secret_value>"
+  ssh_key_resource_id = "<ssh_public_key_id>"
 }
 ```
 
