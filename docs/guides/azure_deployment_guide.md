@@ -126,7 +126,7 @@ resource "azurerm_user_assigned_identity" "example" {
 locals {
   managed_identity_roles = [
     "Reader",
-    "Storage Blob Data Contributor",
+    "Storage Account Contributor",
   ]
 }
 resource "azurerm_role_assignment" "assignment_identity_roles" {
