@@ -82,7 +82,6 @@ func Provider() *schema.Provider {
 			"celerdatabyoc_azure_data_credential":                   azureResourceDataCredential(),
 			"celerdatabyoc_azure_deployment_credential":             azureResourceDeploymentCredential(),
 			"celerdatabyoc_azure_network":                           azureResourceNetwork(),
-			"celerdatabyoc_cluster_custom_config":                   resourceClusterCustomConfig(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"celerdatabyoc_aws_data_credential_assume_policy": dataAwsDataCredentialAssumeRolePolicy(),

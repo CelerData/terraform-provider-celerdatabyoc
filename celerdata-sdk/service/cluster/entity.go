@@ -5,13 +5,6 @@ type ClusterState string
 type ClusterType string
 type DomainAllocateState int32
 
-type CustomConfigType int
-
-const (
-	CustomConfigTypeBE     CustomConfigType = 1
-	CustomConfigTypeRanger CustomConfigType = 2
-)
-
 const (
 	ClusterTypeClassic                               = ClusterType("CLASSIC")
 	ClusterTypeElasic                                = ClusterType("ELASTIC")
@@ -304,23 +297,4 @@ type DomainCert struct {
 	DomainType string `json:"domainType" mapstructure:"domainType"`
 	CertState  string `json:"certState" mapstructure:"certState"`
 	InUse      bool   `json:"inUse" mapstructure:"inUse"`
-}
-
-type ListCustomConfigReq struct {
-	ClusterID   string           `json:"cluster_id" mapstructure:"cluster_id"`
-	ConfigType  CustomConfigType `json:"config_type" mapstructure:"config_type"`
-	WarehouseID string           `json:"warehouse_id" mapstructure:"warehouse_id"`
-}
-
-type ListCustomConfigResp struct {
-	Configs     map[string]string `json:"configs" mapstructure:"configs"`
-	LastApplyAt int64             `json:"last_apply_at" mapstructure:"last_apply_at"`
-	LastEditAt  int64             `json:"last_edit_at" mapstructure:"last_edit_at"`
-}
-
-type SaveCustomConfigReq struct {
-	ClusterID   string            `json:"cluster_id" mapstructure:"cluster_id"`
-	ConfigType  CustomConfigType  `json:"config_type" mapstructure:"config_type"`
-	WarehouseID string            `json:"warehouse_id" mapstructure:"warehouse_id"`
-	Configs     map[string]string `json:"configs" mapstructure:"configs"`
 }
