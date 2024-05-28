@@ -30,6 +30,7 @@ type IClusterAPI interface {
 	UpsertClusterSSLCert(ctx context.Context, req *UpsertClusterSSLCertReq) error
 	GetClusterDomainSSLCert(ctx context.Context, req *GetClusterDomainSSLCertReq) (*GetClusterDomainSSLCertResp, error)
 	UpsertClusterIdleConfig(ctx context.Context, req *UpsertClusterIdleConfigReq) error
+	UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -234,4 +235,13 @@ type UpsertClusterIdleConfigReq struct {
 
 func (c *clusterAPI) UpsertClusterIdleConfig(ctx context.Context, req *UpsertClusterIdleConfigReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/idle-config", c.apiVersion, req.ClusterId), req, nil)
+}
+
+type UpsertLDAPSSLCertsReq struct {
+	ClusterId string   `json:"cluster_id"`
+	S3Objects []string `json:"s3_objects"`
+}
+
+func (c *clusterAPI) UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ldap-ssl-certs", c.apiVersion, req.ClusterId), req, nil)
 }

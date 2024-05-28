@@ -222,6 +222,13 @@ func resourceClassicCluster() *schema.Resource {
 					return warnings, errors
 				},
 			},
+			"ldap_ssl_certs": {
+				Type:     schema.TypeList,
+				Optional: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -339,6 +346,25 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
+	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
+
+		arr := d.Get("ldap_ssl_certs").([]interface{})
+		sslCerts := make([]string, 0)
+		for _, v := range arr {
+			value := v.(string)
+			if len(value) > 0 {
+				if !CheckS3Path(value) {
+					return diag.FromErr(errors.New("invalid s3 path"))
+				}
+				sslCerts = append(sslCerts, value)
+			}
+		}
+
+		if len(sslCerts) > 0 {
+			UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+		}
+	}
+
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if errDiag != nil {
@@ -421,6 +447,10 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
 	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
+	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	if len(resp.Cluster.LdapSslCerts) > 0 {
+		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	}
 	return diags
 }
 
@@ -541,6 +571,23 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		if errDiag != nil {
 			return errDiag
 		}
+	}
+
+	if d.HasChange("ldap_ssl_certs") && !d.IsNewResource() {
+		sslCerts := make([]string, 0)
+		if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
+			arr := d.Get("ldap_ssl_certs").([]interface{})
+			for _, v := range arr {
+				value := v.(string)
+				if len(value) > 0 {
+					if !CheckS3Path(value) {
+						return diag.FromErr(errors.New("invalid s3 path"))
+					}
+					sslCerts = append(sslCerts, value)
+				}
+			}
+		}
+		UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
 	}
 
 	// Warning or errors can be collected in a slice type
@@ -883,6 +930,24 @@ func UpdateClusterIdleConfig(ctx context.Context, clusterAPI cluster.IClusterAPI
 	})
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("set cluster idle suspend interval failed, errMsg:%s", err.Error()))
+	}
+	return nil
+}
+
+func CheckS3Path(path string) bool {
+	re := regexp.MustCompile(`s3://([^/]+)/*(.*)`)
+	match := re.FindStringSubmatch(path)
+	return len(match) > 2
+}
+
+func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, sslCerts []string) diag.Diagnostics {
+	err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
+		ClusterId: clusterID,
+		S3Objects: sslCerts,
+	})
+
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("config cluster (%s) ldap ssl cert error, errMsg: %s", clusterID, err))
 	}
 	return nil
 }

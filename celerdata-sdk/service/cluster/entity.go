@@ -148,6 +148,7 @@ type Cluster struct {
 	FreeTier            bool         `json:"free_tier" mapstructure:"free_tier"`
 	QueryPort           int32        `json:"query_port" mapstructure:"query_port"`
 	IdleSuspendInterval int32        `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
+	LdapSslCerts        []string     `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
 }
 
 type ScaleInReq struct {
