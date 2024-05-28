@@ -929,7 +929,12 @@ func UpdateClusterIdleConfig(ctx context.Context, clusterAPI cluster.IClusterAPI
 		Enable:     enable,
 	})
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("set cluster idle suspend interval failed, errMsg:%s", err.Error()))
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("set cluster idle suspend interval failed, errMsg:%s", err.Error()),
+			},
+		}
 	}
 	return nil
 }
@@ -949,5 +954,34 @@ func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAP
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("config cluster (%s) ldap ssl cert error, errMsg: %s", clusterID, err))
 	}
+
+	_, err = WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  clusterID,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterStateDeploying),
+			string(cluster.ClusterStateScaling),
+			string(cluster.ClusterStateResuming),
+			string(cluster.ClusterStateSuspending),
+			string(cluster.ClusterStateReleasing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterStateRunning),
+			string(cluster.ClusterStateSuspended),
+			string(cluster.ClusterStateAbnormal),
+			string(cluster.ClusterStateReleased),
+		},
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("ldap ssl certs apply failed, errMsg:%s", err.Error()),
+			},
+		}
+	}
+
 	return nil
 }
