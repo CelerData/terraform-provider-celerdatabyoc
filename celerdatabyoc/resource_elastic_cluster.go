@@ -267,6 +267,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -341,6 +342,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -413,6 +415,7 @@ func resourceElasticClusterDelete(ctx context.Context, d *schema.ResourceData, m
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -442,6 +445,7 @@ func resourceElasticClusterDelete(ctx context.Context, d *schema.ResourceData, m
 			string(cluster.ClusterStateRunning),
 			string(cluster.ClusterStateSuspended),
 			string(cluster.ClusterStateAbnormal),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{string(cluster.ClusterStateReleased), string(cluster.ClusterStateAbnormal)},
 	})
