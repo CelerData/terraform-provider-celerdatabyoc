@@ -318,6 +318,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -397,6 +398,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -472,6 +474,7 @@ func resourceClusterDelete(ctx context.Context, d *schema.ResourceData, m interf
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -501,6 +504,7 @@ func resourceClusterDelete(ctx context.Context, d *schema.ResourceData, m interf
 			string(cluster.ClusterStateRunning),
 			string(cluster.ClusterStateSuspended),
 			string(cluster.ClusterStateAbnormal),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{string(cluster.ClusterStateReleased), string(cluster.ClusterStateAbnormal)},
 	})
@@ -826,7 +830,7 @@ func WaitClusterStateChangeComplete(ctx context.Context, req *waitStateReq) (*cl
 
 	outputRaw, err := stateConf.WaitForStateContext(ctx)
 	if output, ok := outputRaw.(*cluster.GetStateResp); ok {
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 10)
 		return output, err
 	}
 

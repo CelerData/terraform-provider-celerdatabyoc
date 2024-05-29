@@ -6,20 +6,22 @@ type ClusterType string
 type DomainAllocateState int32
 
 const (
-	ClusterTypeClassic                               = ClusterType("CLASSIC")
-	ClusterTypeElasic                                = ClusterType("ELASTIC")
-	ClusterModuleTypeFE                              = ClusterModuleType("FE")
-	ClusterModuleTypeBE                              = ClusterModuleType("BE")
-	ClusterModuleTypeWarehouse                       = ClusterModuleType("Warehouse")
-	ClusterStateDeploying                            = ClusterState("Deploying")
-	ClusterStateRunning                              = ClusterState("Running")
-	ClusterStateScaling                              = ClusterState("Scaling")
-	ClusterStateAbnormal                             = ClusterState("Abnormal")
-	ClusterStateSuspending                           = ClusterState("Suspending")
-	ClusterStateSuspended                            = ClusterState("Suspended")
-	ClusterStateResuming                             = ClusterState("Resuming")
-	ClusterStateReleasing                            = ClusterState("Releasing")
-	ClusterStateReleased                             = ClusterState("Released")
+	ClusterTypeClassic         = ClusterType("CLASSIC")
+	ClusterTypeElasic          = ClusterType("ELASTIC")
+	ClusterModuleTypeFE        = ClusterModuleType("FE")
+	ClusterModuleTypeBE        = ClusterModuleType("BE")
+	ClusterModuleTypeWarehouse = ClusterModuleType("Warehouse")
+	ClusterStateDeploying      = ClusterState("Deploying")
+	ClusterStateRunning        = ClusterState("Running")
+	ClusterStateScaling        = ClusterState("Scaling")
+	ClusterStateAbnormal       = ClusterState("Abnormal")
+	ClusterStateSuspending     = ClusterState("Suspending")
+	ClusterStateSuspended      = ClusterState("Suspended")
+	ClusterStateResuming       = ClusterState("Resuming")
+	ClusterStateReleasing      = ClusterState("Releasing")
+	ClusterStateReleased       = ClusterState("Released")
+	ClusterStateUpdating       = ClusterState("Updating")
+
 	DomainAllocateStateUnknown   DomainAllocateState = 0
 	DomainAllocateStateOngoing   DomainAllocateState = 3
 	DomainAllocateStateSucceeded DomainAllocateState = 1
