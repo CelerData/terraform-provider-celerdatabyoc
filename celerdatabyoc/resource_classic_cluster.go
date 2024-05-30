@@ -228,6 +228,27 @@ func resourceClassicCluster() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+					arr, ok := i.([]interface{})
+					if !ok {
+						errors = append(errors, fmt.Errorf("expected type of %s to be list", k))
+						return warnings, errors
+					}
+
+					for _, v := range arr {
+						value := v.(string)
+						if len(value) > 0 {
+							if !CheckS3Path(value) {
+								errors = append(errors, fmt.Errorf("for filed %s: invalid s3 path [%s]", k, value))
+								return warnings, errors
+							}
+						} else {
+							errors = append(errors, fmt.Errorf("for filed %s: s3 path cann`t be empty [%s]", k, value))
+							return warnings, errors
+						}
+					}
+					return warnings, errors
+				},
 			},
 		},
 		Importer: &schema.ResourceImporter{
@@ -337,16 +358,6 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
-	if d.Get("idle_suspend_interval").(int) > 0 {
-		enable := true
-		clusterId := resp.ClusterID
-		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
-		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
-		if errDiag != nil {
-			return errDiag
-		}
-	}
-
 	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
 
 		arr := d.Get("ldap_ssl_certs").([]interface{})
@@ -362,7 +373,10 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 
 		if len(sslCerts) > 0 {
-			UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+			if warningDiag != nil {
+				return warningDiag
+			}
 		}
 	}
 
@@ -370,6 +384,16 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.Get("idle_suspend_interval").(int) > 0 {
+		enable := true
+		clusterId := resp.ClusterID
+		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
+		warningDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
+		if warningDiag != nil {
+			return warningDiag
 		}
 	}
 
@@ -591,7 +615,10 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 				}
 			}
 		}
-		UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+		if warningDiag != nil {
+			return warningDiag
+		}
 	}
 
 	// Warning or errors can be collected in a slice type
@@ -936,7 +963,8 @@ func UpdateClusterIdleConfig(ctx context.Context, clusterAPI cluster.IClusterAPI
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Warning,
-				Summary:  fmt.Sprintf("set cluster idle suspend interval failed, errMsg:%s", err.Error()),
+				Summary:  fmt.Sprintf("Failed to set idle suspend interval, please retry again!"),
+				Detail:   fmt.Sprintf("Failed to set idle suspend interval, errMsg:%s", err.Error()),
 			},
 		}
 	}
@@ -982,7 +1010,8 @@ func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAP
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Warning,
-				Summary:  fmt.Sprintf("ldap ssl certs apply failed, errMsg:%s", err.Error()),
+				Summary:  fmt.Sprintf("Tip: Failed to upload ldap ssl certs, please try again."),
+				Detail:   fmt.Sprintf("Failed to apply ldap ssl certs, errMsg:%s", err.Error()),
 			},
 		}
 	}

@@ -182,6 +182,27 @@ func resourceElasticCluster() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
+				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+					arr, ok := i.([]interface{})
+					if !ok {
+						errors = append(errors, fmt.Errorf("expected type of %s to be list", k))
+						return warnings, errors
+					}
+
+					for _, v := range arr {
+						value := v.(string)
+						if len(value) > 0 {
+							if !CheckS3Path(value) {
+								errors = append(errors, fmt.Errorf("for filed %s: invalid s3 path [%s]", k, value))
+								return warnings, errors
+							}
+						} else {
+							errors = append(errors, fmt.Errorf("for filed %s: s3 path cann`t be empty [%s]", k, value))
+							return warnings, errors
+						}
+					}
+					return warnings, errors
+				},
 			},
 		},
 		Importer: &schema.ResourceImporter{
@@ -286,16 +307,6 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
-	if d.Get("idle_suspend_interval").(int) > 0 {
-		enable := true
-		clusterId := resp.ClusterID
-		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
-		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
-		if errDiag != nil {
-			return errDiag
-		}
-	}
-
 	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
 
 		arr := d.Get("ldap_ssl_certs").([]interface{})
@@ -311,7 +322,10 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 
 		if len(sslCerts) > 0 {
-			UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+			if warningDiag != nil {
+				return warningDiag
+			}
 		}
 	}
 
@@ -319,6 +333,16 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.Get("idle_suspend_interval").(int) > 0 {
+		enable := true
+		clusterId := resp.ClusterID
+		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
+		warningDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
+		if warningDiag != nil {
+			return warningDiag
 		}
 	}
 
@@ -512,7 +536,10 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 				}
 			}
 		}
-		UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+		if warningDiag != nil {
+			return warningDiag
+		}
 	}
 
 	// Warning or errors can be collected in a slice type
