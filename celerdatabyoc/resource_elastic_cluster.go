@@ -182,27 +182,6 @@ func resourceElasticCluster() *schema.Resource {
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
 				},
-				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-					arr, ok := i.([]interface{})
-					if !ok {
-						errors = append(errors, fmt.Errorf("expected type of %s to be list", k))
-						return warnings, errors
-					}
-
-					for _, v := range arr {
-						value := v.(string)
-						if len(value) > 0 {
-							if !CheckS3Path(value) {
-								errors = append(errors, fmt.Errorf("for filed %s: invalid s3 path [%s]", k, value))
-								return warnings, errors
-							}
-						} else {
-							errors = append(errors, fmt.Errorf("for filed %s: s3 path cann`t be empty [%s]", k, value))
-							return warnings, errors
-						}
-					}
-					return warnings, errors
-				},
 			},
 		},
 		Importer: &schema.ResourceImporter{
@@ -213,6 +192,18 @@ func resourceElasticCluster() *schema.Resource {
 
 func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	c := m.(*client.CelerdataClient)
+
+	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
+		arr := d.Get("ldap_ssl_certs").([]interface{})
+		for _, v := range arr {
+			value := v.(string)
+			if len(value) > 0 {
+				if !CheckS3Path(value) {
+					return diag.FromErr(fmt.Errorf(fmt.Sprintf("for filed [`ldap_ssl_certs`]: invalid s3 path:%s", value)))
+				}
+			}
+		}
+	}
 
 	clusterAPI := cluster.NewClustersAPI(c)
 	clusterName := d.Get("cluster_name").(string)
