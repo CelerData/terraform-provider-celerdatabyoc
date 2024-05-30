@@ -513,6 +513,16 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	// Warning or errors can be collected in a slice type
+	var diags diag.Diagnostics
+	if needResume(d) {
+		o, n := d.GetChange("expected_cluster_state")
+		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
 	if d.HasChange("ldap_ssl_certs") && !d.IsNewResource() {
 		sslCerts := make([]string, 0)
 		if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
@@ -530,16 +540,6 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
 		if warningDiag != nil {
 			return warningDiag
-		}
-	}
-
-	// Warning or errors can be collected in a slice type
-	var diags diag.Diagnostics
-	if needResume(d) {
-		o, n := d.GetChange("expected_cluster_state")
-		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
-		if errDiag != nil {
-			return errDiag
 		}
 	}
 
