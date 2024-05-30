@@ -1003,11 +1003,17 @@ func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAP
 	})
 
 	if err != nil {
+
+		action := "upload"
+		if len(sslCerts) == 0 {
+			action = "remove"
+		}
+
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Warning,
-				Summary:  fmt.Sprintf("Tip: Failed to upload ldap ssl certs, please try again."),
-				Detail:   fmt.Sprintf("Failed to apply ldap ssl certs, errMsg:%s", err.Error()),
+				Summary:  fmt.Sprintf("Tip: Failed to %s ldap ssl certs, please try again.", action),
+				Detail:   fmt.Sprintf("Failed to %s ldap ssl certs, errMsg:%s", action, err.Error()),
 			},
 		}
 	}
