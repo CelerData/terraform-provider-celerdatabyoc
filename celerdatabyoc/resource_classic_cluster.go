@@ -848,7 +848,11 @@ func WaitClusterStateChangeComplete(ctx context.Context, req *waitStateReq) (*cl
 
 	outputRaw, err := stateConf.WaitForStateContext(ctx)
 	if output, ok := outputRaw.(*cluster.GetStateResp); ok {
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Second * 5)
+		if output.ClusterState == string(cluster.ClusterStateAbnormal) {
+			time.Sleep(time.Second * 10)
+		}
+
 		return output, err
 	}
 
@@ -988,6 +992,7 @@ func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAP
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
