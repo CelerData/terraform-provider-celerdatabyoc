@@ -239,14 +239,15 @@ func resourceClassicCluster() *schema.Resource {
 func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	c := m.(*client.CelerdataClient)
 
-	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
-		arr := d.Get("ldap_ssl_certs").([]interface{})
-		for _, v := range arr {
-			value := v.(string)
+	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]string)) > 0 {
+		arr := d.Get("ldap_ssl_certs").([]string)
+		for _, value := range arr {
 			if len(value) > 0 {
 				if !CheckS3Path(value) {
-					return diag.FromErr(fmt.Errorf(fmt.Sprintf("for filed [`ldap_ssl_certs`]: invalid s3 path:%s", value)))
+					return diag.FromErr(fmt.Errorf("invalid s3 path:%s", value))
 				}
+			} else {
+				return diag.FromErr(errors.New("the “ldap_ssl_certs” field contains empty values"))
 			}
 		}
 	}
@@ -349,17 +350,18 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
-	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
+	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]string)) > 0 {
 
-		arr := d.Get("ldap_ssl_certs").([]interface{})
+		arr := d.Get("ldap_ssl_certs").([]string)
 		sslCerts := make([]string, 0)
-		for _, v := range arr {
-			value := v.(string)
+		for _, value := range arr {
 			if len(value) > 0 {
 				if !CheckS3Path(value) {
-					return diag.FromErr(errors.New("invalid s3 path"))
+					return diag.FromErr(fmt.Errorf("invalid s3 path:%s", value))
 				}
 				sslCerts = append(sslCerts, value)
+			} else {
+				return diag.FromErr(errors.New("the “ldap_ssl_certs” field contains empty values"))
 			}
 		}
 
@@ -604,15 +606,16 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 
 	if d.HasChange("ldap_ssl_certs") && !d.IsNewResource() {
 		sslCerts := make([]string, 0)
-		if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
-			arr := d.Get("ldap_ssl_certs").([]interface{})
-			for _, v := range arr {
-				value := v.(string)
+		if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]string)) > 0 {
+			arr := d.Get("ldap_ssl_certs").([]string)
+			for _, value := range arr {
 				if len(value) > 0 {
 					if !CheckS3Path(value) {
-						return diag.FromErr(errors.New("invalid s3 path"))
+						return diag.FromErr(fmt.Errorf("invalid s3 path:%s", value))
 					}
 					sslCerts = append(sslCerts, value)
+				} else {
+					return diag.FromErr(errors.New("the “ldap_ssl_certs” field contains empty values"))
 				}
 			}
 		}
@@ -969,7 +972,7 @@ func UpdateClusterIdleConfig(ctx context.Context, clusterAPI cluster.IClusterAPI
 func CheckS3Path(path string) bool {
 	re := regexp.MustCompile(`s3://([^/]+)/*(.*)`)
 	match := re.FindStringSubmatch(path)
-	return len(match) > 2
+	return len(match) > 2 && len(match[1]) > 0 && len(match[2]) > 0
 }
 
 func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, sslCerts []string) diag.Diagnostics {
