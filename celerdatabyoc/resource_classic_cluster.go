@@ -952,8 +952,8 @@ func UpdateClusterIdleConfig(ctx context.Context, clusterAPI cluster.IClusterAPI
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Warning,
-				Summary:  fmt.Sprintf("Failed to set idle suspend interval, please retry again!"),
-				Detail:   fmt.Sprintf("Failed to set idle suspend interval, errMsg:%s", err.Error()),
+				Summary:  "Failed to set idle suspend interval, please retry again!",
+				Detail:   err.Error(),
 			},
 		}
 	}
@@ -967,13 +967,25 @@ func CheckS3Path(path string) bool {
 }
 
 func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, sslCerts []string) diag.Diagnostics {
+
+	action := "upload"
+	if len(sslCerts) == 0 {
+		action = "remove"
+	}
+
 	err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
 		ClusterId: clusterID,
 		S3Objects: sslCerts,
 	})
 
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("config cluster (%s) ldap ssl cert error, errMsg: %s", clusterID, err))
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("Failed to %s ldap ssl certs, please try again.", action),
+				Detail:   err.Error(),
+			},
+		}
 	}
 
 	_, err = WaitClusterStateChangeComplete(ctx, &waitStateReq{
@@ -997,17 +1009,11 @@ func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAP
 	})
 
 	if err != nil {
-
-		action := "upload"
-		if len(sslCerts) == 0 {
-			action = "remove"
-		}
-
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Warning,
-				Summary:  fmt.Sprintf("Tip: Failed to %s ldap ssl certs, please try again.", action),
-				Detail:   fmt.Sprintf("Failed to %s ldap ssl certs, errMsg:%s", action, err.Error()),
+				Summary:  fmt.Sprintf("Failed to %s ldap ssl certs, please try again.", action),
+				Detail:   err.Error(),
 			},
 		}
 	}
