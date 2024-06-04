@@ -230,16 +230,16 @@ func resourceClassicCluster() *schema.Resource {
 					ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 						value, ok := i.(string)
 						if !ok {
-							errors = append(errors, fmt.Errorf("expected element type of %s to be string", k))
+							errors = append(errors, fmt.Errorf("expected type of %s to be string", k))
 							return warnings, errors
 						}
 
 						if len(value) > 0 {
 							if !CheckS3Path(value) {
-								errors = append(errors, fmt.Errorf("%s`s contains invalid s3 path:%s", k, value))
+								errors = append(errors, fmt.Errorf("for %s invalid s3 path:%s", k, value))
 							}
 						} else {
-							errors = append(errors, fmt.Errorf("%s`s contains empty values", k))
+							errors = append(errors, fmt.Errorf("%s`s value cann`t be empty", k))
 						}
 						return warnings, errors
 					},
