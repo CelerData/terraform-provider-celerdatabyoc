@@ -53,7 +53,6 @@ func resourceElasticCluster() *schema.Resource {
 			"coordinator_node_size": {
 				Type:         schema.TypeString,
 				Required:     true,
-				ForceNew:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
 			"coordinator_node_count": {
@@ -65,7 +64,6 @@ func resourceElasticCluster() *schema.Resource {
 			"compute_node_size": {
 				Type:         schema.TypeString,
 				Required:     true,
-				ForceNew:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
 			"compute_node_count": {
