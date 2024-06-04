@@ -35,9 +35,7 @@ Create an application key by following these steps:
 
 4. In the dialog box that appears, optionally enter a description, and then click **Generate now** to generate an application key. Then, copy the **Secret** and **Client ID** before you close the dialog box.
 
-   > **NOTE**
-   >
-   > The **Secret** can be viewed only when the application key is created. Make sure that you copy and save the **Secret** before closing the dialog box.
+   ~> The **Secret** can be viewed only when the application key is created. Make sure that you copy and save the **Secret** before closing the dialog box.
 
 The CelerData Cloud BYOC provider will use the **Secret** and **Client ID** of your application key to provision and manage CelerData resources.
 
@@ -61,9 +59,7 @@ Create a service account by following these steps:
 
 6. Copy the **Client Secret** and **Client ID**, and click **Yes, I have finished it** to close the dialog box.
 
-   > **NOTE**
-   >
-   > The **Client Secret** can be viewed only when the service account is created. Make sure that you copy and save the **Client Secret** before closing the dialog box.
+   ~> The **Client Secret** can be viewed only when the service account is created. Make sure that you copy and save the **Client Secret** before closing the dialog box.
 
 The CelerData Cloud BYOC provider will use the **Secret** and **Client ID** of your service account to provision and manage CelerData resources.
 
