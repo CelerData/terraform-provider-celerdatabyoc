@@ -291,7 +291,7 @@ The `celerdatabyoc_aws_network` resource contains the following required argumen
 
 - `security_group_id`: (Forces new resource) The ID of the security group within the AWS VPC.
 
-- `region`: (Forces new resource) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions).
+- `region`: (Forces new resource) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
 
 - `deployment_credential_id`: (Forces new resource) Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 
@@ -323,7 +323,7 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 
 - `csp`: The cloud service provider of the cluster. Only AWS is supported.
 
-- `region`: The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions).
+- `region`: The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
 
 **Optional:**
 
@@ -333,7 +333,7 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 
 - `resource_tags`: The tags to be attached to the cluster.
 
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/private/main/run_scripts).
+- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
 
   - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
@@ -347,6 +347,6 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 ## See Also
 
 - [AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)
-- [Manage data credentials for AWS](https://docs.celerdata.com/private/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials)
-- [Manage deployment credentials for AWS](https://docs.celerdata.com/private/main/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials)
-- [Manage network configurations for AWS](https://docs.celerdata.com/private/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)
+- [Manage data credentials for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials)
+- [Manage deployment credentials for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials)
+- [Manage network configurations for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)

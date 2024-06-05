@@ -110,7 +110,7 @@ The parameters you need to specify are as follows:
 
 - `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See "[For CelerData](#preparations)."
-- `region_name`: Enter the ID of the AWS region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions#aws).
+- `region_name`: Enter the ID of the AWS region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#aws).
 - `access_key` and `secret_key`: Enter the access key ID ("access key" for short) and secret access key ("secret key" for short) of your access key pair. See "[For AWS](#preparations)." For security purposes, you can set the access key and secret key as [environment variables](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#provider-configuration).
 - `s3_bucket`: Enter the name of your S3 bucket. This way, the bucket element is set as a local value, and you can then directly set the argument for the bucket element in your Terraform configuration to `local.s3_bucket` to save time. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
@@ -282,7 +282,7 @@ The [`celerdatabyoc_aws_network`](../resources/aws_network.md) resource contains
 - `name`: (Forces new resource) The name of the AWS VPC hosting the cluster. Enter a unique name.
 - `subnet_id`: (Forces new resource) The ID of the subnet within the AWS VPC.
 - `security_group_id`: (Forces new resource) The ID of the security group within the AWS VPC.
-- `region`: (Forces new resource) The ID of the AWS region to which the AWS VPC belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions#aws).
+- `region`: (Forces new resource) The ID of the AWS region to which the AWS VPC belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#aws).
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential.  Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 
 **Optional:**
@@ -336,7 +336,7 @@ The [`celerdatabyoc_classic_cluster`](../resources/classic_cluster.md) resource 
 - `default_admin_password`: The initial password of the cluster `admin` user.
 - `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
 - `csp`: The cloud service provider of the cluster. Set this argument to `aws`.
-- `region`: The ID of the AWS region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/private/main/get_started/cloud_platforms_and_regions#aws).
+- `region`: The ID of the AWS region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#aws).
 
 **Optional:**
 
@@ -345,7 +345,7 @@ The [`celerdatabyoc_classic_cluster`](../resources/classic_cluster.md) resource 
 - `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
 - `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
 - `resource_tags`: The tags to be attached to the cluster.
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/private/main/run_scripts).
+- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
   - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.

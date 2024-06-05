@@ -48,5 +48,5 @@ This resource exports the following attributes:
 
 ## See Also
 
-- [Connect to a CelerData cluster](https://docs.celerdata.com/private/main/get_started/connect_cluster)
-- [Connect from a client application to a CelerData cluster](https://docs.celerdata.com/private/main/cluster_management/connect_application_to_cluster)
+- [Connect to a CelerData cluster](https://docs.celerdata.com/byoc/main/get_started/connect_cluster)
+- [Connect from a client application to a CelerData cluster](https://docs.celerdata.com/byoc/main/cluster_management/connect_application_to_cluster)
