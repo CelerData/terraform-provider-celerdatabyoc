@@ -10,7 +10,7 @@ Configures static parameters for BE nodes in a classic cluster or CN nodes in a 
 
 You can configure the static parameters of the BE or CN nodes to fine-tune them to achieve better query or loading performance or satisfy certain requirements.
 
-Please note that this API only modifies the specified static parameters. Modifications will not take effect until you apply the configurations using the OpenAPI [apply-custom-config]().
+Please note that this API only modifies the specified static parameters. Modifications will not take effect until you apply the configurations using the OpenAPI [apply-custom-config](https://docs.celerdata.com/byoc/main/API/actions/clusters/create_and_manage_clusters/apply_static_configuration).
 
 ## Example Usage
 
