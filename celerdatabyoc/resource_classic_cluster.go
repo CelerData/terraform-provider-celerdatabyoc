@@ -223,7 +223,7 @@ func resourceClassicCluster() *schema.Resource {
 				},
 			},
 			"ldap_ssl_certs": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Optional: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
@@ -353,9 +353,9 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
-	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
+	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
 
-		arr := d.Get("ldap_ssl_certs").([]interface{})
+		arr := v.(*schema.Set).List()
 		sslCerts := make([]string, 0)
 		for _, v := range arr {
 			value := v.(string)
@@ -603,8 +603,8 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 
 	if d.HasChange("ldap_ssl_certs") && !d.IsNewResource() {
 		sslCerts := make([]string, 0)
-		if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
-			arr := d.Get("ldap_ssl_certs").([]interface{})
+		if v, ok := d.GetOk("ldap_ssl_certs"); ok {
+			arr := v.(*schema.Set).List()
 			for _, v := range arr {
 				value := v.(string)
 				sslCerts = append(sslCerts, value)
@@ -968,21 +968,28 @@ func CheckS3Path(path string) bool {
 
 func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, sslCerts []string) diag.Diagnostics {
 
-	action := "upload"
-	if len(sslCerts) == 0 {
-		action = "remove"
+	err := removeClusterLdapSSLCert(ctx, clusterAPI, clusterID)
+	if err != nil {
+		return err
 	}
+	if len(sslCerts) > 0 {
+		err = configClusterLdapSSLCert(ctx, clusterAPI, clusterID, sslCerts)
+	}
+	return err
+}
 
+func removeClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+
+	summary := "Failed to remove old ldap ssl certs, please try again."
 	err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
-		ClusterId: clusterID,
-		S3Objects: sslCerts,
+		ClusterId: clusterId,
 	})
 
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Warning,
-				Summary:  fmt.Sprintf("Failed to %s ldap ssl certs, please try again.", action),
+				Summary:  summary,
 				Detail:   err.Error(),
 			},
 		}
@@ -990,21 +997,14 @@ func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAP
 
 	_, err = WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
-		clusterID:  clusterID,
+		clusterID:  clusterId,
 		timeout:    30 * time.Minute,
 		pendingStates: []string{
-			string(cluster.ClusterStateDeploying),
-			string(cluster.ClusterStateScaling),
-			string(cluster.ClusterStateResuming),
-			string(cluster.ClusterStateSuspending),
-			string(cluster.ClusterStateReleasing),
 			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
-			string(cluster.ClusterStateSuspended),
 			string(cluster.ClusterStateAbnormal),
-			string(cluster.ClusterStateReleased),
 		},
 	})
 
@@ -1012,7 +1012,51 @@ func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAP
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Warning,
-				Summary:  fmt.Sprintf("Failed to %s ldap ssl certs, please try again.", action),
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	return nil
+}
+
+func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, sslCerts []string) diag.Diagnostics {
+
+	summary := "Failed to config ldap ssl certs, please try again."
+	err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
+		ClusterId: clusterId,
+		S3Objects: sslCerts,
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	_, err = WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  clusterId,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterStateUpdating),
+		},
+		targetStates: []string{
+			string(cluster.ClusterStateRunning),
+			string(cluster.ClusterStateAbnormal),
+		},
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
 				Detail:   err.Error(),
 			},
 		}

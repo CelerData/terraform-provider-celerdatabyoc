@@ -177,7 +177,7 @@ func resourceElasticCluster() *schema.Resource {
 				},
 			},
 			"ldap_ssl_certs": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Optional: true,
 				Elem: &schema.Schema{
 					Type: schema.TypeString,
@@ -302,9 +302,9 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
-	if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
+	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
 
-		arr := d.Get("ldap_ssl_certs").([]interface{})
+		arr := v.(*schema.Set).List()
 		sslCerts := make([]string, 0)
 		for _, v := range arr {
 			value := v.(string)
@@ -524,8 +524,8 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 
 	if d.HasChange("ldap_ssl_certs") && !d.IsNewResource() {
 		sslCerts := make([]string, 0)
-		if d.Get("ldap_ssl_certs") != nil && len(d.Get("ldap_ssl_certs").([]interface{})) > 0 {
-			arr := d.Get("ldap_ssl_certs").([]interface{})
+		if v, ok := d.GetOk("ldap_ssl_certs"); ok {
+			arr := v.(*schema.Set).List()
 			for _, v := range arr {
 				value := v.(string)
 				sslCerts = append(sslCerts, value)
