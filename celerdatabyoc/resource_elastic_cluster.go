@@ -312,7 +312,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 
 		if len(sslCerts) > 0 {
-			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, false)
 			if warningDiag != nil {
 				return warningDiag
 			}
@@ -531,7 +531,7 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 				sslCerts = append(sslCerts, value)
 			}
 		}
-		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, true)
 		if warningDiag != nil {
 			return warningDiag
 		}

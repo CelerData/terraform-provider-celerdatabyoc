@@ -212,7 +212,7 @@ func (c *clusterAPI) DropDatabaseUser(ctx context.Context, req *DropDatabaseUser
 
 func (c *clusterAPI) GetClusterInfraActionState(ctx context.Context, req *GetClusterInfraActionStateReq) (*GetClusterInfraActionStateResp, error) {
 	resp := &GetClusterInfraActionStateResp{}
-	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/infra-action/state", c.apiVersion, req.ClusterId), req, resp)
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/infra-action/state", c.apiVersion, req.ClusterId), req, resp)
 	if err != nil {
 		return nil, err
 	}

@@ -363,7 +363,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 
 		if len(sslCerts) > 0 {
-			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, false)
 			if warningDiag != nil {
 				return warningDiag
 			}
@@ -610,7 +610,7 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 				sslCerts = append(sslCerts, value)
 			}
 		}
-		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts)
+		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, true)
 		if warningDiag != nil {
 			return warningDiag
 		}
@@ -999,12 +999,16 @@ func CheckS3Path(path string) bool {
 	return len(match) > 2 && len(match[1]) > 0 && len(match[2]) > 0
 }
 
-func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, sslCerts []string) diag.Diagnostics {
+func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, sslCerts []string, removeOld bool) diag.Diagnostics {
 
-	err := removeClusterLdapSSLCert(ctx, clusterAPI, clusterID)
-	if err != nil {
-		return err
+	var err diag.Diagnostics
+	if removeOld {
+		err = removeClusterLdapSSLCert(ctx, clusterAPI, clusterID)
+		if err != nil {
+			return err
+		}
 	}
+
 	if len(sslCerts) > 0 {
 		err = configClusterLdapSSLCert(ctx, clusterAPI, clusterID, sslCerts)
 	}
