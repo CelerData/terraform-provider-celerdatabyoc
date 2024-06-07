@@ -4,6 +4,7 @@ type ClusterModuleType string
 type ClusterState string
 type ClusterType string
 type DomainAllocateState int32
+type ClusterInfraActionState string
 
 const (
 	ClusterTypeClassic         = ClusterType("CLASSIC")
@@ -26,6 +27,12 @@ const (
 	DomainAllocateStateOngoing   DomainAllocateState = 3
 	DomainAllocateStateSucceeded DomainAllocateState = 1
 	DomainAllocateStateFailed    DomainAllocateState = 2
+
+	ClusterInfraActionStatePending   ClusterInfraActionState = "Pending"
+	ClusterInfraActionStateOngoing   ClusterInfraActionState = "Ongoing"
+	ClusterInfraActionStateSucceeded ClusterInfraActionState = "Succeeded"
+	ClusterInfraActionStateCompleted ClusterInfraActionState = "Completed"
+	ClusterInfraActionStateFailed    ClusterInfraActionState = "Failed"
 )
 
 type Kv struct {
@@ -300,4 +307,29 @@ type DomainCert struct {
 	DomainType string `json:"domainType" mapstructure:"domainType"`
 	CertState  string `json:"certState" mapstructure:"certState"`
 	InUse      bool   `json:"inUse" mapstructure:"inUse"`
+}
+
+type GetClusterInfraActionStateReq struct {
+	ClusterId string `json:"clusterId"`
+	ActionId  string `json:"actionId"`
+}
+
+type GetClusterInfraActionStateResp struct {
+	InfraActionState string `json:"infra_action_state" mapstructure:"infra_action_state"`
+	ErrMsg           string `json:"err_msg" mapstructure:"err_msg"`
+}
+
+type UpsertClusterIdleConfigReq struct {
+	ClusterId  string `json:"clusterId"`
+	IntervalMs uint64 `json:"intervalMs"`
+	Enable     bool   `json:"enable"`
+}
+
+type UpsertLDAPSSLCertsReq struct {
+	ClusterId string   `json:"cluster_id"`
+	S3Objects []string `json:"s3_objects"`
+}
+
+type UpsertLDAPSSLCertsResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
