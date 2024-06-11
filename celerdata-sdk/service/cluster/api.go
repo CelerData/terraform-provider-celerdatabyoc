@@ -27,12 +27,14 @@ type IClusterAPI interface {
 	ResetDatabaseUserPassword(ctx context.Context, req *ResetDatabaseUserPasswordReq) (*ResetDatabaseUserPasswordResp, error)
 	DropDatabaseUser(ctx context.Context, req *DropDatabaseUserReq) (*DropDatabaseUserResp, error)
 
+	GetClusterInfraActionState(ctx context.Context, req *GetClusterInfraActionStateReq) (*GetClusterInfraActionStateResp, error)
 	UpsertClusterSSLCert(ctx context.Context, req *UpsertClusterSSLCertReq) error
 	GetClusterDomainSSLCert(ctx context.Context, req *GetClusterDomainSSLCertReq) (*GetClusterDomainSSLCertResp, error)
 	UpsertClusterIdleConfig(ctx context.Context, req *UpsertClusterIdleConfigReq) error
 
 	UpdateCustomConfig(ctx context.Context, req *SaveCustomConfigReq) error
 	GetCustomConfig(ctx context.Context, req *ListCustomConfigReq) (*ListCustomConfigResp, error)
+	UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -211,6 +213,15 @@ func (c *clusterAPI) DropDatabaseUser(ctx context.Context, req *DropDatabaseUser
 	return resp, nil
 }
 
+func (c *clusterAPI) GetClusterInfraActionState(ctx context.Context, req *GetClusterInfraActionStateReq) (*GetClusterInfraActionStateResp, error) {
+	resp := &GetClusterInfraActionStateResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/infra-action/state", c.apiVersion, req.ClusterId), map[string]string{"action_id": req.ActionId}, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (c *clusterAPI) UpsertClusterSSLCert(ctx context.Context, req *UpsertClusterSSLCertReq) error {
 	resp := &CommonResp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cert", c.apiVersion, req.ClusterId), req, resp)
@@ -227,12 +238,6 @@ func (c *clusterAPI) GetClusterDomainSSLCert(ctx context.Context, req *GetCluste
 		return nil, err
 	}
 	return resp, nil
-}
-
-type UpsertClusterIdleConfigReq struct {
-	ClusterId  string `json:"clusterId"`
-	IntervalMs uint64 `json:"intervalMs"`
-	Enable     bool   `json:"enable"`
 }
 
 func (c *clusterAPI) UpsertClusterIdleConfig(ctx context.Context, req *UpsertClusterIdleConfigReq) error {
@@ -252,4 +257,14 @@ func (c *clusterAPI) GetCustomConfig(ctx context.Context, req *ListCustomConfigR
 
 func (c *clusterAPI) UpdateCustomConfig(ctx context.Context, req *SaveCustomConfigReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/custom-config", c.apiVersion, req.ClusterID), req, nil)
+}
+
+func (c *clusterAPI) UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error) {
+
+	resp := &UpsertLDAPSSLCertsResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ldap-ssl-certs", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }

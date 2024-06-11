@@ -222,6 +222,29 @@ func resourceClassicCluster() *schema.Resource {
 					return warnings, errors
 				},
 			},
+			"ldap_ssl_certs": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+					ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+						value, ok := i.(string)
+						if !ok {
+							errors = append(errors, fmt.Errorf("expected type of %s to be string", k))
+							return warnings, errors
+						}
+
+						if len(value) > 0 {
+							if !CheckS3Path(value) {
+								errors = append(errors, fmt.Errorf("for %s invalid s3 path:%s", k, value))
+							}
+						} else {
+							errors = append(errors, fmt.Errorf("%s`s value cann`t be empty", k))
+						}
+						return warnings, errors
+					},
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -311,6 +334,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -329,13 +353,20 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
-	if d.Get("idle_suspend_interval").(int) > 0 {
-		enable := true
-		clusterId := resp.ClusterID
-		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
-		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
-		if errDiag != nil {
-			return errDiag
+	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
+
+		arr := v.(*schema.Set).List()
+		sslCerts := make([]string, 0)
+		for _, v := range arr {
+			value := v.(string)
+			sslCerts = append(sslCerts, value)
+		}
+
+		if len(sslCerts) > 0 {
+			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, false)
+			if warningDiag != nil {
+				return warningDiag
+			}
 		}
 	}
 
@@ -343,6 +374,16 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.Get("idle_suspend_interval").(int) > 0 {
+		enable := true
+		clusterId := resp.ClusterID
+		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
+		warningDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
+		if warningDiag != nil {
+			return warningDiag
 		}
 	}
 
@@ -371,6 +412,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -421,6 +463,10 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
 	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
+	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	if len(resp.Cluster.LdapSslCerts) > 0 {
+		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	}
 	return diags
 }
 
@@ -442,6 +488,7 @@ func resourceClusterDelete(ctx context.Context, d *schema.ResourceData, m interf
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -471,6 +518,7 @@ func resourceClusterDelete(ctx context.Context, d *schema.ResourceData, m interf
 			string(cluster.ClusterStateRunning),
 			string(cluster.ClusterStateSuspended),
 			string(cluster.ClusterStateAbnormal),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{string(cluster.ClusterStateReleased), string(cluster.ClusterStateAbnormal)},
 	})
@@ -550,6 +598,21 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.HasChange("ldap_ssl_certs") && !d.IsNewResource() {
+		sslCerts := make([]string, 0)
+		if v, ok := d.GetOk("ldap_ssl_certs"); ok {
+			arr := v.(*schema.Set).List()
+			for _, v := range arr {
+				value := v.(string)
+				sslCerts = append(sslCerts, value)
+			}
+		}
+		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, true)
+		if warningDiag != nil {
+			return warningDiag
 		}
 	}
 
@@ -780,6 +843,10 @@ func WaitClusterStateChangeComplete(ctx context.Context, req *waitStateReq) (*cl
 	outputRaw, err := stateConf.WaitForStateContext(ctx)
 	if output, ok := outputRaw.(*cluster.GetStateResp); ok {
 		time.Sleep(time.Second * 5)
+		if output.ClusterState == string(cluster.ClusterStateAbnormal) {
+			time.Sleep(time.Second * 10)
+		}
+
 		return output, err
 	}
 
@@ -799,6 +866,39 @@ func StatusClusterState(ctx context.Context, clusterAPI cluster.IClusterAPI, act
 
 		log.Printf("[DEBUG] The current state of the cluster is : %s", resp.ClusterState)
 		return resp, resp.ClusterState, nil
+	}
+}
+
+func WaitClusterInfraActionStateChangeComplete(ctx context.Context, req *waitStateReq) (*cluster.GetClusterInfraActionStateResp, error) {
+	stateConf := &retry.StateChangeConf{
+		Pending:    req.pendingStates,
+		Target:     req.targetStates,
+		Refresh:    ClusterInfraActionState(ctx, req.clusterAPI, req.clusterID, req.actionID),
+		Timeout:    req.timeout,
+		MinTimeout: 5 * time.Second,
+	}
+
+	outputRaw, err := stateConf.WaitForStateContext(ctx)
+	if output, ok := outputRaw.(*cluster.GetClusterInfraActionStateResp); ok {
+		return output, err
+	}
+
+	return nil, err
+}
+
+func ClusterInfraActionState(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, actionId string) retry.StateRefreshFunc {
+	return func() (interface{}, string, error) {
+		log.Printf("[DEBUG] get cluster infra action state, clusterId[%s] actionId[%s]", clusterId, actionId)
+		resp, err := clusterAPI.GetClusterInfraActionState(ctx, &cluster.GetClusterInfraActionStateReq{
+			ClusterId: clusterId,
+			ActionId:  actionId,
+		})
+		if err != nil {
+			return nil, "", err
+		}
+
+		log.Printf("[DEBUG] get cluster infra action state, resp:%+v", resp)
+		return resp, resp.InfraActionState, nil
 	}
 }
 
@@ -882,7 +982,149 @@ func UpdateClusterIdleConfig(ctx context.Context, clusterAPI cluster.IClusterAPI
 		Enable:     enable,
 	})
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("set cluster idle suspend interval failed, errMsg:%s", err.Error()))
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Failed to set idle suspend interval, please retry again!",
+				Detail:   err.Error(),
+			},
+		}
 	}
+	return nil
+}
+
+func CheckS3Path(path string) bool {
+	re := regexp.MustCompile(`s3://([^/]+)/*(.*)`)
+	match := re.FindStringSubmatch(path)
+	return len(match) > 2 && len(match[1]) > 0 && len(match[2]) > 0
+}
+
+func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, sslCerts []string, removeOld bool) diag.Diagnostics {
+
+	var err diag.Diagnostics
+	if removeOld {
+		err = removeClusterLdapSSLCert(ctx, clusterAPI, clusterID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(sslCerts) > 0 {
+		err = configClusterLdapSSLCert(ctx, clusterAPI, clusterID, sslCerts)
+	}
+	return err
+}
+
+func removeClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+
+	summary := "Failed to remove old ldap ssl certs."
+	resp, err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
+		ClusterId: clusterId,
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if len(resp.InfraActionId) > 0 {
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   resp.InfraActionId,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   infraActionResp.ErrMsg,
+				},
+			}
+		}
+	}
+	return nil
+}
+
+func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, sslCerts []string) diag.Diagnostics {
+
+	summary := "Failed to config ldap ssl certs."
+	resp, err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
+		ClusterId: clusterId,
+		S3Objects: sslCerts,
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  clusterId,
+		actionID:   resp.InfraActionId,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterInfraActionStatePending),
+			string(cluster.ClusterInfraActionStateOngoing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterInfraActionStateSucceeded),
+			string(cluster.ClusterInfraActionStateCompleted),
+			string(cluster.ClusterInfraActionStateFailed),
+		},
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   infraActionResp.ErrMsg,
+			},
+		}
+	}
+
 	return nil
 }
