@@ -1017,7 +1017,7 @@ func UpsertClusterLdapSslCert(ctx context.Context, clusterAPI cluster.IClusterAP
 
 func removeClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
 
-	summary := "Failed to remove old ldap ssl certs, please try again."
+	summary := "Failed to remove old ldap ssl certs."
 	resp, err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
 		ClusterId: clusterId,
 	})
@@ -1032,38 +1032,49 @@ func removeClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 		}
 	}
 
-	_, err = WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
-		clusterAPI: clusterAPI,
-		clusterID:  clusterId,
-		actionID:   resp.InfraActionId,
-		timeout:    30 * time.Minute,
-		pendingStates: []string{
-			string(cluster.ClusterInfraActionStatePending),
-			string(cluster.ClusterInfraActionStateOngoing),
-		},
-		targetStates: []string{
-			string(cluster.ClusterInfraActionStateSucceeded),
-			string(cluster.ClusterInfraActionStateCompleted),
-			string(cluster.ClusterInfraActionStateFailed),
-		},
-	})
-
-	if err != nil {
-		return diag.Diagnostics{
-			diag.Diagnostic{
-				Severity: diag.Warning,
-				Summary:  summary,
-				Detail:   err.Error(),
+	if len(resp.InfraActionId) > 0 {
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   resp.InfraActionId,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
 			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   infraActionResp.ErrMsg,
+				},
+			}
 		}
 	}
-
 	return nil
 }
 
 func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, sslCerts []string) diag.Diagnostics {
 
-	summary := "Failed to config ldap ssl certs, please try again."
+	summary := "Failed to config ldap ssl certs."
 	resp, err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
 		ClusterId: clusterId,
 		S3Objects: sslCerts,
@@ -1079,7 +1090,7 @@ func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 		}
 	}
 
-	_, err = WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
 		clusterID:  clusterId,
 		actionID:   resp.InfraActionId,
@@ -1101,6 +1112,16 @@ func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 				Severity: diag.Warning,
 				Summary:  summary,
 				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   infraActionResp.ErrMsg,
 			},
 		}
 	}
