@@ -24,63 +24,8 @@ This resource depends on the following resources and data source:
 - [celerdatabyoc_aws_network](../resources/aws_network.md)
 
 ### Supported Node Sizes
-<table>
- <tbody>
-  <tr>
-   <td rowspan="2"></td>
-   <td rowspan="2">Node size</td>
-   <td rowspan="2">Node information</td>
-  </tr>
-  <tr height="17.55" style="height:17.55pt;">
-  </tr>
-  <tr>
-   <td rowspan="7">Coordinator node size</td>
-  </tr>
-  <tr>
-  </tr>
-  <tr>
-   <td>m6i.xlarge</td>
-   <td>4 Cores 16GB Memory 50 GB Storage</td>
-  </tr>
-  <tr>
-   <td>m6i.2xlarge</td>
-   <td>8 Cores 32GB Memory 200 GB Storage</td>
-  </tr>
-  <tr>
-   <td>m6i.4xlarge</td>
-   <td>16 Cores 64GB Memory 50 GB Storage</td>
-  </tr>
-  <tr>
-   <td>m6i.8xlarge</td>
-   <td>32 Cores 128GB Memory 50 GB Storage</td>
-  </tr>
-  <tr>
-  </tr>
-  <tr>
-   <td rowspan="7">Compute node size (General Purpose)</td>
-  </tr>
-  <tr>
-    <td>m5d.2xlarge</td>
-    <td>8 Cores 32GB Memory</td>
-  </tr>
-  <tr>
-    <td>r6id.2xlarge</td>
-    <td>8 Cores 64GB Memory</td>
-  </tr>
-  <tr>
-    <td>r6id.4xlarge</td>
-    <td>16 Cores 128GB Memory</td>
-  </tr>
-  <tr>
-    <td>r6id.8xlarge</td>
-    <td>32 Cores 256GB Memory</td>
-  </tr>
-  <tr>
-    <td>r6id.16xlarge</td>
-    <td>64 Cores 512GB Memory</td>
-  </tr>
- </tbody>
-</table>
+
+For information about the instance types supported by CelerData, see [Supported instance types](https://docs.celerdata.com/byoc/main/get_started/create_cluster/supported_instance_type).
 
 ## Example Usage
 

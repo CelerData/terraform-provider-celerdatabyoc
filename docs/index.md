@@ -19,9 +19,13 @@ You can also find documentation regarding the resources and data sources support
 
 ## Authentication
 
-Currently, Terraform supports using an application key to authenticate into the CelerData Cloud BYOC platform.
+Before you start a cluster deployment through Terraform, you must authenticate Terraform into the CelerData Cloud BYOC platform.
 
-Before you start a cluster deployment through Terraform, you must create an application key by following these steps:
+Currently, Terraform supports authentication with application keys and service accounts.
+
+### Authenticate with an application key
+
+Create an application key by following these steps:
 
 1. Sign in to the [CelerData Cloud BYOC console](https://cloud.celerdata.com/login).
 
@@ -35,8 +39,37 @@ Before you start a cluster deployment through Terraform, you must create an appl
 
 The CelerData Cloud BYOC provider will use the **Secret** and **Client ID** of your application key to provision and manage CelerData resources.
 
-For more information about managing application keys, see [Application keys](https://docs.celerdata.com/private/main/security/application_keys).
+For more information about managing application keys, see [Application keys](https://docs.celerdata.com/byoc/main/security/application_keys).
+
+### Authenticate with a service account
+
+Unlike application keys, service accounts are independent identities that do not depend on any CelerData members.
+
+Create a service account by following these steps:
+
+1. Sign in to the [CelerData Cloud BYOC console](https://cloud.celerdata.com/login).
+
+2. In the left-side navigation pane, choose **Access Control** > **Member**.
+
+3. On the **Members** page, click the **Service accounts** tab.
+
+4. On the **Service accounts** tab, click **Create a service account**.
+
+5. In the **Generate secret for service account** dialog box, enter a name for the service account, and click **Generate now**.
+
+6. Copy the **Client Secret** and **Client ID**, and click **Yes, I have finished it** to close the dialog box.
+
+   ~> The **Client Secret** can be viewed only when the service account is created. Make sure that you copy and save the **Client Secret** before closing the dialog box.
+
+The CelerData Cloud BYOC provider will use the **Secret** and **Client ID** of your service account to provision and manage CelerData resources.
+
+For more information about managing service accounts, see [Service accounts](https://docs.celerdata.com/byoc/main/security/service_accounts).
 
 ## Privileges
 
-Cluster deployments require the cloud settings management privilege. Make sure that the CelerData cloud account you used to create an application key for the cluster deployments through Terraform has the cloud settings management privilege. See [Privileges](https://docs.celerdata.com/private/main/security/cloud_access_control/cloud_access_control_overview#privileges).
+Cluster deployments require the cloud settings management privilege.
+
+- If you use application keys for authentication, make sure that the CelerData cloud account you used to create the application key for the cluster deployments through Terraform has the privilege.
+- If you use service accounts for authentication, make sure that you have [assigned the privilege](https://docs.celerdata.com/byoc/main/security/service_accounts#assign-roles-to-a-service-account) to the service account used for the cluster deployments through Terraform.
+
+See [Privileges](https://docs.celerdata.com/byoc/main/security/cloud_access_control/cloud_access_control_overview#privileges) for more information.
