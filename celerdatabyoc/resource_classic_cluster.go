@@ -463,7 +463,6 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
 	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
-	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	if len(resp.Cluster.LdapSslCerts) > 0 {
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
