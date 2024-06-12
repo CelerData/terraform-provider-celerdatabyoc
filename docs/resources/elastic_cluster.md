@@ -108,6 +108,9 @@ resource "celerdatabyoc_elastic_cluster" "elastic_cluster_1" {
   default_admin_password = "<SQL_user_initial_password>"
 
   expected_cluster_state = "{Suspended | Running}"
+    ldap_ssl_certs = [
+    "<ssl_cert_s3_path>"
+  ]
   resource_tags = {
     celerdata = "<tag_name>"
   }
@@ -275,6 +278,10 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 - `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
 
 - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
+
+- `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+
+~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
 - `resource_tags`: The tags to be attached to the cluster.
 

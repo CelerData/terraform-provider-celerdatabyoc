@@ -35,6 +35,9 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   default_admin_password = "<SQL_user_initial_password>"
 
   expected_cluster_state = "{Suspended | Running}"
+  ldap_ssl_certs = [
+    "<ssl_cert_s3_path>"
+  ]
   resource_tags = {
     celerdata = "<tag_name>"
   }
@@ -85,6 +88,10 @@ This resource contains the following required arguments and optional arguments:
 - `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
 
 ~> You can use the `be_disk_number` and `be_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a cluster is equal to `be_disk_number` * `be_disk_per_size`.
+
+- `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+
+~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
 - `resource_tags`: The tags to be attached to the cluster.
 - `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
