@@ -176,6 +176,29 @@ func resourceElasticCluster() *schema.Resource {
 					return warnings, errors
 				},
 			},
+			"ldap_ssl_certs": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+					ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+						value, ok := i.(string)
+						if !ok {
+							errors = append(errors, fmt.Errorf("expected type of %s to be string", k))
+							return warnings, errors
+						}
+
+						if len(value) > 0 {
+							if !CheckS3Path(value) {
+								errors = append(errors, fmt.Errorf("for %s invalid s3 path:%s", k, value))
+							}
+						} else {
+							errors = append(errors, fmt.Errorf("%s`s value cann`t be empty", k))
+						}
+						return warnings, errors
+					},
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -260,6 +283,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -278,13 +302,20 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
-	if d.Get("idle_suspend_interval").(int) > 0 {
-		enable := true
-		clusterId := resp.ClusterID
-		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
-		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
-		if errDiag != nil {
-			return errDiag
+	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
+
+		arr := v.(*schema.Set).List()
+		sslCerts := make([]string, 0)
+		for _, v := range arr {
+			value := v.(string)
+			sslCerts = append(sslCerts, value)
+		}
+
+		if len(sslCerts) > 0 {
+			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, false)
+			if warningDiag != nil {
+				return warningDiag
+			}
 		}
 	}
 
@@ -292,6 +323,16 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.Get("idle_suspend_interval").(int) > 0 {
+		enable := true
+		clusterId := resp.ClusterID
+		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
+		warningDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
+		if warningDiag != nil {
+			return warningDiag
 		}
 	}
 
@@ -315,6 +356,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -363,6 +405,9 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
 	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
+	if len(resp.Cluster.LdapSslCerts) > 0 {
+		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	}
 	return diags
 }
 
@@ -384,6 +429,7 @@ func resourceElasticClusterDelete(ctx context.Context, d *schema.ResourceData, m
 			string(cluster.ClusterStateResuming),
 			string(cluster.ClusterStateSuspending),
 			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{
 			string(cluster.ClusterStateRunning),
@@ -413,6 +459,7 @@ func resourceElasticClusterDelete(ctx context.Context, d *schema.ResourceData, m
 			string(cluster.ClusterStateRunning),
 			string(cluster.ClusterStateSuspended),
 			string(cluster.ClusterStateAbnormal),
+			string(cluster.ClusterStateUpdating),
 		},
 		targetStates: []string{string(cluster.ClusterStateReleased), string(cluster.ClusterStateAbnormal)},
 	})
@@ -472,6 +519,21 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.HasChange("ldap_ssl_certs") && !d.IsNewResource() {
+		sslCerts := make([]string, 0)
+		if v, ok := d.GetOk("ldap_ssl_certs"); ok {
+			arr := v.(*schema.Set).List()
+			for _, v := range arr {
+				value := v.(string)
+				sslCerts = append(sslCerts, value)
+			}
+		}
+		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, true)
+		if warningDiag != nil {
+			return warningDiag
 		}
 	}
 

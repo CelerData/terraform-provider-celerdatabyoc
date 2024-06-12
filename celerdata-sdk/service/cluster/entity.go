@@ -11,26 +11,35 @@ const (
 	CustomConfigTypeBE     CustomConfigType = 1
 	CustomConfigTypeRanger CustomConfigType = 2
 )
+type ClusterInfraActionState string
 
 const (
-	ClusterTypeClassic                               = ClusterType("CLASSIC")
-	ClusterTypeElasic                                = ClusterType("ELASTIC")
-	ClusterModuleTypeFE                              = ClusterModuleType("FE")
-	ClusterModuleTypeBE                              = ClusterModuleType("BE")
-	ClusterModuleTypeWarehouse                       = ClusterModuleType("Warehouse")
-	ClusterStateDeploying                            = ClusterState("Deploying")
-	ClusterStateRunning                              = ClusterState("Running")
-	ClusterStateScaling                              = ClusterState("Scaling")
-	ClusterStateAbnormal                             = ClusterState("Abnormal")
-	ClusterStateSuspending                           = ClusterState("Suspending")
-	ClusterStateSuspended                            = ClusterState("Suspended")
-	ClusterStateResuming                             = ClusterState("Resuming")
-	ClusterStateReleasing                            = ClusterState("Releasing")
-	ClusterStateReleased                             = ClusterState("Released")
+	ClusterTypeClassic         = ClusterType("CLASSIC")
+	ClusterTypeElasic          = ClusterType("ELASTIC")
+	ClusterModuleTypeFE        = ClusterModuleType("FE")
+	ClusterModuleTypeBE        = ClusterModuleType("BE")
+	ClusterModuleTypeWarehouse = ClusterModuleType("Warehouse")
+	ClusterStateDeploying      = ClusterState("Deploying")
+	ClusterStateRunning        = ClusterState("Running")
+	ClusterStateScaling        = ClusterState("Scaling")
+	ClusterStateAbnormal       = ClusterState("Abnormal")
+	ClusterStateSuspending     = ClusterState("Suspending")
+	ClusterStateSuspended      = ClusterState("Suspended")
+	ClusterStateResuming       = ClusterState("Resuming")
+	ClusterStateReleasing      = ClusterState("Releasing")
+	ClusterStateReleased       = ClusterState("Released")
+	ClusterStateUpdating       = ClusterState("Updating")
+
 	DomainAllocateStateUnknown   DomainAllocateState = 0
 	DomainAllocateStateOngoing   DomainAllocateState = 3
 	DomainAllocateStateSucceeded DomainAllocateState = 1
 	DomainAllocateStateFailed    DomainAllocateState = 2
+
+	ClusterInfraActionStatePending   ClusterInfraActionState = "Pending"
+	ClusterInfraActionStateOngoing   ClusterInfraActionState = "Ongoing"
+	ClusterInfraActionStateSucceeded ClusterInfraActionState = "Succeeded"
+	ClusterInfraActionStateCompleted ClusterInfraActionState = "Completed"
+	ClusterInfraActionStateFailed    ClusterInfraActionState = "Failed"
 )
 
 type Kv struct {
@@ -155,6 +164,7 @@ type Cluster struct {
 	FreeTier            bool         `json:"free_tier" mapstructure:"free_tier"`
 	QueryPort           int32        `json:"query_port" mapstructure:"query_port"`
 	IdleSuspendInterval int32        `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
+	LdapSslCerts        []string     `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
 }
 
 type ScaleInReq struct {
@@ -323,4 +333,29 @@ type SaveCustomConfigReq struct {
 	ConfigType  CustomConfigType  `json:"config_type" mapstructure:"config_type"`
 	WarehouseID string            `json:"warehouse_id" mapstructure:"warehouse_id"`
 	Configs     map[string]string `json:"configs" mapstructure:"configs"`
+}
+
+type GetClusterInfraActionStateReq struct {
+	ClusterId string `json:"clusterId"`
+	ActionId  string `json:"actionId"`
+}
+
+type GetClusterInfraActionStateResp struct {
+	InfraActionState string `json:"infra_action_state" mapstructure:"infra_action_state"`
+	ErrMsg           string `json:"err_msg" mapstructure:"err_msg"`
+}
+
+type UpsertClusterIdleConfigReq struct {
+	ClusterId  string `json:"clusterId"`
+	IntervalMs uint64 `json:"intervalMs"`
+	Enable     bool   `json:"enable"`
+}
+
+type UpsertLDAPSSLCertsReq struct {
+	ClusterId string   `json:"cluster_id"`
+	S3Objects []string `json:"s3_objects"`
+}
+
+type UpsertLDAPSSLCertsResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
