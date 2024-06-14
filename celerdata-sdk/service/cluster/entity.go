@@ -82,6 +82,7 @@ type ClusterConf struct {
 	Scripts            []*Script      `json:"scripts"`
 	RunScriptsParallel bool           `json:"run_scripts_parallel"`
 	QueryPort          int32          `json:"query_port"`
+	RunScriptsTimeout  int32          `json:"run_scripts_timeout"`
 }
 
 type GetReq struct {
