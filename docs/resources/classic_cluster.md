@@ -98,6 +98,7 @@ This resource contains the following required arguments and optional arguments:
   - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
+- `run_scripts_timeout`: The amount of time after which the script execution times out. Unit: Seconds. Default: `3600` (1 hour). The maximum value of this item is `21600` (6 hours).
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 - `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default, and therefore it is not included in the configuration example above. To enable the Auto Suspend feature, set this argument to an integer within the range of 60-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
