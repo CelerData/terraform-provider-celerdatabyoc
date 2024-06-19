@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -154,6 +155,7 @@ func (c *CelerdataClient) Do(ctx context.Context, method, path string,
 		return nil
 	}
 
+	log.Printf("[DEBUG] request finished, orgin resp:%+v", resp)
 	return mapstructure.Decode(resp.Data, response)
 }
 

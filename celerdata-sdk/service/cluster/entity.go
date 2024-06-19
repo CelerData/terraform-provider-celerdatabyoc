@@ -8,9 +8,17 @@ type DomainAllocateState int32
 type CustomConfigType int
 
 const (
-	CustomConfigTypeBE     CustomConfigType = 1
-	CustomConfigTypeRanger CustomConfigType = 2
+	CustomConfigTypeUnknown     CustomConfigType = 0
+	CustomConfigTypeBE          CustomConfigType = 1
+	CustomConfigTypeRanger      CustomConfigType = 2
+	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
+	CustomConfigTypeFe          CustomConfigType = 4
 )
+
+var (
+	SupportedConfigType = []string{"FE", "BE"}
+)
+
 type ClusterInfraActionState string
 
 const (
@@ -335,6 +343,15 @@ type SaveCustomConfigReq struct {
 	Configs     map[string]string `json:"configs" mapstructure:"configs"`
 }
 
+type ApplyCustomConfigReq struct {
+	ClusterID  string           `json:"cluster_id" mapstructure:"cluster_id"`
+	ConfigType CustomConfigType `json:"config_type" mapstructure:"config_type"`
+}
+
+type ApplyCustomConfigResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
 type GetClusterInfraActionStateReq struct {
 	ClusterId string `json:"clusterId"`
 	ActionId  string `json:"actionId"`
@@ -358,4 +375,26 @@ type UpsertLDAPSSLCertsReq struct {
 
 type UpsertLDAPSSLCertsResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+func ConvertStrToCustomConfigType(val string) CustomConfigType {
+	var customConfigType CustomConfigType
+	switch val {
+	case "FE":
+		customConfigType = CustomConfigTypeFe
+	case "BE":
+		customConfigType = CustomConfigTypeBE
+	}
+	return customConfigType
+}
+
+func ConvertIntToCustomConfigType(val int) CustomConfigType {
+	customConfigType := CustomConfigTypeUnknown
+	switch val {
+	case 4:
+		customConfigType = CustomConfigTypeFe
+	case 1:
+		customConfigType = CustomConfigTypeBE
+	}
+	return customConfigType
 }

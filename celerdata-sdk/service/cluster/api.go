@@ -34,6 +34,7 @@ type IClusterAPI interface {
 
 	UpdateCustomConfig(ctx context.Context, req *SaveCustomConfigReq) error
 	GetCustomConfig(ctx context.Context, req *ListCustomConfigReq) (*ListCustomConfigResp, error)
+	ApplyCustomConfig(ctx context.Context, req *ApplyCustomConfigReq) (*ApplyCustomConfigResp, error)
 	UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error)
 }
 
@@ -247,7 +248,7 @@ func (c *clusterAPI) UpsertClusterIdleConfig(ctx context.Context, req *UpsertClu
 func (c *clusterAPI) GetCustomConfig(ctx context.Context, req *ListCustomConfigReq) (*ListCustomConfigResp, error) {
 	resp := &ListCustomConfigResp{}
 
-	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/custom-config/detail", c.apiVersion, req.ClusterID), *req, resp)
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/custom-config/detail", c.apiVersion, req.ClusterID), map[string]int{"config_type": int(req.ConfigType)}, resp)
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +258,15 @@ func (c *clusterAPI) GetCustomConfig(ctx context.Context, req *ListCustomConfigR
 
 func (c *clusterAPI) UpdateCustomConfig(ctx context.Context, req *SaveCustomConfigReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/custom-config", c.apiVersion, req.ClusterID), req, nil)
+}
+
+func (c *clusterAPI) ApplyCustomConfig(ctx context.Context, req *ApplyCustomConfigReq) (*ApplyCustomConfigResp, error) {
+	resp := &ApplyCustomConfigResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/clusters/%s/apply-custom-config", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (c *clusterAPI) UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error) {
