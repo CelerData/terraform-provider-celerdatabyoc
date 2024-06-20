@@ -7,6 +7,7 @@ import (
 	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -95,7 +96,7 @@ func resourceClusterCustomConfigRead(ctx context.Context, d *schema.ResourceData
 	customConfigId := d.Id()
 	log.Printf("[DEBUG] query cluster custom config, customConfigId:%s", customConfigId)
 	arr := strings.Split(customConfigId, ":")
-	if len(arr) != 3 {
+	if len(arr) != 4 {
 		d.SetId("")
 		return diags
 	}
@@ -141,7 +142,7 @@ func resourceClusterCustomConfigDelete(ctx context.Context, d *schema.ResourceDa
 	customConfigId := d.Id()
 	log.Printf("[DEBUG] remove cluster custom config, customConfigId:%s", customConfigId)
 	arr := strings.Split(customConfigId, ":")
-	if len(arr) != 3 {
+	if len(arr) != 4 {
 		d.SetId("")
 		return diags
 	}
@@ -169,5 +170,5 @@ func resourceClusterCustomConfigDelete(ctx context.Context, d *schema.ResourceDa
 }
 
 func genConfigID(configType, clusterID, warehouseID string) string {
-	return fmt.Sprintf("%s:%s:%s", configType, clusterID, warehouseID)
+	return fmt.Sprintf("%s:%s:%s:%d", configType, clusterID, warehouseID, time.Now().Unix())
 }
