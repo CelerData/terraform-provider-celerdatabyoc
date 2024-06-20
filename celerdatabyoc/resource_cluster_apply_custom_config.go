@@ -193,5 +193,6 @@ func resourceClusterApplyCustomConfigRead(ctx context.Context, d *schema.Resourc
 }
 
 func resourceClusterApplyCustomConfigDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+	d.SetId("")
 	return diags
 }
