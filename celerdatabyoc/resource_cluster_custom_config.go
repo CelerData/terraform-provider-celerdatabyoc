@@ -7,7 +7,6 @@ import (
 	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -29,7 +28,6 @@ func resourceClusterCustomConfig() *schema.Resource {
 			},
 			"config_type": {
 				Type:         schema.TypeString,
-				ForceNew:     true,
 				Required:     true,
 				ValidateFunc: validation.StringInSlice(cluster.SupportedConfigType, false),
 			},
@@ -85,7 +83,8 @@ func resourceClusterCustomConfigCreate(ctx context.Context, d *schema.ResourceDa
 		return diag.FromErr(err)
 	}
 
-	d.SetId(genConfigID(configTypeStr, clusterID, warehouseID))
+	id := genID(configTypeStr, clusterID, warehouseID)
+	d.SetId(id)
 	return diags
 }
 
@@ -96,7 +95,7 @@ func resourceClusterCustomConfigRead(ctx context.Context, d *schema.ResourceData
 	customConfigId := d.Id()
 	log.Printf("[DEBUG] query cluster custom config, customConfigId:%s", customConfigId)
 	arr := strings.Split(customConfigId, ":")
-	if len(arr) != 4 {
+	if len(arr) < 3 {
 		d.SetId("")
 		return diags
 	}
@@ -129,9 +128,6 @@ func resourceClusterCustomConfigRead(ctx context.Context, d *schema.ResourceData
 	d.Set("configs", resp.Configs)
 	d.Set("last_apply_at", resp.LastApplyAt)
 	d.Set("last_edit_at", resp.LastEditAt)
-
-	d.SetId(genConfigID(configTypeStr, clusterID, warehouseID))
-
 	return diags
 }
 
@@ -142,7 +138,7 @@ func resourceClusterCustomConfigDelete(ctx context.Context, d *schema.ResourceDa
 	customConfigId := d.Id()
 	log.Printf("[DEBUG] remove cluster custom config, customConfigId:%s", customConfigId)
 	arr := strings.Split(customConfigId, ":")
-	if len(arr) != 4 {
+	if len(arr) < 3 {
 		d.SetId("")
 		return diags
 	}
@@ -169,6 +165,6 @@ func resourceClusterCustomConfigDelete(ctx context.Context, d *schema.ResourceDa
 	return diags
 }
 
-func genConfigID(configType, clusterID, warehouseID string) string {
-	return fmt.Sprintf("%s:%s:%s:%d", configType, clusterID, warehouseID, time.Now().Unix())
+func genID(configType, clusterID, warehouseID string) string {
+	return fmt.Sprintf("%s:%s:%s", configType, clusterID, warehouseID)
 }

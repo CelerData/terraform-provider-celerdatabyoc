@@ -47,7 +47,7 @@ func resourceClusterApplyCustomConfigCreate(ctx context.Context, d *schema.Resou
 	customConfigId := d.Get("custom_config_id").(string)
 	log.Printf("[DEBUG] apply cluster custom config, customConfigId:%s", customConfigId)
 	arr := strings.Split(customConfigId, ":")
-	if len(arr) != 4 {
+	if len(arr) < 3 {
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Error,
@@ -143,7 +143,7 @@ func resourceClusterApplyCustomConfigRead(ctx context.Context, d *schema.Resourc
 		customConfigId := d.Get("custom_config_id").(string)
 		log.Printf("[DEBUG] query cluster custom config, customConfigId:%s", customConfigId)
 		arr := strings.Split(customConfigId, ":")
-		if len(arr) != 4 {
+		if len(arr) < 3 {
 			return diag.Diagnostics{
 				diag.Diagnostic{
 					Severity: diag.Error,
