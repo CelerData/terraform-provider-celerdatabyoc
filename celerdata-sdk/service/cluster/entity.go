@@ -16,7 +16,7 @@ const (
 )
 
 var (
-	SupportedConfigType = []string{"FE", "BE"}
+	SupportedConfigType = []string{"FE", "BE", "RANGER"}
 )
 
 type ClusterInfraActionState string
@@ -384,6 +384,8 @@ func ConvertStrToCustomConfigType(val string) CustomConfigType {
 		customConfigType = CustomConfigTypeFe
 	case "BE":
 		customConfigType = CustomConfigTypeBE
+	case "RANGER":
+		customConfigType = CustomConfigTypeRanger
 	}
 	return customConfigType
 }
@@ -395,6 +397,8 @@ func ConvertIntToCustomConfigType(val int) CustomConfigType {
 		customConfigType = CustomConfigTypeFe
 	case 1:
 		customConfigType = CustomConfigTypeBE
+	case 2:
+		customConfigType = CustomConfigTypeRanger
 	}
 	return customConfigType
 }
