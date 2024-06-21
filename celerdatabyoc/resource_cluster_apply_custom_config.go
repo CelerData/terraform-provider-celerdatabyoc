@@ -58,6 +58,7 @@ func resourceClusterApplyCustomConfigCreate(ctx context.Context, d *schema.Resou
 	}
 
 	clusterID := arr[1]
+	warehouseID := arr[2]
 	configTypeStr := arr[0]
 	configType := cluster.ConvertStrToCustomConfigType(configTypeStr)
 
@@ -72,8 +73,9 @@ func resourceClusterApplyCustomConfigCreate(ctx context.Context, d *schema.Resou
 	}
 
 	req := &cluster.ApplyCustomConfigReq{
-		ClusterID:  clusterID,
-		ConfigType: configType,
+		ClusterID:   clusterID,
+		ConfigType:  configType,
+		WarehouseID: warehouseID,
 	}
 
 	log.Printf("[DEBUG] apply cluster custom config, req:%+v", req)

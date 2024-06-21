@@ -344,8 +344,9 @@ type SaveCustomConfigReq struct {
 }
 
 type ApplyCustomConfigReq struct {
-	ClusterID  string           `json:"cluster_id" mapstructure:"cluster_id"`
-	ConfigType CustomConfigType `json:"config_type" mapstructure:"config_type"`
+	ClusterID   string           `json:"cluster_id" mapstructure:"cluster_id"`
+	ConfigType  CustomConfigType `json:"config_type" mapstructure:"config_type"`
+	WarehouseID string           `json:"warehouse_id" mapstructure:"warehouse_id"`
 }
 
 type ApplyCustomConfigResp struct {
