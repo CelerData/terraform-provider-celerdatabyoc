@@ -13,6 +13,14 @@ Applies the static configurations made via [celerdatabyoc_cluster_custom_config]
 - Apply only FE/Coordinator Node configurations or BE/Compute Node configurations:
 
 ```terraform
+resource "celerdatabyoc_cluster_custom_config" "my_config" {
+  cluster_id  = <The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.>
+  config_type = "FE"
+  configs = {
+    sys_log_level = "INFO",
+  }
+}
+
 resource "celerdatabyoc_cluster_apply_custom_config" "apply_my_config" {
     custom_config_id = celerdatabyoc_cluster_custom_config.my_config.id
     lifecycle {
@@ -24,6 +32,22 @@ resource "celerdatabyoc_cluster_apply_custom_config" "apply_my_config" {
 - Apply both FE/Coordinator Node configurations and BE/Compute Node configurations:
 
 ```terraform
+resource "celerdatabyoc_cluster_custom_config" "fe_config" {
+  cluster_id  = <The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.>
+  config_type = "FE"
+  configs = {
+    sys_log_level = "INFO",
+  }
+}
+
+resource "celerdatabyoc_cluster_custom_config" "be_config" {
+  cluster_id  = celerdatabyoc_classic_cluster.my_cluster.id
+  config_type = "BE"
+  configs = {
+    sys_log_level = "INFO",
+  }
+}
+
 resource "celerdatabyoc_cluster_apply_custom_config" "apply_fe_config" {
   custom_config_id = celerdatabyoc_cluster_custom_config.fe_config.id
   lifecycle {
