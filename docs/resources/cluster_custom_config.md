@@ -10,7 +10,7 @@ Configures static parameters for BE or FE nodes in a classic cluster or Compute 
 
 You can configure the static parameters of these nodes to fine-tune them to achieve better query or loading performance or satisfy certain requirements.
 
-Please note that this API only modifies the specified static parameters. Modifications will not take effect until you apply the configurations using the OpenAPI [apply-custom-config](https://docs.celerdata.com/byoc/main/API/actions/clusters/create_and_manage_clusters/apply_static_configuration).
+Please note that this API only modifies the specified static parameters. Modifications will not take effect until you apply the configurations using the Terraform API [celerdatabyoc_cluster_apply_custom_config](./cluster_apply_custom_config.md) or the OpenAPI [apply-custom-config](https://docs.celerdata.com/byoc/main/API/actions/clusters/create_and_manage_clusters/apply_static_configuration).
 
 ## Example Usage
 
@@ -18,7 +18,7 @@ Please note that this API only modifies the specified static parameters. Modific
 resource "celerdatabyoc_cluster_custom_config" "my_config" {
     cluster_id = "<cluster_resource_id>"
     warehouse_id = "<warehouse_id>"
-    config_type = "{ fe | be }"
+    config_type = "{ FE | BE }"
     configs = {
         <parameter_key_1> = <parameter_value_1>
         <parameter_key_2> = <parameter_value_2>
@@ -36,14 +36,14 @@ This resource contains the following required arguments:
   - If the cluster is a classic cluster, set this argument to `celerdatabyoc_classic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
   - If the cluster is an elastic cluster, set this argument to `celerdatabyoc_elastic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
 
-- `warehouse_id`: (String, Forces new resource) The ID of the warehouse for which you want to configure static CN parameters in the `celerdatabyoc_elastic_cluster` resource. Please note that modifications to Compute Node configurations takes effect warehouse-wide.
+- `warehouse_id`: (String, Forces new resource) The ID of the warehouse for which you want to configure static Compute Node parameters in the `celerdatabyoc_elastic_cluster` resource. Please note that modifications to Compute Node configurations takes effect warehouse-wide.
 
-~> You must delete the argument `warehouse_id` if you want to configure static parameters in the `celerdatabyoc_classic_cluster` resource.
+~> You must delete the argument `warehouse_id` if you want to configure static parameters in the `celerdatabyoc_classic_cluster` resource or Coordinator Node parameters in the `celerdatabyoc_elastic_cluster` resource.
 
 - `config_type`: The type of the configuration. Valid values:
 
-  - `fe`: FE/Coordinator static configuration.
-  - `be`: BE/CN static configuration.
+  - `FE`: FE/Coordinator node static configuration.
+  - `BE`: BE/Compute Node static configuration.
 
 - `configs`: The key-value pairs of the configurations you want to modify. You can specify multiple key-value pairs.
 
