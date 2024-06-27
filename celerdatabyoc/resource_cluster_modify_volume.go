@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"time"
@@ -12,10 +11,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-)
-
-const (
-	VolumeDetailIdInvalid = "Invalid parameter `volume_detail_id`"
 )
 
 func resourceClusterModifyVolume() *schema.Resource {
@@ -74,29 +69,16 @@ func resourceClusterModifyVolumeCreate(ctx context.Context, d *schema.ResourceDa
 	c := m.(*client.CelerdataClient)
 	clusterAPI := cluster.NewClustersAPI(c)
 
-	volumeDetailId := d.Get("volume_detail_id").(string)
-	log.Printf("[DEBUG] modify cluster volume detail, volumeDetailId:%s", volumeDetailId)
-	arr := strings.Split(volumeDetailId, ":")
-	if len(arr) < 2 {
-		return diag.Diagnostics{
-			diag.Diagnostic{
-				Severity: diag.Error,
-				Summary:  VolumeDetailIdInvalid,
-				Detail:   fmt.Sprintf("value:%s is invalid", volumeDetailId),
-			},
-		}
-	}
-
-	clusterId := arr[0]
-	nodeTypeStr := arr[1]
+	clusterId := d.Get("cluster_id").(string)
+	nodeTypeStr := d.Get("node_type").(string)
 	nodeType := cluster.ConvertStrToClusterModuleType(nodeTypeStr)
 
 	if nodeType == cluster.ClusterModuleTypeUnknown {
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Error,
-				Summary:  VolumeDetailIdInvalid,
-				Detail:   fmt.Sprintf("value:%s is invalid, unknown node type [%s]", volumeDetailId, nodeTypeStr),
+				Summary:  "Unsupported node type",
+				Detail:   fmt.Sprintf("nodeType:%s is invalid", nodeTypeStr),
 			},
 		}
 	}
@@ -183,20 +165,7 @@ func resourceClusterModifyVolumeRead(ctx context.Context, d *schema.ResourceData
 	result := ""
 	if len(infraActionId) > 0 {
 
-		volumeDetailId := d.Get("volume_detail_id").(string)
-		log.Printf("[DEBUG] query cluster volume detail info, volumeDetailIdId:%s", volumeDetailId)
-		arr := strings.Split(volumeDetailId, ":")
-		if len(arr) < 2 {
-			return diag.Diagnostics{
-				diag.Diagnostic{
-					Severity: diag.Error,
-					Summary:  VolumeDetailIdInvalid,
-					Detail:   fmt.Sprintf("value:%s is invalid", volumeDetailId),
-				},
-			}
-		}
-
-		clusterId := arr[1]
+		clusterId := d.Get("cluster_id").(string)
 		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
 			clusterAPI: clusterAPI,
 			clusterID:  clusterId,

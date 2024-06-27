@@ -62,6 +62,16 @@ func dataSourceClusterVolumeRead(ctx context.Context, d *schema.ResourceData, me
 	nodeTypeStr := d.Get("node_type").(string)
 	nodeType := cluster.ConvertStrToClusterModuleType(nodeTypeStr)
 
+	if nodeType == cluster.ClusterModuleTypeUnknown {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Unsupported node type",
+				Detail:   fmt.Sprintf("nodeType:%s is invalid", nodeTypeStr),
+			},
+		}
+	}
+
 	req := &cluster.GetClusterVolumeDetailReq{
 		ClusterId: clusterId,
 		Type:      nodeType,
