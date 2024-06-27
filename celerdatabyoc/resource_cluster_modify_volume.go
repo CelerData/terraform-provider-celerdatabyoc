@@ -24,11 +24,17 @@ func resourceClusterModifyVolume() *schema.Resource {
 		ReadContext:   resourceClusterModifyVolumeRead,
 		DeleteContext: resourceClusterModifyVolumeDelete,
 		Schema: map[string]*schema.Schema{
-			"volume_detail_id": {
+			"cluster_id": {
 				Type:         schema.TypeString,
-				ForceNew:     true,
 				Required:     true,
+				ForceNew:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
+			},
+			"node_type": {
+				Type:         schema.TypeString,
+				Required:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringInSlice(cluster.SupportedConfigType, false),
 			},
 			"vol_cate": {
 				Type:         schema.TypeString,
