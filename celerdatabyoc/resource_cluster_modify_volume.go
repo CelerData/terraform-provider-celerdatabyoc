@@ -92,13 +92,13 @@ func resourceClusterModifyVolumeCreate(ctx context.Context, d *schema.ResourceDa
 		req.VmVolCate = v.(string)
 	}
 	if v, ok := d.GetOk("vol_size"); ok {
-		req.VmVolSize = v.(int64)
+		req.VmVolSize = int64(v.(int))
 	}
 	if v, ok := d.GetOk("iops"); ok {
-		req.Iops = v.(int64)
+		req.Iops = int64(v.(int))
 	}
 	if v, ok := d.GetOk("throughput"); ok {
-		req.VmVolSize = v.(int64)
+		req.Throughput = int64(v.(int))
 	}
 
 	log.Printf("[DEBUG] modify cluster volume detail, req:%+v", req)
