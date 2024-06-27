@@ -36,6 +36,9 @@ type IClusterAPI interface {
 	GetCustomConfig(ctx context.Context, req *ListCustomConfigReq) (*ListCustomConfigResp, error)
 	ApplyCustomConfig(ctx context.Context, req *ApplyCustomConfigReq) (*ApplyCustomConfigResp, error)
 	UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error)
+
+	GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error)
+	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -273,6 +276,25 @@ func (c *clusterAPI) UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLD
 
 	resp := &UpsertLDAPSSLCertsResp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ldap-ssl-certs", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error) {
+
+	resp := &GetClusterVolumeDetailResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/volume/detail", c.apiVersion, req.ClusterId), map[string]string{"type": string(req.Type)}, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+func (c *clusterAPI) ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error) {
+
+	resp := &ModifyClusterVolumeResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/volume", c.apiVersion, req.ClusterId), req, resp)
 	if err != nil {
 		return nil, err
 	}

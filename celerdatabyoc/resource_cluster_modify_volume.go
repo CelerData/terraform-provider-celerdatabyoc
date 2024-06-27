@@ -15,84 +15,119 @@ import (
 )
 
 const (
-	CustomConfigIdInvalid = "Invalid parameter `custom_config_id`"
+	VolumeDetailIdInvalid = "Invalid parameter `volume_detail_id`"
 )
 
-func resourceClusterApplyCustomConfig() *schema.Resource {
+func resourceClusterModifyVolume() *schema.Resource {
 	return &schema.Resource{
-		CreateContext: resourceClusterApplyCustomConfigCreate,
-		ReadContext:   resourceClusterApplyCustomConfigRead,
-		DeleteContext: resourceClusterApplyCustomConfigDelete,
+		CreateContext: resourceClusterModifyVolumeCreate,
+		ReadContext:   resourceClusterModifyVolumeRead,
+		DeleteContext: resourceClusterModifyVolumeDelete,
 		Schema: map[string]*schema.Schema{
-			"custom_config_id": {
+			"volume_detail_id": {
 				Type:         schema.TypeString,
 				ForceNew:     true,
 				Required:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
 			},
+			"vol_cate": {
+				Type:         schema.TypeString,
+				ForceNew:     true,
+				Optional:     true,
+				ValidateFunc: validation.StringIsNotEmpty,
+			},
+			"vol_size": {
+				Type:         schema.TypeInt,
+				ForceNew:     true,
+				Optional:     true,
+				ValidateFunc: validation.IntAtLeast(1),
+			},
+			"iops": {
+				Type:         schema.TypeInt,
+				ForceNew:     true,
+				Optional:     true,
+				ValidateFunc: validation.IntAtLeast(1),
+			},
+			"throughput": {
+				Type:         schema.TypeInt,
+				ForceNew:     true,
+				Optional:     true,
+				ValidateFunc: validation.IntAtLeast(1),
+			},
 			"result": {
 				Type:        schema.TypeString,
 				Computed:    true,
-				Description: "Custom config execution result",
+				Description: "Modify volume detail execution result",
 			},
 		},
 	}
 }
 
-func resourceClusterApplyCustomConfigCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
-	c := m.(*client.CelerdataClient)
+func resourceClusterModifyVolumeCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 
+	c := m.(*client.CelerdataClient)
 	clusterAPI := cluster.NewClustersAPI(c)
 
-	customConfigId := d.Get("custom_config_id").(string)
-	log.Printf("[DEBUG] apply cluster custom config, customConfigId:%s", customConfigId)
-	arr := strings.Split(customConfigId, ":")
-	if len(arr) < 3 {
+	volumeDetailId := d.Get("volume_detail_id").(string)
+	log.Printf("[DEBUG] modify cluster volume detail, volumeDetailId:%s", volumeDetailId)
+	arr := strings.Split(volumeDetailId, ":")
+	if len(arr) < 2 {
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Error,
-				Summary:  CustomConfigIdInvalid,
-				Detail:   fmt.Sprintf("value:%s is invalid", customConfigId),
+				Summary:  VolumeDetailIdInvalid,
+				Detail:   fmt.Sprintf("value:%s is invalid", volumeDetailId),
 			},
 		}
 	}
 
-	clusterID := arr[1]
-	warehouseID := arr[2]
-	configTypeStr := arr[0]
-	configType := cluster.ConvertStrToCustomConfigType(configTypeStr)
+	clusterId := arr[0]
+	nodeTypeStr := arr[1]
+	nodeType := cluster.ConvertStrToClusterModuleType(nodeTypeStr)
 
-	if configType == cluster.CustomConfigTypeUnknown {
+	if nodeType == cluster.ClusterModuleTypeUnknown {
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Error,
-				Summary:  CustomConfigIdInvalid,
-				Detail:   fmt.Sprintf("value:%s is invalid, unknown config type [%s]", customConfigId, configTypeStr),
+				Summary:  VolumeDetailIdInvalid,
+				Detail:   fmt.Sprintf("value:%s is invalid, unknown node type [%s]", volumeDetailId, nodeTypeStr),
 			},
 		}
 	}
 
-	req := &cluster.ApplyCustomConfigReq{
-		ClusterID:   clusterID,
-		ConfigType:  configType,
-		WarehouseID: warehouseID,
+	req := &cluster.ModifyClusterVolumeReq{
+		ClusterId: clusterId,
+		Type:      nodeType,
 	}
 
-	log.Printf("[DEBUG] apply cluster custom config, req:%+v", req)
-	resp, err := clusterAPI.ApplyCustomConfig(ctx, req)
+	if v, ok := d.GetOk("vol_cate"); ok {
+		req.VmVolCate = v.(string)
+	}
+	if v, ok := d.GetOk("vol_size"); ok {
+		req.VmVolSize = v.(int64)
+	}
+	if v, ok := d.GetOk("iops"); ok {
+		req.Iops = v.(int64)
+	}
+	if v, ok := d.GetOk("throughput"); ok {
+		req.VmVolSize = v.(int64)
+	}
+
+	log.Printf("[DEBUG] modify cluster volume detail, req:%+v", req)
+	resp, err := clusterAPI.ModifyClusterVolume(ctx, req)
 	if err != nil {
-		log.Printf("[ERROR] apply cluster custom config failed, err:%+v", err)
+		log.Printf("[ERROR] modify cluster volume detail failed, err:%+v", err)
 		return diag.FromErr(err)
 	}
 
-	infraActionId := resp.InfraActionId
+	infraActionId := resp.ActionID
 
 	d.SetId(infraActionId)
 
 	if len(infraActionId) > 0 {
 		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
 			clusterAPI: clusterAPI,
-			clusterID:  clusterID,
+			clusterID:  clusterId,
 			actionID:   infraActionId,
 			timeout:    30 * time.Minute,
 			pendingStates: []string{
@@ -106,7 +141,7 @@ func resourceClusterApplyCustomConfigCreate(ctx context.Context, d *schema.Resou
 			},
 		})
 
-		summary := fmt.Sprintf("Apply custom %s configuration of the cluster[%s] failed", configTypeStr, clusterID)
+		summary := fmt.Sprintf("Modify %s node volume detail of the cluster[%s] failed", nodeType, clusterId)
 
 		if err != nil {
 			return diag.Diagnostics{
@@ -134,7 +169,7 @@ func resourceClusterApplyCustomConfigCreate(ctx context.Context, d *schema.Resou
 	return diags
 }
 
-func resourceClusterApplyCustomConfigRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+func resourceClusterModifyVolumeRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	c := m.(*client.CelerdataClient)
 
 	clusterAPI := cluster.NewClustersAPI(c)
@@ -142,23 +177,23 @@ func resourceClusterApplyCustomConfigRead(ctx context.Context, d *schema.Resourc
 	result := ""
 	if len(infraActionId) > 0 {
 
-		customConfigId := d.Get("custom_config_id").(string)
-		log.Printf("[DEBUG] query cluster custom config, customConfigId:%s", customConfigId)
-		arr := strings.Split(customConfigId, ":")
-		if len(arr) < 3 {
+		volumeDetailId := d.Get("volume_detail_id").(string)
+		log.Printf("[DEBUG] query cluster volume detail info, volumeDetailIdId:%s", volumeDetailId)
+		arr := strings.Split(volumeDetailId, ":")
+		if len(arr) < 2 {
 			return diag.Diagnostics{
 				diag.Diagnostic{
 					Severity: diag.Error,
-					Summary:  CustomConfigIdInvalid,
-					Detail:   fmt.Sprintf("value:%s is invalid", customConfigId),
+					Summary:  VolumeDetailIdInvalid,
+					Detail:   fmt.Sprintf("value:%s is invalid", volumeDetailId),
 				},
 			}
 		}
-		clusterID := arr[1]
 
+		clusterId := arr[1]
 		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
 			clusterAPI: clusterAPI,
-			clusterID:  clusterID,
+			clusterID:  clusterId,
 			actionID:   infraActionId,
 			timeout:    30 * time.Minute,
 			pendingStates: []string{
@@ -173,7 +208,7 @@ func resourceClusterApplyCustomConfigRead(ctx context.Context, d *schema.Resourc
 		})
 
 		if err != nil {
-			log.Printf("[ERROR] query cluster infra action failed, infraActionId:%s", infraActionId)
+			log.Printf("[ERROR] query modify cluster volume detail infra action failed, infraActionId:%s", infraActionId)
 			return diag.Diagnostics{
 				diag.Diagnostic{
 					Severity: diag.Warning,
@@ -194,7 +229,7 @@ func resourceClusterApplyCustomConfigRead(ctx context.Context, d *schema.Resourc
 	return diags
 }
 
-func resourceClusterApplyCustomConfigDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+func resourceClusterModifyVolumeDelete(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	d.SetId("")
 	return diags
 }
