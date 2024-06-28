@@ -26,7 +26,7 @@ func dataSourceClusterVolumeDetail() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: validation.StringInSlice(cluster.SupportedConfigType, false),
+				ValidateFunc: validation.StringInSlice(cluster.SupportedClusterNodeType, false),
 			},
 			"vol_cate": {
 				Type:     schema.TypeString,

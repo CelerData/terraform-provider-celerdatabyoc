@@ -8,7 +8,8 @@ type CustomConfigType int
 type ClusterInfraActionState string
 
 var (
-	SupportedConfigType = []string{"FE", "BE", "RANGER"}
+	SupportedConfigType      = []string{"FE", "BE", "RANGER"}
+	SupportedClusterNodeType = []string{"FE", "BE", "COORDINATOR"}
 )
 
 const (
@@ -434,7 +435,7 @@ func ConvertIntToCustomConfigType(val int) CustomConfigType {
 func ConvertStrToClusterModuleType(val string) ClusterModuleType {
 	nodeType := ClusterModuleTypeUnknown
 	switch val {
-	case "FE":
+	case "FE", "COORDINATOR":
 		nodeType = ClusterModuleTypeFE
 	case "BE":
 		nodeType = ClusterModuleTypeBE
