@@ -70,6 +70,16 @@ func resourceClusterCustomConfigCreate(ctx context.Context, d *schema.ResourceDa
 		configs[k] = v.(string)
 	}
 
+	if configType == cluster.CustomConfigTypeRanger {
+		if value, ok := configs[cluster.RANGER_CONFIG_KEY]; ok {
+			if !CheckS3Path(value) {
+				return diag.FromErr(fmt.Errorf("invalid s3 path:%s", value))
+			}
+		} else {
+			return diag.FromErr(fmt.Errorf("custom ranger config, config key[`s3_path`] cann`t be empty"))
+		}
+	}
+
 	req := &cluster.SaveCustomConfigReq{
 		ClusterID:   clusterID,
 		WarehouseID: warehouseID,
