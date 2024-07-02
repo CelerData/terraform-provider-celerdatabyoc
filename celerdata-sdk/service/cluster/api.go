@@ -36,6 +36,7 @@ type IClusterAPI interface {
 	GetCustomConfig(ctx context.Context, req *ListCustomConfigReq) (*ListCustomConfigResp, error)
 	ApplyCustomConfig(ctx context.Context, req *ApplyCustomConfigReq) (*ApplyCustomConfigResp, error)
 	UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error)
+	CleanCustomConfig(ctx context.Context, req *CleanCustomConfigReq) (*CleanCustomConfigResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -273,6 +274,15 @@ func (c *clusterAPI) UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLD
 
 	resp := &UpsertLDAPSSLCertsResp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ldap-ssl-certs", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CleanCustomConfig(ctx context.Context, req *CleanCustomConfigReq) (*CleanCustomConfigResp, error) {
+	resp := &CleanCustomConfigResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/clean-custom-config", c.apiVersion, req.ClusterID), req, resp)
 	if err != nil {
 		return nil, err
 	}

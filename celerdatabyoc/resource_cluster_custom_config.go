@@ -7,6 +7,7 @@ import (
 	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -122,10 +123,23 @@ func resourceClusterCustomConfigRead(ctx context.Context, d *schema.ResourceData
 		return diags
 	}
 
+	configMap := make(map[string]string)
+	if configType == cluster.CustomConfigTypeRanger {
+		rangConfigPath := ""
+		if v1, ok := resp.Configs["prefix"]; ok {
+			rangConfigPath = v1
+		} else if v2, ok := resp.Configs[cluster.RANGER_CONFIG_KEY]; ok {
+			rangConfigPath = v2
+		}
+		configMap[cluster.RANGER_CONFIG_KEY] = rangConfigPath
+	} else {
+		configMap = resp.Configs
+	}
+
 	d.Set("cluster_id", clusterID)
 	d.Set("warehouse_id", warehouseID)
 	d.Set("config_type", configTypeStr)
-	d.Set("configs", resp.Configs)
+	d.Set("configs", configMap)
 	d.Set("last_apply_at", resp.LastApplyAt)
 	d.Set("last_edit_at", resp.LastEditAt)
 	return diags
@@ -155,7 +169,40 @@ func resourceClusterCustomConfigDelete(ctx context.Context, d *schema.ResourceDa
 	}
 
 	log.Printf("[DEBUG] remove cluster custom config, req:%+v", req)
-	err := clusterAPI.UpdateCustomConfig(ctx, req)
+	var err error
+	if configType == cluster.CustomConfigTypeRanger {
+		resp, err := clusterAPI.CleanCustomConfig(ctx, &cluster.CleanCustomConfigReq{
+			ClusterID:  clusterID,
+			ConfigType: configType,
+		})
+
+		if err != nil {
+			log.Printf("[ERROR] remove cluster custom config failed, err:%+v", err)
+			return diag.FromErr(err)
+		}
+
+		infraActionId := resp.InfraActionId
+		if len(infraActionId) > 0 {
+			_, err = WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterID,
+				actionID:   infraActionId,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+		}
+	} else {
+		err = clusterAPI.UpdateCustomConfig(ctx, req)
+	}
+
 	if err != nil {
 		log.Printf("[ERROR] remove cluster custom config failed, err:%+v", err)
 		return diag.FromErr(err)
