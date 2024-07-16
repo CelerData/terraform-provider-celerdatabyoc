@@ -33,7 +33,7 @@ This data source exports the following attributes:
 - `id`: (String) The ID of this resource.
 - `vol_size`: The size of per cluster node volume, unit: GB
 - `vol_num`: The volume number of per cluster node.
-- `ipos`: The volume iops.
+- `iops`: The volume iops.
 - `throughput`: The volume throughput.
 
 ## See Also
