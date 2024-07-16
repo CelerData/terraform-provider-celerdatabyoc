@@ -5,16 +5,7 @@ type ClusterState string
 type ClusterType string
 type DomainAllocateState int32
 type CustomConfigType int
-
-const (
-	CustomConfigTypeUnknown     CustomConfigType = 0
-	CustomConfigTypeBE          CustomConfigType = 1
-	CustomConfigTypeRanger      CustomConfigType = 2
-	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
-	CustomConfigTypeFe          CustomConfigType = 4
-
-	RANGER_CONFIG_KEY = "s3_path"
-)
+type ClusterInfraActionState string
 
 var (
 	SupportedConfigType      = []string{"FE", "BE", "RANGER"}
@@ -55,6 +46,8 @@ const (
 	CustomConfigTypeRanger      CustomConfigType = 2
 	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
 	CustomConfigTypeFe          CustomConfigType = 4
+
+	RANGER_CONFIG_KEY = "s3_path"
 )
 
 type Kv struct {
