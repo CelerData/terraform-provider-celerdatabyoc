@@ -4,28 +4,18 @@ type ClusterModuleType string
 type ClusterState string
 type ClusterType string
 type DomainAllocateState int32
-
 type CustomConfigType int
-
-const (
-	CustomConfigTypeUnknown     CustomConfigType = 0
-	CustomConfigTypeBE          CustomConfigType = 1
-	CustomConfigTypeRanger      CustomConfigType = 2
-	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
-	CustomConfigTypeFe          CustomConfigType = 4
-
-	RANGER_CONFIG_KEY = "s3_path"
-)
+type ClusterInfraActionState string
 
 var (
-	SupportedConfigType = []string{"FE", "BE", "RANGER"}
+	SupportedConfigType      = []string{"FE", "BE", "RANGER"}
+	SupportedClusterNodeType = []string{"FE", "BE", "COORDINATOR"}
 )
-
-type ClusterInfraActionState string
 
 const (
 	ClusterTypeClassic         = ClusterType("CLASSIC")
 	ClusterTypeElasic          = ClusterType("ELASTIC")
+	ClusterModuleTypeUnknown   = ClusterModuleType("Unknown")
 	ClusterModuleTypeFE        = ClusterModuleType("FE")
 	ClusterModuleTypeBE        = ClusterModuleType("BE")
 	ClusterModuleTypeWarehouse = ClusterModuleType("Warehouse")
@@ -50,6 +40,14 @@ const (
 	ClusterInfraActionStateSucceeded ClusterInfraActionState = "Succeeded"
 	ClusterInfraActionStateCompleted ClusterInfraActionState = "Completed"
 	ClusterInfraActionStateFailed    ClusterInfraActionState = "Failed"
+
+	CustomConfigTypeUnknown     CustomConfigType = 0
+	CustomConfigTypeBE          CustomConfigType = 1
+	CustomConfigTypeRanger      CustomConfigType = 2
+	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
+	CustomConfigTypeFe          CustomConfigType = 4
+
+	RANGER_CONFIG_KEY = "s3_path"
 )
 
 type Kv struct {
@@ -391,6 +389,35 @@ type CleanCustomConfigResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
+type GetClusterVolumeDetailReq struct {
+	ClusterId string            `json:"cluster_id"`
+	Type      ClusterModuleType `json:"type"`
+}
+
+type GetClusterVolumeDetailResp struct {
+	ClusterId  string            `json:"cluster_id" mapstructure:"cluster_id"`
+	Type       ClusterModuleType `json:"type" mapstructure:"type"` // FE/BE
+	VmVolCate  string            `json:"vm_vol_cate" mapstructure:"vm_vol_cate"`
+	VmVolSize  int64             `json:"vm_vol_size" mapstructure:"vm_vol_size"` // unit:GB
+	VmVolNum   int32             `json:"vm_vol_num" mapstructure:"vm_vol_num"`
+	Iops       int64             `json:"iops" mapstructure:"iops"`
+	Throughput int64             `json:"throughput" mapstructure:"throughput"`
+}
+
+type ModifyClusterVolumeReq struct {
+	ClusterId  string            `json:"cluster_id"`
+	Type       ClusterModuleType `json:"type"` // FE/BE
+	VmVolCate  string            `json:"vm_vol_cate"`
+	VmVolSize  int64             `json:"vm_vol_size"` // unit:GB
+	VmVolNum   int32             `json:"vm_vol_num"`
+	Iops       int64             `json:"iops"`
+	Throughput int64             `json:"throughput"`
+}
+
+type ModifyClusterVolumeResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
 func ConvertStrToCustomConfigType(val string) CustomConfigType {
 	var customConfigType CustomConfigType
 	switch val {
@@ -415,4 +442,17 @@ func ConvertIntToCustomConfigType(val int) CustomConfigType {
 		customConfigType = CustomConfigTypeRanger
 	}
 	return customConfigType
+}
+
+func ConvertStrToClusterModuleType(val string) ClusterModuleType {
+	nodeType := ClusterModuleTypeUnknown
+	switch val {
+	case "FE", "COORDINATOR":
+		nodeType = ClusterModuleTypeFE
+	case "BE":
+		nodeType = ClusterModuleTypeBE
+	case "WAREHOUSE":
+		nodeType = ClusterModuleTypeWarehouse
+	}
+	return nodeType
 }
