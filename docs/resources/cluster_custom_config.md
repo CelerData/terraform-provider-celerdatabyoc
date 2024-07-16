@@ -18,7 +18,7 @@ Please note that this API only modifies the specified static parameters. Modific
 resource "celerdatabyoc_cluster_custom_config" "my_config" {
     cluster_id = "<cluster_resource_id>"
     warehouse_id = "<warehouse_id>"
-    config_type = "{ FE | BE }"
+    config_type = "{ FE | BE | RANGER}"
     configs = {
         <parameter_key_1> = <parameter_value_1>
         <parameter_key_2> = <parameter_value_2>
@@ -44,6 +44,7 @@ This resource contains the following required arguments:
 
   - `FE`: FE/Coordinator node static configuration.
   - `BE`: BE/Compute Node static configuration.
+  - `RANGER` Ranger static configuration.
 
 - `configs`: The key-value pairs of the configurations you want to modify. You can specify multiple key-value pairs.
 

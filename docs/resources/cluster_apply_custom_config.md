@@ -64,6 +64,26 @@ resource "celerdatabyoc_cluster_apply_custom_config" "apply_be_config" {
 }
 ```
 
+- Apply Ranger configurations:
+
+```terraform
+resource "celerdatabyoc_cluster_custom_config" "ranger_config" {
+  cluster_id  = <The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.>
+  config_type = "RANGER"
+  configs = {
+    s3_path = "<The s3 path that contains the ranger-related configuration files ( ranger-hive-security.xml and ranger-hive-audit.xml )>",
+    # eg: s3_path = "s3://your-bucket/ranger_config_dir",
+  }
+}
+
+resource "celerdatabyoc_cluster_apply_custom_config" "apply_ranger_config" {
+    custom_config_id = celerdatabyoc_cluster_custom_config.ranger_config.id
+    lifecycle {
+        replace_triggered_by = [celerdatabyoc_cluster_custom_config.ranger_config.configs]
+    }
+}
+```
+
 ## Argument Reference
 
 This resource contains the following required arguments:

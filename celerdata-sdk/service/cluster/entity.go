@@ -5,7 +5,16 @@ type ClusterState string
 type ClusterType string
 type DomainAllocateState int32
 type CustomConfigType int
-type ClusterInfraActionState string
+
+const (
+	CustomConfigTypeUnknown     CustomConfigType = 0
+	CustomConfigTypeBE          CustomConfigType = 1
+	CustomConfigTypeRanger      CustomConfigType = 2
+	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
+	CustomConfigTypeFe          CustomConfigType = 4
+
+	RANGER_CONFIG_KEY = "s3_path"
+)
 
 var (
 	SupportedConfigType      = []string{"FE", "BE", "RANGER"}
@@ -374,6 +383,16 @@ type UpsertLDAPSSLCertsReq struct {
 }
 
 type UpsertLDAPSSLCertsResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type CleanCustomConfigReq struct {
+	ClusterID   string           `json:"cluster_id" mapstructure:"cluster_id"`
+	ConfigType  CustomConfigType `json:"config_type" mapstructure:"config_type"`
+	WarehouseID string           `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type CleanCustomConfigResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
