@@ -35,6 +35,8 @@ This resource contains the following required arguments:
   - `BE`: Classic cluster coordinator node.
   - `COORDINATOR`: Elastic cluster coordinator node.
 
+This resource contains the following optional arguments:
+
 - `vol_size`: (String, Forces new resource) The size of the volume. Unit:GB
 
 - `iops`: (String, Forces new resource) The iops of the volume.
