@@ -41,7 +41,7 @@ type IClusterAPI interface {
 	GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error)
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
 
-	ListAccountClusterIds(ctx context.Context) ([]string, error)
+	ListCluster(ctx context.Context) (*ListClusterResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -53,10 +53,9 @@ type clusterAPI struct {
 	apiVersion version.ApiVersion
 }
 
-// ListAccountClusterIds implements IClusterAPI.
-func (c *clusterAPI) ListAccountClusterIds(ctx context.Context) ([]string, error) {
-	var resp []string
-	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/cluster/ids", c.apiVersion), nil, resp)
+func (c *clusterAPI) ListCluster(ctx context.Context) (*ListClusterResp, error) {
+	resp := &ListClusterResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters", c.apiVersion), nil, resp)
 	if err != nil {
 		return nil, err
 	}

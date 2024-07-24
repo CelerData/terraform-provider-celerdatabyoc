@@ -418,6 +418,16 @@ type ModifyClusterVolumeResp struct {
 	ActionID string `json:"action_id" mapstructure:"action_id"`
 }
 
+type ClusterInfo struct {
+	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
+	ClusterName string `json:"cluster_name" mapstructure:"cluster_name"`
+}
+
+type ListClusterResp struct {
+	Total int64          `json:"total" mapstructure:"total"`
+	List  []*ClusterInfo `json:"list" mapstructure:"list"`
+}
+
 func ConvertStrToCustomConfigType(val string) CustomConfigType {
 	var customConfigType CustomConfigType
 	switch val {
