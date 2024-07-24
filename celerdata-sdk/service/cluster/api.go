@@ -40,6 +40,8 @@ type IClusterAPI interface {
 
 	GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error)
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
+
+	ListCluster(ctx context.Context) (*ListClusterResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -49,6 +51,16 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+func (c *clusterAPI) ListCluster(ctx context.Context) (*ListClusterResp, error) {
+	resp := &ListClusterResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters", c.apiVersion), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 func (c *clusterAPI) Deploy(ctx context.Context, req *DeployReq) (*DeployResp, error) {

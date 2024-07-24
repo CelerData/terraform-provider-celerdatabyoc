@@ -89,6 +89,7 @@ func Provider() *schema.Provider {
 		DataSourcesMap: map[string]*schema.Resource{
 			"celerdatabyoc_aws_data_credential_assume_policy": dataAwsDataCredentialAssumeRolePolicy(),
 			"celerdatabyoc_data_cluster_volume_detail":        dataSourceClusterVolumeDetail(),
+			"celerdatabyoc_clusters":                          dataSourceClusters(),
 		},
 		ConfigureContextFunc: providerConfigure,
 	}
