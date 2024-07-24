@@ -42,7 +42,7 @@ func dataSourceClustersRead(ctx context.Context, d *schema.ResourceData, meta an
 	clusterAPI := cluster.NewClustersAPI(c)
 	resp, err := clusterAPI.ListCluster(ctx)
 	if err != nil {
-		log.Printf("[ERROR] list account cluster ids failed, err: %v", err)
+		log.Printf("[ERROR] list account cluster failed, err: %v", err)
 		return diag.FromErr(err)
 	}
 
