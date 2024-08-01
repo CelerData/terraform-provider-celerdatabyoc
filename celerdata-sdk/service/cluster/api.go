@@ -264,7 +264,7 @@ func (c *clusterAPI) UpsertClusterIdleConfig(ctx context.Context, req *UpsertClu
 func (c *clusterAPI) GetCustomConfig(ctx context.Context, req *ListCustomConfigReq) (*ListCustomConfigResp, error) {
 	resp := &ListCustomConfigResp{}
 
-	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/custom-config/detail", c.apiVersion, req.ClusterID), map[string]int{"config_type": int(req.ConfigType)}, resp)
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/custom-config/detail", c.apiVersion, req.ClusterID), map[string]any{"config_type": int(req.ConfigType), "warehouse_id": req.WarehouseID}, resp)
 	if err != nil {
 		return nil, err
 	}
