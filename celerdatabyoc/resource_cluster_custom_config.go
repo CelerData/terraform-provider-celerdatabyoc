@@ -180,37 +180,34 @@ func resourceClusterCustomConfigDelete(ctx context.Context, d *schema.ResourceDa
 
 	log.Printf("[DEBUG] remove cluster custom config, req:%+v", req)
 	var err error
-	if configType == cluster.CustomConfigTypeRanger {
-		resp, err := clusterAPI.CleanCustomConfig(ctx, &cluster.CleanCustomConfigReq{
-			ClusterID:  clusterID,
-			ConfigType: configType,
+	resp, err := clusterAPI.CleanCustomConfig(ctx, &cluster.CleanCustomConfigReq{
+		ClusterID:  clusterID,
+		WarehouseID: warehouseID,
+		ConfigType: configType,
+	})
+
+	if err != nil {
+		log.Printf("[ERROR] remove cluster custom config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
+	infraActionId := resp.InfraActionId
+	if len(infraActionId) > 0 {
+		_, err = WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterID,
+			actionID:   infraActionId,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
 		})
-
-		if err != nil {
-			log.Printf("[ERROR] remove cluster custom config failed, err:%+v", err)
-			return diag.FromErr(err)
-		}
-
-		infraActionId := resp.InfraActionId
-		if len(infraActionId) > 0 {
-			_, err = WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
-				clusterAPI: clusterAPI,
-				clusterID:  clusterID,
-				actionID:   infraActionId,
-				timeout:    30 * time.Minute,
-				pendingStates: []string{
-					string(cluster.ClusterInfraActionStatePending),
-					string(cluster.ClusterInfraActionStateOngoing),
-				},
-				targetStates: []string{
-					string(cluster.ClusterInfraActionStateSucceeded),
-					string(cluster.ClusterInfraActionStateCompleted),
-					string(cluster.ClusterInfraActionStateFailed),
-				},
-			})
-		}
-	} else {
-		err = clusterAPI.UpdateCustomConfig(ctx, req)
 	}
 
 	if err != nil {
