@@ -6,7 +6,7 @@ description: |-
   
 ---
 
-# Template for AWS Policy in Data Credential
+# Template for AWS Policy in Deployment Credential
 
 This topic provides an AWS Policy template for the IAM Role referenced in the Deployment Credential. It depends on the [AWS Policy referenced in Data Credential](./policy_template_data_credential_role.md).
 
