@@ -26,7 +26,7 @@ This data source contains the following required arguments:
 - `node_type`: The type of the cluster node. Valid values:
   - `FE`: FE node in the classic cluster.
   - `BE`: BE node in the classic cluster.
-  - `COORDINATOR`: Coordinator Node in the elastic cluster coordinator node.
+  - `COORDINATOR`: Coordinator Node in the elastic cluster.
 
 ## Attribute Reference
 

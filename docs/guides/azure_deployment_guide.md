@@ -349,7 +349,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `cluster_name`: (Forces new resource) The desired name for the cluster.
 
-- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#for-azure)".
+- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
 
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_azure_deployment_credential.example.id`.
 
@@ -357,7 +357,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_azure_network.example.id`.
 
-- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#for-azure)".
+- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
 
 - `default_admin_password`: The initial password of the cluster `admin` user.
 
