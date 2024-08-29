@@ -10,8 +10,8 @@ description: Terraform provider for the celerdatabyoc cloud
 
 The CelerData Cloud BYOC provider is used to configure the infrastructure that hosts your CelerData resources. You must configure the provider with proper credentials before you can use it. Currently the provider supports deployments on both AWS and Azure:
 
-- On AWS, you can deploy cluster or elastic clusters. See [Provision CelerData Cloud BYOC on AWS](../docs/guides/aws_deployment_guide.md).
-- On Azure, you can deploy only classic clusters. See [Provision CelerData Cloud BYOC on Azure](../docs/guides/azure_deployment_guide.md).
+- On AWS, you can deploy cluster or elastic clusters. See [Provision CelerData Cloud BYOC on AWS](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/guides/aws_deployment_guide).
+- On Azure, you can deploy only classic clusters. See [Provision CelerData Cloud BYOC on Azure](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/guides/azure_deployment_guide).
 
 To learn more about the basics of Terraform using this provider, follow the hands-on tutorials provided in "Guides" in the navigation to the left.
 
