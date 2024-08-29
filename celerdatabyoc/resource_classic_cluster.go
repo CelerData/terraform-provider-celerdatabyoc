@@ -214,8 +214,8 @@ func resourceClassicCluster() *schema.Resource {
 					}
 
 					if v != 0 {
-						if v < 60 || v > 999999 {
-							errors = append(errors, fmt.Errorf("the %s range should be [60,999999]", k))
+						if v < 15 || v > 999999 {
+							errors = append(errors, fmt.Errorf("the %s range should be [15,999999]", k))
 							return warnings, errors
 						}
 					}
