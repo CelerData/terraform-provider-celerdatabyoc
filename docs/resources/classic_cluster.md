@@ -100,7 +100,7 @@ This resource contains the following required arguments and optional arguments:
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
 - `run_scripts_timeout`: The amount of time after which the script execution times out. Unit: Seconds. Default: `3600` (1 hour). The maximum value of this item is `21600` (6 hours).
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
-- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default, and therefore it is not included in the configuration example above. To enable the Auto Suspend feature, set this argument to an integer within the range of 60-999999. To disable this feature again, remove this argument from your Terraform configuration.
+- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default, and therefore it is not included in the configuration example above. To enable the Auto Suspend feature, set this argument to an integer within the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 ## See Also
 

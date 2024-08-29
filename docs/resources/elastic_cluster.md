@@ -296,7 +296,7 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 
-- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 60-999999. To disable this feature again, remove this argument from your Terraform configuration.
+- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 ## See Also
 
