@@ -279,6 +279,13 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 
 - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
 
+- `compute_node_ebs_disk_number`: (Forces new resource) The number of disks for each computer node. Valid values: [1,24]. Default value: `2`. This parameter only takes effect when using EBS-backed instance type.
+
+- `compute_node_ebs_disk_per_size`: The size per disk for each computer node. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours. This parameter only takes effect when using EBS-backed instance type.
+
+~> When using an EBS-backed instance type, you can use the `compute_node_ebs_disk_number` and `compute_node_ebs_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a cluster is equal to `compute_node_ebs_disk_number` * `compute_node_ebs_disk_per_size`.
+
+
 - `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
 ~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.

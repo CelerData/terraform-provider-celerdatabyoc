@@ -84,7 +84,7 @@ This resource contains the following required arguments and optional arguments:
 
 - `fe_node_count`: The number of FE nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
 - `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
-- `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
+- `be_disk_number`: (Forces new resource) The number of disks for each BE. Valid values: [1,24]. Default value: `2`.
 - `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
 
 ~> You can use the `be_disk_number` and `be_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a cluster is equal to `be_disk_number` * `be_disk_per_size`.
