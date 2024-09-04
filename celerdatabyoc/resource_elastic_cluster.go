@@ -72,6 +72,48 @@ func resourceElasticCluster() *schema.Resource {
 				Default:      3,
 				ValidateFunc: validation.IntAtLeast(1),
 			},
+			"compute_node_is_instance_store": {
+				Type:     schema.TypeBool,
+				Computed: true,
+			},
+			"compute_node_ebs_disk_per_size": {
+				Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+				Type:        schema.TypeInt,
+				Optional:    true,
+				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+					v, ok := i.(int)
+					if !ok {
+						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+						return warnings, errors
+					}
+
+					m := 16 * 1000
+					if v > m {
+						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
+					}
+
+					return warnings, errors
+				},
+			},
+			"compute_node_ebs_disk_number": {
+				Description: "Specifies the number of disk. The default value is 2.",
+				Type:        schema.TypeInt,
+				ForceNew:    true,
+				Optional:    true,
+				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+					v, ok := i.(int)
+					if !ok {
+						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+						return warnings, errors
+					}
+
+					if v > 24 {
+						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+					}
+
+					return warnings, errors
+				},
+			},
 			"resource_tags": {
 				Type:     schema.TypeMap,
 				Optional: true,
@@ -273,6 +315,10 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		Name:         "BE",
 		Num:          uint32(d.Get("compute_node_count").(int)),
 		InstanceType: d.Get("compute_node_size").(string),
+		DiskInfo: &cluster.DiskInfo{
+			Number:  uint32(d.Get("compute_node_ebs_disk_number").(int)),
+			PerSize: uint64(d.Get("compute_node_ebs_disk_per_size").(int)),
+		},
 	})
 
 	resp, err := clusterAPI.Deploy(ctx, &cluster.DeployReq{
@@ -419,6 +465,12 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	if len(resp.Cluster.LdapSslCerts) > 0 {
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
+
+	d.Set("compute_node_is_instance_store", resp.Cluster.BeModule.IsInstanceStore)
+	if !resp.Cluster.BeModule.IsInstanceStore {
+		d.Set("compute_node_ebs_disk_number", int(resp.Cluster.BeModule.VmVolNum))
+		d.Set("compute_node_ebs_disk_per_size", int(resp.Cluster.BeModule.VmVolSizeGB))
+	}
 	return diags
 }
 
@@ -494,6 +546,11 @@ func elasticClusterNeedUnlock(d *schema.ResourceData) bool {
 			d.HasChange("coordinator_node_count") ||
 			d.HasChange("compute_node_size") ||
 			d.HasChange("compute_node_count"))
+}
+
+func IsInstanceStore(d *schema.ResourceData) bool {
+	v := d.Get("compute_node_is_instance_store")
+	return v.(bool)
 }
 
 func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -691,6 +748,48 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 			clusterAPI:    clusterAPI,
 			actionID:      actionID,
+			clusterID:     clusterID,
+			timeout:       common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{string(cluster.ClusterStateScaling)},
+			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+		}
+
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		}
+	}
+
+	if IsInstanceStore(d) && (d.HasChange("compute_node_ebs_disk_number") || d.HasChange("compute_node_ebs_disk_per_size")) && !d.IsNewResource() {
+		return diag.FromErr(errors.New("local storage model does not support ebs disk"))
+	}
+
+	if !IsInstanceStore(d) && (d.HasChange("compute_node_ebs_disk_number") || d.HasChange("compute_node_ebs_disk_per_size")) && !d.IsNewResource() {
+		o1, n1 := d.GetChange("compute_node_ebs_disk_number")
+		o2, n2 := d.GetChange("compute_node_ebs_disk_per_size")
+
+		if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
+			return diag.FromErr(fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
+		}
+
+		resp, err := clusterAPI.IncrStorageSize(ctx, &cluster.IncrStorageSizeReq{
+			RequestId:  uuid.NewString(),
+			ClusterId:  clusterID,
+			ModuleType: cluster.ClusterModuleTypeBE,
+			DiskInfo: &cluster.DiskInfo{
+				Number:  uint32(n1.(int)),
+				PerSize: uint64(n2.(int)),
+			},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to increase be storage size: %s", d.Id(), err))
+		}
+
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI:    clusterAPI,
+			actionID:      resp.ActionId,
 			clusterID:     clusterID,
 			timeout:       common.DeployOrScaleClusterTimeout,
 			pendingStates: []string{string(cluster.ClusterStateScaling)},

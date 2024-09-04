@@ -147,12 +147,13 @@ type DeployResp struct {
 }
 
 type Module struct {
-	AmiId         string `json:"ami_id" mapstructure:"ami_id"`
-	Num           uint32 `json:"num" mapstructure:"num"`
-	StorageSizeGB uint64 `json:"storage_size_gb" mapstructure:"storage_size_gb"`
-	InstanceType  string `json:"instance_type" mapstructure:"instance_type"`
-	VmVolSizeGB   int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
-	VmVolNum      int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
+	AmiId           string `json:"ami_id" mapstructure:"ami_id"`
+	Num             uint32 `json:"num" mapstructure:"num"`
+	StorageSizeGB   uint64 `json:"storage_size_gb" mapstructure:"storage_size_gb"`
+	InstanceType    string `json:"instance_type" mapstructure:"instance_type"`
+	VmVolSizeGB     int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
+	VmVolNum        int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
+	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
 }
 
 type Cluster struct {
