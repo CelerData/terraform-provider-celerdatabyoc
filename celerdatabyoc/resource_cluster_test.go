@@ -33,7 +33,7 @@ func TestAccCelerdataClusterBasic(t *testing.T) {
 
 func testCheckCelerdataClusterDestroy(s *terraform.State) error {
 	for _, rs := range s.RootModule().Resources {
-		if rs.Type != "celerdatabyoc_cluster" {
+		if rs.Type != "celerdatabyoc_classic_cluster" {
 			continue
 		}
 
@@ -45,8 +45,7 @@ func testCheckCelerdataClusterDestroy(s *terraform.State) error {
 
 func testCheckCelerdataClusterConfigBasic(cluster_name string) string {
 	return fmt.Sprintf(`
-	resource "celerdatabyoc_cluster" "new" {
-		cluster_type = "CLASSIC"
+	resource "celerdatabyoc_classic_cluster" "new" {
 		cluster_name = "%s"
 		fe_instance_type = "t2.small"
 		deployment_credential_id = "e52bbbbd-9944-4b69-895f-8542482f2ef4"

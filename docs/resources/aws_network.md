@@ -117,7 +117,7 @@ This resource contains the following required and optional arguments:
 
 **Optional**
 
-- `vpc_endpoint_id`: (String) The ID of the VPC from which you want to connect to your CelerData cluster. You need to specify this argument if you want to connect to your CelerData cluster from your own VPC using [PrivateLink](https://docs.aws.amazon.com/whitepapers/latest/aws-vpc-connectivity-options/aws-privatelink.html).
+- `vpc_endpoint_id`: (String, Forces new resource) The ID of the VPC from which you want to connect to your CelerData cluster. You need to specify this argument if you want to connect to your CelerData cluster from your own VPC using [PrivateLink](https://docs.aws.amazon.com/whitepapers/latest/aws-vpc-connectivity-options/aws-privatelink.html).
   
   ~> Your VPC must be in the same AWS region where your CelerData cluster is located. Additionally, if you do not specify a VPC endpoint ID, CelerData's VPC communicates with your own VPC over the Internet.
 

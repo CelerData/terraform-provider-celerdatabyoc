@@ -73,12 +73,12 @@ This resource contains the following required arguments and optional arguments:
   - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_network.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_network` resource.
   - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_network.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_network` resource.
 - `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported Instance Types](#supported-instance-types)".
-- `default_admin_password`: The initial password of the cluster `admin` user.
+- `default_admin_password`: (Forces new resource) The initial password of the cluster `admin` user.
 - `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
-- `csp`: The cloud service provider of the cluster.
+- `csp`: (Forces new resource) The cloud service provider of the cluster.
   - If you deploy the cluster on AWS, set this argument to `aws`.
   - If you deploy the cluster on Azure, set this argument to `azure`.
-- `region`: The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
+- `region`: (Forces new resource) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
 
 **Optional:**
 
@@ -93,8 +93,8 @@ This resource contains the following required arguments and optional arguments:
 
 ~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
-- `resource_tags`: The tags to be attached to the cluster.
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
+- `resource_tags`: (Forces new resource) The tags to be attached to the cluster.
+- `init_scripts`: (Forces new resource) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
   - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.

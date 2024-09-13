@@ -63,7 +63,7 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 
 ## Argument Reference
 
-- `bucket`: The name of the AWS S3 bucket. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+- `bucket`: (Forces new resource) The name of the AWS S3 bucket. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
 - `data_role_arn`: (Forces new resource) The ARN of the IAM role referenced in the deployment credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
 

@@ -12,9 +12,11 @@ type ICredentialAPI interface {
 	CreateDeploymentRoleCredential(ctx context.Context, req *CreateDeployRoleCredReq) (*CreateDeployRoleCredResp, error)
 	GetDeploymentRoleCredential(ctx context.Context, credID string) (*GetDeployRoleCredResp, error)
 	DeleteDeploymentRoleCredential(ctx context.Context, credID string) error
+	UpdateDeploymentRoleCredentialPolicyVersion(ctx context.Context, req *UpdateDeploymentRoleCredentialPolicyVersionReq) error
 	CreateDataCredential(ctx context.Context, req *CreateDataCredReq) (*CreateDataCredResp, error)
 	GetDataCredential(ctx context.Context, credID string) (*GetDataCredResp, error)
 	DeleteDataCredential(ctx context.Context, credID string) error
+	UpdateDataCredentialPolicyVersion(ctx context.Context, req *UpdateDataCredentialPolicyVersionReq) error
 
 	CreateDeploymentAkSkCredential(ctx context.Context, req *CreateDeployAkSkCredReq) (*CreateDeployAkSkCredResp, error)
 	GetDeploymentAkSkCredential(ctx context.Context, credID string) (*GetDeployAkSkCredResp, error)
@@ -32,9 +34,15 @@ type credentialAPI struct {
 	apiVersion version.ApiVersion
 }
 
-// RotateAkSkCredential implements ICredentialAPI.
-func (c *credentialAPI) RotateAkSkCredential(ctx context.Context, req *RotateAkSkCredentialReq) error {
+func (c *credentialAPI) UpdateDataCredentialPolicyVersion(ctx context.Context, req *UpdateDataCredentialPolicyVersionReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/data-credentials/%s/update-policy-version", c.apiVersion, req.CredID), req, nil)
+}
 
+func (c *credentialAPI) UpdateDeploymentRoleCredentialPolicyVersion(ctx context.Context, req *UpdateDeploymentRoleCredentialPolicyVersionReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/deploy-role-credentials/%s/update-policy-version", c.apiVersion, req.CredID), req, nil)
+}
+
+func (c *credentialAPI) RotateAkSkCredential(ctx context.Context, req *RotateAkSkCredentialReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/deploy-ak-sk-credentials/%s/rotate", c.apiVersion, req.CredID), req, nil)
 }
 

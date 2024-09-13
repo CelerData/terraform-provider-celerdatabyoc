@@ -29,18 +29,20 @@ func resourceAwsDeploymentCredentialPolicy() *schema.Resource {
 			"json": {
 				Type:     schema.TypeString,
 				Computed: true,
-				ForceNew: true,
 			},
 			"version": {
 				Type:     schema.TypeString,
 				Computed: true,
-				ForceNew: true,
 			},
 		},
 	}
 }
 
 func resourceAwsDeploymentCredentialPolicyCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
+	return resourceAwsDeploymentCredentialPolicyRead(ctx, d, m)
+}
+
+func resourceAwsDeploymentCredentialPolicyRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	dataRoleARN := d.Get("data_role_arn").(string)
 	bucket := d.Get("bucket").(string)
 	c := m.(*client.CelerdataClient)
@@ -57,10 +59,7 @@ func resourceAwsDeploymentCredentialPolicyCreate(ctx context.Context, d *schema.
 	// nolint
 	d.Set("json", string(policyJSON))
 	d.Set("version", resp.Csp.DeployCredPolicyVersion)
-	return nil
-}
 
-func resourceAwsDeploymentCredentialPolicyRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	return diags
 }
 

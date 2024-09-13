@@ -56,7 +56,7 @@ This resource contains the following required arguments and optional arguments:
 
 **Optional:**
 
-- `public_accessible`: Whether the cluster can be accessed from public networks. Valid values: `true` and `false`. If you set this argument to `true`, CelerData will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you set this argument to `false`, the cluster is accessible only through a private domain name.
+- `public_accessible`: (Forces new resource) Whether the cluster can be accessed from public networks. Valid values: `true` and `false`. If you set this argument to `true`, CelerData will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you set this argument to `false`, the cluster is accessible only through a private domain name.
 
 ## Attribute Reference
 
