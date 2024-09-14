@@ -11,17 +11,13 @@ var testAccProviders map[string]*schema.Provider
 var testAccProvider *schema.Provider
 
 func TestMain(m *testing.M) {
-	testAccProvider = Provider()
-	testAccProviders = map[string]*schema.Provider{
-		"celerdatabyoc": testAccProvider,
-	}
 	err := os.Setenv("CELERDATA_ACCOUNT_ID", "caxgqwn0a")
 	if err != nil {
 		panic(err)
 	}
 
-	// err = os.Setenv("CELERDATA_HOST", "https://cloud-api-sandbox.celerdata.com")
-	err = os.Setenv("CELERDATA_HOST", "http://localhost:18455")
+	err = os.Setenv("CELERDATA_HOST", "https://cloud-api-sandbox.celerdata.com")
+	// err = os.Setenv("CELERDATA_HOST", "http://localhost:18455")
 	if err != nil {
 		panic(err)
 	}
@@ -36,12 +32,12 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	err = os.Setenv("CELERDATA_CLIENT_ID", "f2e85b1f-428b-4257-9dd2-721482243767")
+	err = os.Setenv("CELERDATA_CLIENT_ID", "a2735be0-4542-4c11-9871-8426fc6d4f25")
 	if err != nil {
 		panic(err)
 	}
 
-	err = os.Setenv("CELERDATA_CLIENT_SECRET", "2CgGEkuR7uIDDcD5JL6gYGvgfpVO71fhgtYAbkXn")
+	err = os.Setenv("CELERDATA_CLIENT_SECRET", "s74dAo7T6IpzhRuE58UsGTluBMEBLjIxSiPKcWrr")
 	if err != nil {
 		panic(err)
 	}
@@ -56,6 +52,10 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
+	testAccProvider = Provider()
+	testAccProviders = map[string]*schema.Provider{
+		"celerdatabyoc": testAccProvider,
+	}
 	ec := m.Run()
 	os.Exit(ec)
 }

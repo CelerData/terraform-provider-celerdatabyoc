@@ -24,18 +24,20 @@ func resourceAwsDataCredentialPolicy() *schema.Resource {
 			"json": {
 				Type:     schema.TypeString,
 				Computed: true,
-				ForceNew: true,
 			},
 			"version": {
 				Type:     schema.TypeString,
 				Computed: true,
-				ForceNew: true,
 			},
 		},
 	}
 }
 
 func resourceAwsDataCredentialPolicyCreate(ctx context.Context, d *schema.ResourceData, m any) diag.Diagnostics {
+	return resourceAwsDataCredentialPolicyRead(ctx, d, m)
+}
+
+func resourceAwsDataCredentialPolicyRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	bucket := d.Get("bucket").(string)
 	c := m.(*client.CelerdataClient)
 	cspAPI := csp.NewCspAPI(c)
@@ -51,10 +53,6 @@ func resourceAwsDataCredentialPolicyCreate(ctx context.Context, d *schema.Resour
 	// nolint
 	d.Set("json", string(policyJSON))
 	d.Set("version", resp.Csp.DataCredPolicyVersion)
-	return nil
-}
-
-func resourceAwsDataCredentialPolicyRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	return diags
 }
 

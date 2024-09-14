@@ -21,6 +21,7 @@ func resourceDeploymentRoleCredential() *schema.Resource {
 		CreateContext: resourceDeploymentRoleCredentialCreate,
 		ReadContext:   resourceDeploymentRoleCredentialRead,
 		DeleteContext: resourceDeploymentRoleCredentialDelete,
+		UpdateContext: resourceDeploymentRoleCredentialUpdate,
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:     schema.TypeString,
@@ -44,7 +45,6 @@ func resourceDeploymentRoleCredential() *schema.Resource {
 			},
 			"policy_version": {
 				Type:     schema.TypeString,
-				ForceNew: true,
 				Required: true,
 			},
 		},
@@ -172,5 +172,29 @@ func resourceDeploymentRoleCredentialDelete(ctx context.Context, d *schema.Resou
 	// d.SetId("") is automatically called assuming delete returns no errors, but
 	// it is added here for explicitness.
 	d.SetId("")
+	return diags
+}
+
+func resourceDeploymentRoleCredentialUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	c := m.(*client.CelerdataClient)
+
+	// Warning or errors can be collected in a slice type
+	credID := d.Id()
+	credCli := credential.NewCredentialAPI(c)
+	var diags diag.Diagnostics
+	log.Printf("[DEBUG] update deployment role credential id:%s", credID)
+	if d.HasChange("policy_version") {
+		_, v := d.GetChange("policy_version")
+		pVersion := v.(string)
+		err := credCli.UpdateDeploymentRoleCredentialPolicyVersion(ctx, &credential.UpdateDeploymentRoleCredentialPolicyVersionReq{
+			CredID:        credID,
+			PolicyVersion: pVersion,
+			Csp:           "aws",
+		})
+		if err != nil {
+			return diag.Errorf("update deployment credential[%s] policy version[%s] failed, err:%s", credID, pVersion, err.Error())
+		}
+	}
+
 	return diags
 }

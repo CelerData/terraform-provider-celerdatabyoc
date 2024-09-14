@@ -67,7 +67,7 @@ This resource contains the following required arguments and optional arguments:
 
 - `bucket_name`: (Forces new resource) The name of the AWS S3 bucket for which to generate the policy document and that stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
-- `policy_version`: (Forces new resource) The version of the policy. Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
+- `policy_version`: The version of the policy. Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
 
 **Optional:**
 

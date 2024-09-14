@@ -39,7 +39,7 @@ This resource contains the following required arguments:
 
 - `login_password`: (String) The password for the preceding authorized database user.
 
-- `user_name`: (String) The name of the database user to be created.
+- `user_name`: (String, Forces new resource) The name of the database user to be created.
 
 - `user_password`: (String) The password of the preceding database user to be created.
 

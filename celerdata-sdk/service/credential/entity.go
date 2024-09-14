@@ -53,6 +53,18 @@ type GetDataCredResp struct {
 	DataCred DataCredential `json:"data_cred" mapstructure:"data_cred"`
 }
 
+type UpdateDeploymentRoleCredentialPolicyVersionReq struct {
+	PolicyVersion string `json:"policy_version" mapstructure:"policy_version"`
+	Csp           string `json:"csp" mapstructure:"csp"`
+	CredID        string `json:"cred_id" mapstructure:"cred_id"`
+}
+
+type UpdateDataCredentialPolicyVersionReq struct {
+	PolicyVersion string `json:"policy_version" mapstructure:"policy_version"`
+	Csp           string `json:"csp" mapstructure:"csp"`
+	CredID        string `json:"cred_id" mapstructure:"cred_id"`
+}
+
 type DataCredential struct {
 	BizID              string `json:"biz_id" mapstructure:"biz_id"`
 	Name               string `json:"name" mapstructure:"name"`
