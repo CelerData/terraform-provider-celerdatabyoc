@@ -156,6 +156,15 @@ type Module struct {
 	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
 }
 
+type Warehouse struct {
+	Id                 string       `json:"id" mapstructure:"id"`
+	Name               string       `json:"name" mapstructure:"name"`
+	State              ClusterState `json:"state" mapstructure:"state"`
+	Module             *Module      `json:"module" mapstructure:"module"`
+	IsDefaultWarehouse bool         `json:"is_default_warehouse" mapstructure:"is_default_warehouse"`
+	CreatedAt          int64        `json:"created_at" mapstructure:"created_at"`
+}
+
 type Cluster struct {
 	ClusterID           string       `json:"cluster_id" mapstructure:"cluster_id"`
 	ClusterName         string       `json:"cluster_name" mapstructure:"cluster_name"`
@@ -175,6 +184,8 @@ type Cluster struct {
 	QueryPort           int32        `json:"query_port" mapstructure:"query_port"`
 	IdleSuspendInterval int32        `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
 	LdapSslCerts        []string     `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
+	Warehouses          []*Warehouse `json:"warehouses" mapstructure:"warehouses"`
+	MultiWarehouse      bool         `json:"multi_warehouse" mapstructure:"multi_warehouse"`
 }
 
 type ScaleInReq struct {
@@ -427,6 +438,62 @@ type ClusterInfo struct {
 type ListClusterResp struct {
 	Total int64          `json:"total" mapstructure:"total"`
 	List  []*ClusterInfo `json:"list" mapstructure:"list"`
+}
+
+type CreateWarehouseReq struct {
+	ClusterId    string `json:"cluster_id" mapstructure:"cluster_id"`
+	Name         string `json:"name" mapstructure:"name"`
+	Description  string `json:"description" mapstructure:"description"`
+	VmCate       string `json:"vm_cate" mapstructure:"vm_cate"`
+	VmNum        int32  `json:"vm_num" mapstructure:"vm_num"`
+	VolumeSizeGB int64  `json:"volume_size_gb" mapstructure:"volume_size_gb"`
+	VolumeNum    int32  `json:"volume_num" mapstructure:"volume_num"`
+}
+
+type CreateWarehouseResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ScaleWarehouseNumReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	VmNum       int32  `json:"vm_num" mapstructure:"vm_num"`
+}
+
+type ScaleWarehouseNumResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ScaleUpWarehouseReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
+}
+
+type ScaleUpWarehouseResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ResumeWarehouseReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type ResumeWarehouseResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type SuspendWarehouseReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type SuspendWarehouseResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ReleaseWarehouseReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type ReleaseWarehouseResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
 }
 
 func ConvertStrToCustomConfigType(val string) CustomConfigType {

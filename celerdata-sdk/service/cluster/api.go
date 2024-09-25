@@ -42,6 +42,13 @@ type IClusterAPI interface {
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
 
 	ListCluster(ctx context.Context) (*ListClusterResp, error)
+
+	CreateWarehouse(ctx context.Context, req *CreateWarehouseReq) (*CreateWarehouseResp, error)
+	ScaleWarehouseNum(ctx context.Context, req *ScaleWarehouseNumReq) (*ScaleWarehouseNumResp, error)
+	ScaleUpWarehouse(ctx context.Context, req *ScaleUpWarehouseReq) (*ScaleUpWarehouseResp, error)
+	ResumeWarehouse(ctx context.Context, req *ResumeWarehouseReq) (*ResumeWarehouseResp, error)
+	SuspendWarehouse(ctx context.Context, req *SuspendWarehouseReq) (*SuspendWarehouseResp, error)
+	ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -51,6 +58,24 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+func (c *clusterAPI) SuspendWarehouse(ctx context.Context, req *SuspendWarehouseReq) (*SuspendWarehouseResp, error) {
+	resp := &SuspendWarehouseResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/suspend", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ResumeWarehouse(ctx context.Context, req *ResumeWarehouseReq) (*ResumeWarehouseResp, error) {
+	resp := &ResumeWarehouseResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/resume", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (c *clusterAPI) ListCluster(ctx context.Context) (*ListClusterResp, error) {
