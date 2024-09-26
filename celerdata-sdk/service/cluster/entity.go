@@ -185,7 +185,7 @@ type Cluster struct {
 	IdleSuspendInterval int32        `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
 	LdapSslCerts        []string     `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
 	Warehouses          []*Warehouse `json:"warehouses" mapstructure:"warehouses"`
-	MultiWarehouse      bool         `json:"multi_warehouse" mapstructure:"multi_warehouse"`
+	IsMultiWarehouse    bool         `json:"is_multi_warehouse" mapstructure:"is_multi_warehouse"`
 }
 
 type ScaleInReq struct {

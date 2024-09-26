@@ -60,6 +60,33 @@ type clusterAPI struct {
 	apiVersion version.ApiVersion
 }
 
+func (c *clusterAPI) ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error) {
+	resp := &ReleaseWarehouseResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ScaleUpWarehouse(ctx context.Context, req *ScaleUpWarehouseReq) (*ScaleUpWarehouseResp, error) {
+	resp := &ScaleUpWarehouseResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scale-up", c.apiVersion, req.WarehouseId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ScaleWarehouseNum(ctx context.Context, req *ScaleWarehouseNumReq) (*ScaleWarehouseNumResp, error) {
+	resp := &ScaleWarehouseNumResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scale-num", c.apiVersion, req.WarehouseId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (c *clusterAPI) SuspendWarehouse(ctx context.Context, req *SuspendWarehouseReq) (*SuspendWarehouseResp, error) {
 	resp := &SuspendWarehouseResp{}
 	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/suspend", c.apiVersion, req.WarehouseId), nil, resp)
@@ -72,6 +99,15 @@ func (c *clusterAPI) SuspendWarehouse(ctx context.Context, req *SuspendWarehouse
 func (c *clusterAPI) ResumeWarehouse(ctx context.Context, req *ResumeWarehouseReq) (*ResumeWarehouseResp, error) {
 	resp := &ResumeWarehouseResp{}
 	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/resume", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CreateWarehouse(ctx context.Context, req *CreateWarehouseReq) (*CreateWarehouseResp, error) {
+	resp := &CreateWarehouseResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses", c.apiVersion), req, resp)
 	if err != nil {
 		return nil, err
 	}
