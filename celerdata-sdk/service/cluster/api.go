@@ -45,7 +45,7 @@ type IClusterAPI interface {
 
 	CreateWarehouse(ctx context.Context, req *CreateWarehouseReq) (*CreateWarehouseResp, error)
 	ScaleWarehouseNum(ctx context.Context, req *ScaleWarehouseNumReq) (*ScaleWarehouseNumResp, error)
-	ScaleUpWarehouse(ctx context.Context, req *ScaleUpWarehouseReq) (*ScaleUpWarehouseResp, error)
+	ScaleWarehouseSize(ctx context.Context, req *ScaleWarehouseSizeReq) (*ScaleWarehouseSizeResp, error)
 	ResumeWarehouse(ctx context.Context, req *ResumeWarehouseReq) (*ResumeWarehouseResp, error)
 	SuspendWarehouse(ctx context.Context, req *SuspendWarehouseReq) (*SuspendWarehouseResp, error)
 	ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error)
@@ -69,9 +69,9 @@ func (c *clusterAPI) ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouse
 	return resp, nil
 }
 
-func (c *clusterAPI) ScaleUpWarehouse(ctx context.Context, req *ScaleUpWarehouseReq) (*ScaleUpWarehouseResp, error) {
-	resp := &ScaleUpWarehouseResp{}
-	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scale-up", c.apiVersion, req.WarehouseId), req, resp)
+func (c *clusterAPI) ScaleWarehouseSize(ctx context.Context, req *ScaleWarehouseSizeReq) (*ScaleWarehouseSizeResp, error) {
+	resp := &ScaleWarehouseSizeResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scale-size", c.apiVersion, req.WarehouseId), req, resp)
 	if err != nil {
 		return nil, err
 	}

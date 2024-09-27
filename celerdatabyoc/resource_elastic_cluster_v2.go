@@ -19,13 +19,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Old vesrion
-func resourceElasticCluster() *schema.Resource {
+// V2 support multi-warehouse
+func resourceElasticClusterV2() *schema.Resource {
 	return &schema.Resource{
-		CreateContext: resourceElasticClusterCreate,
-		ReadContext:   resourceElasticClusterRead,
-		DeleteContext: resourceElasticClusterDelete,
-		UpdateContext: resourceElasticClusterUpdate,
+		CreateContext: resourceElasticClusterV2Create,
+		ReadContext:   resourceElasticClusterV2Read,
+		DeleteContext: resourceElasticClusterV2Delete,
+		UpdateContext: resourceElasticClusterV2Update,
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:     schema.TypeString,
@@ -62,57 +62,67 @@ func resourceElasticCluster() *schema.Resource {
 				Default:      1,
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
-			"compute_node_size": {
-				Type:         schema.TypeString,
-				Required:     true,
-				ValidateFunc: validation.StringIsNotEmpty,
-			},
-			"compute_node_count": {
-				Type:         schema.TypeInt,
-				Optional:     true,
-				Default:      3,
-				ValidateFunc: validation.IntAtLeast(1),
-			},
-			"compute_node_is_instance_store": {
-				Type:     schema.TypeBool,
-				Computed: true,
-			},
-			"compute_node_ebs_disk_per_size": {
-				Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
-				Type:        schema.TypeInt,
-				Optional:    true,
-				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-					v, ok := i.(int)
-					if !ok {
-						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-						return warnings, errors
-					}
+			"builtin_warehouse": {
+				Type:     schema.TypeSet,
+				Required: true,
+				Elem: map[string]*schema.Schema{
+					"warehouse_id": {
+						Type:     schema.TypeString,
+						Computed: true,
+					},
+					"compute_node_size": {
+						Type:         schema.TypeString,
+						Required:     true,
+						ValidateFunc: validation.StringIsNotEmpty,
+					},
+					"compute_node_count": {
+						Type:         schema.TypeInt,
+						Optional:     true,
+						Default:      3,
+						ValidateFunc: validation.IntAtLeast(1),
+					},
+					"compute_node_is_instance_store": {
+						Type:     schema.TypeBool,
+						Computed: true,
+					},
+					"compute_node_ebs_disk_per_size": {
+						Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+						Type:        schema.TypeInt,
+						Optional:    true,
+						ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+							v, ok := i.(int)
+							if !ok {
+								errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+								return warnings, errors
+							}
 
-					m := 16 * 1000
-					if v > m {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
-					}
+							m := 16 * 1000
+							if v > m {
+								errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
+							}
 
-					return warnings, errors
-				},
-			},
-			"compute_node_ebs_disk_number": {
-				Description: "Specifies the number of disk. The default value is 2.",
-				Type:        schema.TypeInt,
-				ForceNew:    true,
-				Optional:    true,
-				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-					v, ok := i.(int)
-					if !ok {
-						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-						return warnings, errors
-					}
+							return warnings, errors
+						},
+					},
+					"compute_node_ebs_disk_number": {
+						Description: "Specifies the number of disk. The default value is 2.",
+						Type:        schema.TypeInt,
+						ForceNew:    true,
+						Optional:    true,
+						ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+							v, ok := i.(int)
+							if !ok {
+								errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+								return warnings, errors
+							}
 
-					if v > 24 {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
-					}
+							if v > 24 {
+								errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+							}
 
-					return warnings, errors
+							return warnings, errors
+						},
+					},
 				},
 			},
 			"resource_tags": {
@@ -259,7 +269,7 @@ func resourceElasticCluster() *schema.Resource {
 	}
 }
 
-func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	c := m.(*client.CelerdataClient)
 
 	clusterAPI := cluster.NewClustersAPI(c)
@@ -394,15 +404,15 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
-	return resourceElasticClusterRead(ctx, d, m)
+	return resourceElasticClusterV2Read(ctx, d, m)
 }
 
-func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
 	clusterID := d.Id()
 	clusterAPI := cluster.NewClustersAPI(c)
-	log.Printf("[DEBUG] resourceElasticClusterRead cluster id:%s", clusterID)
+	log.Printf("[DEBUG] resourceElasticClusterV2Read cluster id:%s", clusterID)
 	var diags diag.Diagnostics
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
@@ -475,12 +485,12 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	return diags
 }
 
-func resourceElasticClusterDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func resourceElasticClusterV2Delete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
 	clusterID := d.Id()
 	clusterAPI := cluster.NewClustersAPI(c)
-	log.Printf("[DEBUG] resourceElasticClusterDelete cluster id:%s", clusterID)
+	log.Printf("[DEBUG] resourceElasticClusterV2Delete cluster id:%s", clusterID)
 	var diags diag.Diagnostics
 
 	_, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
@@ -554,14 +564,14 @@ func IsInstanceStore(d *schema.ResourceData) bool {
 	return v.(bool)
 }
 
-func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 
 	c := m.(*client.CelerdataClient)
 
 	// Warning or errors can be collected in a slice type
 	clusterID := d.Id()
 	clusterAPI := cluster.NewClustersAPI(c)
-	log.Printf("[DEBUG] resourceElasticClusterUpdate cluster id:%s", clusterID)
+	log.Printf("[DEBUG] resourceElasticClusterV2Update cluster id:%s", clusterID)
 	if d.HasChange("query_port") {
 		return diag.FromErr(fmt.Errorf("the `query_port` field is not allowed to be modified"))
 	}

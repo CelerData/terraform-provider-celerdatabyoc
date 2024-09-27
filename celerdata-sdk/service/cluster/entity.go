@@ -463,12 +463,12 @@ type ScaleWarehouseNumResp struct {
 	ActionID string `json:"action_id" mapstructure:"action_id"`
 }
 
-type ScaleUpWarehouseReq struct {
+type ScaleWarehouseSizeReq struct {
 	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
 	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
 }
 
-type ScaleUpWarehouseResp struct {
+type ScaleWarehouseSizeResp struct {
 	ActionID string `json:"action_id" mapstructure:"action_id"`
 }
 
