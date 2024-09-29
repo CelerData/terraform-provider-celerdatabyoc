@@ -63,7 +63,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
 			"builtin_warehouse": {
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Required: true,
 				Elem: map[string]*schema.Schema{
 					"warehouse_id": {
@@ -321,14 +321,20 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		InstanceType:  d.Get("coordinator_node_size").(string),
 	})
 
+	whInfos := d.Get("builtin_warehouse").(*schema.Set).List()
+	if len(whInfos) > 1 {
+		return diag.FromErr(fmt.Errorf("a maximum of one built-in warehouse is allowed to be created"))
+	}
+
+	whInfo := whInfos[0].(map[string]interface{})
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
-		Type:         cluster.ClusterModuleTypeBE,
-		Name:         "BE",
-		Num:          uint32(d.Get("compute_node_count").(int)),
-		InstanceType: d.Get("compute_node_size").(string),
+		Type:         cluster.ClusterModuleTypeWarehouse,
+		Name:         "default_warehouse",
+		Num:          uint32(whInfo["compute_node_count"].(int)),
+		InstanceType: whInfo["compute_node_size"].(string),
 		DiskInfo: &cluster.DiskInfo{
-			Number:  uint32(d.Get("compute_node_ebs_disk_number").(int)),
-			PerSize: uint64(d.Get("compute_node_ebs_disk_per_size").(int)),
+			Number:  uint32(whInfo["compute_node_ebs_disk_number"].(int)),
+			PerSize: uint64(whInfo["compute_node_ebs_disk_per_size"].(int)),
 		},
 	})
 
@@ -477,11 +483,23 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
 
-	d.Set("compute_node_is_instance_store", resp.Cluster.BeModule.IsInstanceStore)
-	if !resp.Cluster.BeModule.IsInstanceStore {
-		d.Set("compute_node_ebs_disk_number", int(resp.Cluster.BeModule.VmVolNum))
-		d.Set("compute_node_ebs_disk_per_size", int(resp.Cluster.BeModule.VmVolSizeGB))
+	dwMapping := make(map[string]interface{}, 0)
+	for _, v := range resp.Cluster.Warehouses {
+		if v.IsDefaultWarehouse {
+			dwMapping["warehouse_id"] = v.Id
+			dwMapping["compute_node_size"] = v.Module.VmCate
+			dwMapping["compute_node_count"] = v.Module.Num
+			dwMapping["compute_node_is_instance_store"] = v.Module.IsInstanceStore
+			if !v.Module.IsInstanceStore {
+				dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
+				dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
+			}
+		}
 	}
+
+	dwObj := make([]map[string]interface{}, 0)
+	dwObj = append(dwObj, dwMapping)
+	d.Set("builtin_warehouse", dwObj)
 	return diags
 }
 
@@ -551,17 +569,22 @@ func resourceElasticClusterV2Delete(ctx context.Context, d *schema.ResourceData,
 	return diags
 }
 
-func elasticClusterNeedUnlock(d *schema.ResourceData) bool {
-	return !d.IsNewResource() && d.Get("free_tier").(bool) &&
+func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
+	result := !d.IsNewResource() && d.Get("free_tier").(bool) &&
 		(d.HasChange("coordinator_node_size") ||
 			d.HasChange("coordinator_node_count") ||
 			d.HasChange("compute_node_size") ||
 			d.HasChange("compute_node_count"))
-}
 
-func IsInstanceStore(d *schema.ResourceData) bool {
-	v := d.Get("compute_node_is_instance_store")
-	return v.(bool)
+	if !result && d.HasChange("builtin_warehouse") {
+		o, n := d.GetChange("builtin_warehouse")
+		oldWhInfo := o.(*schema.Set).List()[0].(map[string]interface{})
+		newWhInfo := n.(*schema.Set).List()[0].(map[string]interface{})
+		changed := (newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) || newWhInfo["compute_node_count"].(int) != oldWhInfo["compute_node_count"].(int))
+		result = result || changed
+	}
+
+	return result
 }
 
 func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -574,6 +597,14 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	log.Printf("[DEBUG] resourceElasticClusterV2Update cluster id:%s", clusterID)
 	if d.HasChange("query_port") {
 		return diag.FromErr(fmt.Errorf("the `query_port` field is not allowed to be modified"))
+	}
+
+	if d.HasChange("builtin_warehouse") {
+		_, n := d.GetChange("builtin_warehouse")
+		newWhInfos := n.(*schema.Set).List()
+		if len(newWhInfos) > 1 {
+			return diag.FromErr(fmt.Errorf("a maximum of one built-in warehouse is allowed to be created"))
+		}
 	}
 
 	if d.HasChange("idle_suspend_interval") && !d.IsNewResource() {
@@ -616,7 +647,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if elasticClusterNeedUnlock(d) {
+	if elasticClusterV2NeedUnlock(d) {
 		err := clusterAPI.UnlockFreeTier(ctx, clusterID)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to unlock free tier: %s", d.Id(), err.Error()))
@@ -698,121 +729,114 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if d.HasChange("compute_node_size") && !d.IsNewResource() {
-		_, n := d.GetChange("compute_node_size")
-		resp, err := clusterAPI.ScaleUp(ctx, &cluster.ScaleUpReq{
-			RequestId:  uuid.NewString(),
-			ClusterId:  clusterID,
-			ModuleType: cluster.ClusterModuleTypeBE,
-			VmCategory: n.(string),
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale up be nodes: %s", d.Id(), err))
-		}
+	if d.HasChange("builtin_warehouse") {
+		o, n := d.GetChange("builtin_warehouse")
+		oldWhInfo := o.(*schema.Set).List()[0].(map[string]interface{})
+		newWhInfo := n.(*schema.Set).List()[0].(map[string]interface{})
 
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      resp.ActionId,
-			clusterID:     clusterID,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
-		}
-
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
-		}
-	}
-
-	if d.HasChange("compute_node_count") && !d.IsNewResource() {
-		o, n := d.GetChange("compute_node_count")
-		var actionID string
-		if n.(int) > o.(int) {
-			resp, err := clusterAPI.ScaleOut(ctx, &cluster.ScaleOutReq{
-				RequestId:  uuid.NewString(),
-				ClusterId:  clusterID,
-				ModuleType: cluster.ClusterModuleTypeBE,
-				ExpectNum:  int32(n.(int)),
+		if newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) {
+			warehouseId := newWhInfo["warehouse_id"].(string)
+			resp, err := clusterAPI.ScaleWarehouseSize(ctx, &cluster.ScaleWarehouseSizeReq{
+				WarehouseId: warehouseId,
+				VmCate:      n.(string),
 			})
+
 			if err != nil {
-				return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale out be nodes: %s", d.Id(), err))
+				return diag.FromErr(fmt.Errorf("built-in warehouse failed to scale size, clusterId:%s warehouseId: %s, errMsg:%s", d.Id(), warehouseId, err))
 			}
 
-			actionID = resp.ActionId
-		} else if n.(int) < o.(int) {
-			resp, err := clusterAPI.ScaleIn(ctx, &cluster.ScaleInReq{
-				RequestId:  uuid.NewString(),
-				ClusterId:  clusterID,
-				ModuleType: cluster.ClusterModuleTypeBE,
-				ExpectNum:  int32(n.(int)),
+			stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI:    clusterAPI,
+				actionID:      resp.ActionID,
+				clusterID:     clusterID,
+				timeout:       common.DeployOrScaleClusterTimeout,
+				pendingStates: []string{string(cluster.ClusterStateScaling)},
+				targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
 			})
 			if err != nil {
-				return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale in be nodes: %s", d.Id(), err))
+				return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
 			}
 
-			actionID = resp.ActionId
+			if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+				return diag.FromErr(errors.New(stateResp.AbnormalReason))
+			}
 		}
 
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      actionID,
-			clusterID:     clusterID,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+		if newWhInfo["compute_node_count"].(int) != oldWhInfo["compute_node_count"].(int) {
+
+			warehouseId := newWhInfo["warehouse_id"].(string)
+			resp, err := clusterAPI.ScaleWarehouseNum(ctx, &cluster.ScaleWarehouseNumReq{
+				WarehouseId: warehouseId,
+				VmNum:       int32(newWhInfo["compute_node_count"].(int)),
+			})
+
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("built-in warehouse failed to scale number, clusterId:%s warehouseId: %s, errMsg:%s", d.Id(), warehouseId, err))
+			}
+
+			stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI:    clusterAPI,
+				actionID:      resp.ActionID,
+				clusterID:     clusterID,
+				timeout:       common.DeployOrScaleClusterTimeout,
+				pendingStates: []string{string(cluster.ClusterStateScaling)},
+				targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+			})
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+			}
+
+			if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+				return diag.FromErr(errors.New(stateResp.AbnormalReason))
+			}
 		}
 
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
-		}
-	}
-
-	if IsInstanceStore(d) && (d.HasChange("compute_node_ebs_disk_number") || d.HasChange("compute_node_ebs_disk_per_size")) && !d.IsNewResource() {
-		return diag.FromErr(errors.New("local storage model does not support ebs disk"))
-	}
-
-	if !IsInstanceStore(d) && (d.HasChange("compute_node_ebs_disk_number") || d.HasChange("compute_node_ebs_disk_per_size")) && !d.IsNewResource() {
-		o1, n1 := d.GetChange("compute_node_ebs_disk_number")
-		o2, n2 := d.GetChange("compute_node_ebs_disk_per_size")
-
-		if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-			return diag.FromErr(fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
+		if newWhInfo["compute_node_is_instance_store"].(bool) && (newWhInfo["compute_node_ebs_disk_number"].(int) != oldWhInfo["compute_node_ebs_disk_number"].(int) || newWhInfo["compute_node_ebs_disk_per_size"].(int) != oldWhInfo["compute_node_ebs_disk_per_size"].(int)) {
+			return diag.FromErr(errors.New("local storage model does not support ebs disk"))
 		}
 
-		resp, err := clusterAPI.IncrStorageSize(ctx, &cluster.IncrStorageSizeReq{
-			RequestId:  uuid.NewString(),
-			ClusterId:  clusterID,
-			ModuleType: cluster.ClusterModuleTypeBE,
-			DiskInfo: &cluster.DiskInfo{
-				Number:  uint32(n1.(int)),
-				PerSize: uint64(n2.(int)),
-			},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to increase be storage size: %s", d.Id(), err))
-		}
+		/*
+			if !newWhInfo["compute_node_is_instance_store"].(bool) && (newWhInfo["compute_node_ebs_disk_number"].(int) != oldWhInfo["compute_node_ebs_disk_number"].(int) || newWhInfo["compute_node_ebs_disk_per_size"].(int) != oldWhInfo["compute_node_ebs_disk_per_size"].(int)) {
+				n1 := oldWhInfo["compute_node_ebs_disk_number"]
+				o1 := oldWhInfo["compute_node_ebs_disk_per_size"]
 
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      resp.ActionId,
-			clusterID:     clusterID,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
-		}
+				n2 := newWhInfo["compute_node_ebs_disk_number"]
+				o2 := newWhInfo["compute_node_ebs_disk_per_size"]
 
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
-		}
+				if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
+					return diag.FromErr(fmt.Errorf("built-in warehouse total storage size: %dGB => %dGB, storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
+				}
+
+				resp, err := clusterAPI.IncrStorageSize(ctx, &cluster.IncrStorageSizeReq{
+					RequestId:  uuid.NewString(),
+					ClusterId:  clusterID,
+					ModuleType: cluster.ClusterModuleTypeBE,
+					DiskInfo: &cluster.DiskInfo{
+						Number:  uint32(n1.(int)),
+						PerSize: uint64(n2.(int)),
+					},
+				})
+				if err != nil {
+					return diag.FromErr(fmt.Errorf("cluster (%s) failed to increase be storage size: %s", d.Id(), err))
+				}
+
+				stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+					clusterAPI:    clusterAPI,
+					actionID:      resp.ActionId,
+					clusterID:     clusterID,
+					timeout:       common.DeployOrScaleClusterTimeout,
+					pendingStates: []string{string(cluster.ClusterStateScaling)},
+					targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+				})
+				if err != nil {
+					return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+				}
+
+				if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+					return diag.FromErr(errors.New(stateResp.AbnormalReason))
+				}
+			}
+		*/
 	}
 
 	if needSuspend(d) {

@@ -154,6 +154,7 @@ type Module struct {
 	VmVolSizeGB     int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
 	VmVolNum        int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+	VmCate          string `json:"vm_cate" mapstructure:"vm_cate"`
 }
 
 type Warehouse struct {
