@@ -43,6 +43,7 @@ type IClusterAPI interface {
 
 	ListCluster(ctx context.Context) (*ListClusterResp, error)
 
+	GetWarehouse(ctx context.Context, req *GetWarehouseReq) (*GetWarehouseResp, error)
 	CreateWarehouse(ctx context.Context, req *CreateWarehouseReq) (*CreateWarehouseResp, error)
 	ScaleWarehouseNum(ctx context.Context, req *ScaleWarehouseNumReq) (*ScaleWarehouseNumResp, error)
 	ScaleWarehouseSize(ctx context.Context, req *ScaleWarehouseSizeReq) (*ScaleWarehouseSizeResp, error)
@@ -112,6 +113,22 @@ func (c *clusterAPI) CreateWarehouse(ctx context.Context, req *CreateWarehouseRe
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) GetWarehouse(ctx context.Context, req *GetWarehouseReq) (*GetWarehouseResp, error) {
+	warehouseInfo := &WarehouseInfo{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/warehouses/%s", c.apiVersion, req.WarehouseId), nil, warehouseInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(warehouseInfo.WarehouseId) == 0 {
+		warehouseInfo = nil
+	}
+
+	return &GetWarehouseResp{
+		Info: warehouseInfo,
+	}, nil
 }
 
 func (c *clusterAPI) ListCluster(ctx context.Context) (*ListClusterResp, error) {

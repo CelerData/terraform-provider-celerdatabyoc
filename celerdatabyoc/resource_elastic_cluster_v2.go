@@ -22,10 +22,10 @@ import (
 // V2 support multi-warehouse
 func resourceElasticClusterV2() *schema.Resource {
 	return &schema.Resource{
-		CreateContext: resourceElasticClusterV2Create,
 		ReadContext:   resourceElasticClusterV2Read,
-		DeleteContext: resourceElasticClusterV2Delete,
+		CreateContext: resourceElasticClusterV2Create,
 		UpdateContext: resourceElasticClusterV2Update,
+		DeleteContext: resourceElasticClusterV2Delete,
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:     schema.TypeString,
@@ -81,10 +81,6 @@ func resourceElasticClusterV2() *schema.Resource {
 						Default:      3,
 						ValidateFunc: validation.IntAtLeast(1),
 					},
-					"compute_node_is_instance_store": {
-						Type:     schema.TypeBool,
-						Computed: true,
-					},
 					"compute_node_ebs_disk_per_size": {
 						Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 						Type:        schema.TypeInt,
@@ -122,6 +118,10 @@ func resourceElasticClusterV2() *schema.Resource {
 
 							return warnings, errors
 						},
+					},
+					"compute_node_is_instance_store": {
+						Type:     schema.TypeBool,
+						Computed: true,
 					},
 				},
 			},
@@ -733,16 +733,16 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		o, n := d.GetChange("builtin_warehouse")
 		oldWhInfo := o.(*schema.Set).List()[0].(map[string]interface{})
 		newWhInfo := n.(*schema.Set).List()[0].(map[string]interface{})
+		warehouseId := newWhInfo["warehouse_id"].(string)
 
 		if newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) {
-			warehouseId := newWhInfo["warehouse_id"].(string)
 			resp, err := clusterAPI.ScaleWarehouseSize(ctx, &cluster.ScaleWarehouseSizeReq{
 				WarehouseId: warehouseId,
 				VmCate:      n.(string),
 			})
 
 			if err != nil {
-				return diag.FromErr(fmt.Errorf("built-in warehouse failed to scale size, clusterId:%s warehouseId: %s, errMsg:%s", d.Id(), warehouseId, err))
+				return diag.FromErr(fmt.Errorf("built-in warehouse failed to scale size, clusterId:%s warehouseId:%s, errMsg:%s", d.Id(), warehouseId, err))
 			}
 
 			stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
@@ -771,7 +771,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 			})
 
 			if err != nil {
-				return diag.FromErr(fmt.Errorf("built-in warehouse failed to scale number, clusterId:%s warehouseId: %s, errMsg:%s", d.Id(), warehouseId, err))
+				return diag.FromErr(fmt.Errorf("built-in warehouse failed to scale number, clusterId:%s warehouseId:%s, errMsg:%s", d.Id(), warehouseId, err))
 			}
 
 			stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
