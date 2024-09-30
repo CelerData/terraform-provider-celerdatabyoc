@@ -151,7 +151,7 @@ func resourceWarehouseRead(ctx context.Context, d *schema.ResourceData, m interf
 	})
 
 	if err != nil {
-		log.Printf("[ERROR] query warehouse info failed, warehouseId:%s", warehouseId)
+		log.Printf("[ERROR] Query warehouse info failed, warehouseId:%s", warehouseId)
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Error,
@@ -170,7 +170,7 @@ func resourceWarehouseRead(ctx context.Context, d *schema.ResourceData, m interf
 		WarehouseId: warehouseId,
 	})
 	if err != nil {
-		log.Printf("[ERROR] query warehouse idle config failed, warehouseId:%s", warehouseId)
+		log.Printf("[ERROR] Query warehouse idle config failed, warehouseId:%s", warehouseId)
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Warning,
@@ -219,10 +219,10 @@ func resourceWarehouseCreate(ctx context.Context, d *schema.ResourceData, m inte
 		VolumeNum:    int32(d.Get("compute_node_ebs_disk_number").(int)),
 	}
 
-	log.Printf("[DEBUG] create warehouse, req:%+v", req)
+	log.Printf("[DEBUG] Create warehouse, req:%+v", req)
 	resp, err := clusterAPI.CreateWarehouse(ctx, req)
 	if err != nil {
-		log.Printf("[ERROR] create warehouse failed, err:%+v", err)
+		log.Printf("[ERROR] Create warehouse failed, err:%+v", err)
 		return diag.FromErr(err)
 	}
 
@@ -375,7 +375,7 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 		})
 
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to scale warehouse size, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
+			return diag.FromErr(fmt.Errorf("Failed to scale warehouse size, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
 		}
 
 		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
@@ -387,7 +387,7 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
 		})
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+			return diag.FromErr(fmt.Errorf("Waiting for cluster (%s) running: %s", d.Id(), err))
 		}
 
 		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
@@ -404,7 +404,7 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 		})
 
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to scale warehouse number, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
+			return diag.FromErr(fmt.Errorf("Failed to scale warehouse number, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
 		}
 
 		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
@@ -416,7 +416,7 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
 		})
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+			return diag.FromErr(fmt.Errorf("Waiting for cluster (%s) running: %s", d.Id(), err))
 		}
 
 		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
