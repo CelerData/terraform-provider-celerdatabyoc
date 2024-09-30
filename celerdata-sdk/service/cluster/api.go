@@ -50,6 +50,8 @@ type IClusterAPI interface {
 	ResumeWarehouse(ctx context.Context, req *ResumeWarehouseReq) (*ResumeWarehouseResp, error)
 	SuspendWarehouse(ctx context.Context, req *SuspendWarehouseReq) (*SuspendWarehouseResp, error)
 	ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error)
+	GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error)
+	UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -59,6 +61,19 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+func (c *clusterAPI) UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/idle-conf", c.apiVersion, req.WarehouseId), req, nil)
+}
+
+func (c *clusterAPI) GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error) {
+	resp := &GetWarehouseIdleConfigResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/warehouses/%s/idle-conf", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (c *clusterAPI) ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error) {

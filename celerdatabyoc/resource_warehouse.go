@@ -106,6 +106,27 @@ func resourceWarehouse() *schema.Resource {
 				Type:     schema.TypeBool,
 				Computed: true,
 			},
+			"idle_suspend_interval": {
+				Type:        schema.TypeInt,
+				Description: "Specifies the amount of time (in minutes) during which a warehouse can stay idle. After the specified time period elapses, the warehouse will be automatically suspended.",
+				Optional:    true,
+				Default:     0,
+				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+					v, ok := i.(int)
+					if !ok {
+						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+						return warnings, errors
+					}
+
+					if v != 0 {
+						if v < 15 || v > 999999 {
+							errors = append(errors, fmt.Errorf("the %s range should be [15,999999]", k))
+							return warnings, errors
+						}
+					}
+					return warnings, errors
+				},
+			},
 		},
 	}
 }
@@ -123,7 +144,7 @@ func resourceWarehouseRead(ctx context.Context, d *schema.ResourceData, m interf
 		log.Printf("[ERROR] query warehouse info failed, warehouseId:%s", warehouseId)
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  fmt.Sprintf("Failed to get warehouse info, warehouseId:[%s] ", warehouseId),
 				Detail:   err.Error(),
 			},
@@ -134,6 +155,28 @@ func resourceWarehouseRead(ctx context.Context, d *schema.ResourceData, m interf
 		d.SetId("")
 		return diags
 	}
+
+	idleConfigResp, err := clusterAPI.GetWarehouseIdleConfig(ctx, &cluster.GetWarehouseIdleConfigReq{
+		WarehouseId: warehouseId,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query warehouse idle config failed, warehouseId:%s", warehouseId)
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("Failed to get warehouse idle config, warehouseId:[%s] ", warehouseId),
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	idleConfig := idleConfigResp.Config
+	if idleConfig != nil && idleConfig.State {
+		d.Set("idle_suspend_interval", idleConfig.IntervalMs)
+	} else {
+		d.Set("idle_suspend_interval", 0)
+	}
+
 	warehouseInfo := resp.Info
 
 	d.Set("warehouse_name", warehouseInfo.WarehouseName)
@@ -171,7 +214,9 @@ func resourceWarehouseCreate(ctx context.Context, d *schema.ResourceData, m inte
 		return diag.FromErr(err)
 	}
 
-	d.SetId(resp.WarehouseId)
+	warehouseId := resp.WarehouseId
+
+	d.SetId(warehouseId)
 	infraActionId := resp.ActionID
 	if len(infraActionId) > 0 {
 		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
@@ -211,8 +256,24 @@ func resourceWarehouseCreate(ctx context.Context, d *schema.ResourceData, m inte
 				},
 			}
 		}
+	}
 
-		d.Set("result", infraActionResp.InfraActionState)
+	idleSuspendInterval := d.Get("idle_suspend_interval").(int)
+	if idleSuspendInterval > 0 {
+		err = clusterAPI.UpdateWarehouseIdleConfig(ctx, &cluster.UpdateWarehouseIdleConfigReq{
+			WarehouseId: warehouseId,
+			IntervalMs:  int64(idleSuspendInterval * 60 * 1000),
+			State:       true,
+		})
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Config warehouse idle config failed",
+					Detail:   err.Error(),
+				},
+			}
+		}
 	}
 
 	return diags
@@ -286,6 +347,28 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 
 	if d.Get("compute_node_is_instance_store").(bool) && (d.HasChange("compute_node_ebs_disk_number") || d.HasChange("compute_node_ebs_disk_per_size")) {
 		return diag.FromErr(errors.New("local storage model does not support ebs disk"))
+	}
+
+	if d.HasChange("idle_suspend_interval") {
+		o, n := d.GetChange("idle_suspend_interval")
+		idleSuspendInterval := n.(int)
+		if n.(int) == 0 {
+			idleSuspendInterval = o.(int)
+		}
+		err := clusterAPI.UpdateWarehouseIdleConfig(ctx, &cluster.UpdateWarehouseIdleConfigReq{
+			WarehouseId: warehouseId,
+			IntervalMs:  int64(idleSuspendInterval * 60 * 1000),
+			State:       n.(int) > 0,
+		})
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Config warehouse idle config failed",
+					Detail:   err.Error(),
+				},
+			}
+		}
 	}
 
 	return diags

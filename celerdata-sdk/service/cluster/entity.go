@@ -518,6 +518,26 @@ type ReleaseWarehouseResp struct {
 	ActionID string `json:"action_id" mapstructure:"action_id"`
 }
 
+type GetWarehouseIdleConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type GetWarehouseIdleConfigResp struct {
+	Config *WarehouseIdleConfig `json:"config" mapstructure:"config"`
+}
+
+type WarehouseIdleConfig struct {
+	ResourceNodeId string `json:"resource_node_id" mapstructure:"resource_node_id"`
+	IntervalMs     int64  `json:"interval_ms" mapstructure:"interval_ms"`
+	State          bool   `json:"state" mapstructure:"state"`
+}
+
+type UpdateWarehouseIdleConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	IntervalMs  int64  `json:"interval_ms" mapstructure:"interval_ms"`
+	State       bool   `json:"state" mapstructure:"state"`
+}
+
 func ConvertStrToCustomConfigType(val string) CustomConfigType {
 	var customConfigType CustomConfigType
 	switch val {
