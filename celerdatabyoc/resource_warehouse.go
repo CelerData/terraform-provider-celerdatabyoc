@@ -102,10 +102,6 @@ func resourceWarehouse() *schema.Resource {
 				},
 				Description: "Specifies the number of disk. The default value is 2.",
 			},
-			"compute_node_is_instance_store": {
-				Type:     schema.TypeBool,
-				Computed: true,
-			},
 			"idle_suspend_interval": {
 				Type:        schema.TypeInt,
 				Description: "Specifies the amount of time (in minutes) during which a warehouse can stay idle. After the specified time period elapses, the warehouse will be automatically suspended.",
@@ -126,6 +122,20 @@ func resourceWarehouse() *schema.Resource {
 					}
 					return warnings, errors
 				},
+			},
+			"expected_state": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      string(cluster.ClusterStateRunning),
+				ValidateFunc: validation.StringInSlice([]string{string(cluster.ClusterStateSuspended), string(cluster.ClusterStateRunning)}, false),
+			},
+			"compute_node_is_instance_store": {
+				Type:     schema.TypeBool,
+				Computed: true,
+			},
+			"state": {
+				Type:     schema.TypeString,
+				Computed: true,
 			},
 		},
 	}
@@ -187,6 +197,8 @@ func resourceWarehouseRead(ctx context.Context, d *schema.ResourceData, m interf
 		d.Set("compute_node_ebs_disk_number", warehouseInfo.VmVolNum)
 		d.Set("compute_node_ebs_disk_per_size", warehouseInfo.VmVolSizeGB)
 	}
+	d.Set("expected_state", warehouseInfo.State)
+	d.Set("state", warehouseInfo.State)
 	return diags
 }
 
@@ -258,6 +270,62 @@ func resourceWarehouseCreate(ctx context.Context, d *schema.ResourceData, m inte
 		}
 	}
 
+	expectedState := d.Get("expected_state").(string)
+	if expectedState == string(cluster.ClusterStateSuspended) {
+		suspendWhResp, err := clusterAPI.SuspendWarehouse(ctx, &cluster.SuspendWarehouseReq{
+			WarehouseId: warehouseId,
+		})
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Suspend warehouse failed",
+					Detail:   err.Error(),
+				},
+			}
+		}
+		infraActionId := suspendWhResp.ActionID
+		if len(infraActionId) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterId,
+				actionID:   infraActionId,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+
+			summary := fmt.Sprintf("Suspend warehouse[%s] of the cluster[%s] failed", warehouseName, clusterId)
+
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   err.Error(),
+					},
+				}
+			}
+
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   infraActionResp.ErrMsg,
+					},
+				}
+			}
+		}
+	}
+
 	idleSuspendInterval := d.Get("idle_suspend_interval").(int)
 	if idleSuspendInterval > 0 {
 		err = clusterAPI.UpdateWarehouseIdleConfig(ctx, &cluster.UpdateWarehouseIdleConfigReq{
@@ -285,6 +353,17 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 	clusterAPI := cluster.NewClustersAPI(c)
 	warehouseId := d.Id()
 	clusterId := d.Get("cluster_id").(string)
+	warehouseName := d.Get("warehouse_name").(string)
+	expectedState := d.Get("expected_state").(string)
+
+	if d.HasChange("expect_state") {
+		if expectedState == string(cluster.ClusterStateRunning) {
+			resp := ResumeWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
+			if resp != nil {
+				return resp
+			}
+		}
+	}
 
 	if d.HasChange("compute_node_size") {
 
@@ -371,6 +450,15 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 		}
 	}
 
+	if d.HasChange("expect_state") {
+		if expectedState == string(cluster.ClusterStateSuspended) {
+			resp := SuspendWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
+			if resp != nil {
+				return resp
+			}
+		}
+	}
+
 	return diags
 }
 
@@ -432,5 +520,117 @@ func resourceWarehouseDelete(ctx context.Context, d *schema.ResourceData, m inte
 		}
 	}
 	d.SetId("")
+	return diags
+}
+
+func SuspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, warehouseName string) (diags diag.Diagnostics) {
+	suspendWhResp, err := clusterAPI.SuspendWarehouse(ctx, &cluster.SuspendWarehouseReq{
+		WarehouseId: warehouseId,
+	})
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Suspend warehouse failed",
+				Detail:   err.Error(),
+			},
+		}
+	}
+	infraActionId := suspendWhResp.ActionID
+	if len(infraActionId) > 0 {
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   infraActionId,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		summary := fmt.Sprintf("Suspend warehouse[%s] of the cluster[%s] failed", warehouseName, clusterId)
+
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Error,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Error,
+					Summary:  summary,
+					Detail:   infraActionResp.ErrMsg,
+				},
+			}
+		}
+	}
+	return diags
+}
+
+func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, warehouseName string) (diags diag.Diagnostics) {
+	resumeWhResp, err := clusterAPI.ResumeWarehouse(ctx, &cluster.ResumeWarehouseReq{
+		WarehouseId: warehouseId,
+	})
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Resume warehouse failed",
+				Detail:   err.Error(),
+			},
+		}
+	}
+	infraActionId := resumeWhResp.ActionID
+	if len(infraActionId) > 0 {
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   infraActionId,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		summary := fmt.Sprintf("Resume warehouse[%s] of the cluster[%s] failed", warehouseName, clusterId)
+
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Error,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Error,
+					Summary:  summary,
+					Detail:   infraActionResp.ErrMsg,
+				},
+			}
+		}
+	}
 	return diags
 }
