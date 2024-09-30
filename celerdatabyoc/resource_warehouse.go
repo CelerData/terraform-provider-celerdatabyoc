@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/mitchellh/mapstructure"
 )
 
 func resourceWarehouse() *schema.Resource {
@@ -123,6 +124,74 @@ func resourceWarehouse() *schema.Resource {
 					return warnings, errors
 				},
 			},
+			"auto_scaling_policies": {
+				Type:     schema.TypeList,
+				Optional: true,
+				ValidateDiagFunc: func(i interface{}, p cty.Path) diag.Diagnostics {
+					var diags diag.Diagnostics
+					v := i.([]interface{})
+					if len(v) > 1 {
+						diags = append(diags, diag.Diagnostic{
+							Severity: diag.Error,
+							Summary:  fmt.Sprintf("`auto_scaling_policies` cannot have more than one item, got %d", len(v)),
+						})
+					}
+					return diags
+				},
+				Elem: map[string]*schema.Schema{
+					"biz_id": {
+						Type:     schema.TypeString,
+						Computed: true,
+					},
+					"min_size": {
+						Type:         schema.TypeInt,
+						Required:     true,
+						ValidateFunc: validation.IntAtLeast(1),
+					},
+					"max_size": {
+						Type:         schema.TypeInt,
+						Required:     true,
+						ValidateFunc: validation.IntAtLeast(1),
+					},
+					"policyItem": {
+						Type:     schema.TypeSet,
+						Required: true,
+						Elem: map[string]*schema.Schema{
+							"type": {
+								Type:         schema.TypeString,
+								Computed:     true,
+								ValidateFunc: validation.StringInSlice([]string{"SCALE_OUT", "SCALE_IN"}, false),
+							},
+							"step_size": {
+								Type:         schema.TypeInt,
+								Required:     true,
+								ValidateFunc: validation.IntAtLeast(1),
+							},
+							"conditions": {
+								Type:     schema.TypeSet,
+								Optional: true,
+								Elem: map[string]*schema.Schema{
+									"type": {
+										Type:         schema.TypeString,
+										Computed:     true,
+										ValidateFunc: validation.StringInSlice([]string{"AVERAGE_CPU_UTILIZATION"}, false),
+									},
+									"duration_seconds": {
+										Type:         schema.TypeInt,
+										Required:     true,
+										ValidateFunc: validation.IntAtLeast(300),
+									},
+									"value": {
+										Type:         schema.TypeFloat,
+										Required:     true,
+										ValidateFunc: validation.FloatAtLeast(0.00),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 			"expected_state": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -185,6 +254,40 @@ func resourceWarehouseRead(ctx context.Context, d *schema.ResourceData, m interf
 		d.Set("idle_suspend_interval", idleConfig.IntervalMs)
 	} else {
 		d.Set("idle_suspend_interval", 0)
+	}
+
+	autoScalingConfigResp, err := clusterAPI.GetWarehouseAutoScalingConfig(ctx, &cluster.GetWarehouseAutoScalingConfigReq{
+		WarehouseId: warehouseId,
+	})
+	if err != nil {
+		log.Printf("[ERROR] Query warehouse auto scaling config failed, warehouseId:%s", warehouseId)
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  fmt.Sprintf("Failed to get warehouse auto scaling config, warehouseId:[%s] ", warehouseId),
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	policy := autoScalingConfigResp.Policy
+	var result map[string]interface{}
+	if policy != nil {
+		err := mapstructure.Decode(policy, &result)
+		if err != nil {
+			log.Printf("[ERROR] Decode warehouse auto scaling config failed, warehouseId:%s", warehouseId)
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("Failed to decode warehouse auto scaling config, warehouseId:[%s] ", warehouseId),
+					Detail:   err.Error(),
+				},
+			}
+		} else {
+			d.Set("auto_scaling_policies", result)
+		}
+	} else {
+		d.Set("auto_scaling_policies", result)
 	}
 
 	warehouseInfo := resp.Info
@@ -455,6 +558,25 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 			resp := SuspendWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
 			if resp != nil {
 				return resp
+			}
+		}
+	}
+
+	if d.HasChange("auto_scaling_policies") {
+		if _, ok := d.GetOk("auto_scaling_policies"); ok {
+			// -----todo
+		} else {
+			err := clusterAPI.DeleteWarehouseAutoScalingConfig(ctx, &cluster.DeleteWarehouseAutoScalingConfigReq{
+				WarehouseId: warehouseId,
+			})
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  "Delete warehouse auto scaling config failed",
+						Detail:   err.Error(),
+					},
+				}
 			}
 		}
 	}

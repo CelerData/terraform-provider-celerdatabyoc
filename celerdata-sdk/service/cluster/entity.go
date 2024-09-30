@@ -538,6 +538,54 @@ type UpdateWarehouseIdleConfigReq struct {
 	State       bool   `json:"state" mapstructure:"state"`
 }
 
+type GetWarehouseAutoScalingConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type WearhouseScalingCondition struct {
+	Type            string `json:"type" mapstructure:"type"`
+	DurationSeconds int64  `json:"duration_seconds" mapstructure:"duration_seconds"`
+	Value           string `json:"value" mapstructure:"value"`
+}
+
+type WearhouseScalingPolicyItem struct {
+	Type       string                       `json:"type" mapstructure:"type"`
+	StepSize   int32                        `json:"step_size" mapstructure:"step_size"`
+	Conditions []*WearhouseScalingCondition `json:"conditions" mapstructure:"conditions"`
+}
+
+type WarehouseAutoScalingConfig struct {
+	BizId      string                        `json:"biz_id" mapstructure:"biz_id"`
+	MinSize    int32                         `json:"min_size" mapstructure:"min_size"`
+	MaxSize    int32                         `json:"max_size" mapstructure:"max_size"`
+	PolicyItem []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
+}
+
+type GetWarehouseAutoScalingConfigResp struct {
+	Policy *WarehouseAutoScalingConfig `json:"policy" mapstructure:"policy"`
+}
+
+type AddWarehouseAutoScalingConfigReq struct {
+	ClusterId   string                        `json:"cluster_id" mapstructure:"cluster_id"`
+	WarehouseId string                        `json:"warehouse_id" mapstructure:"warehouse_id"`
+	MinSize     int32                         `json:"min_size" mapstructure:"min_size"`
+	MaxSize     int32                         `json:"max_size" mapstructure:"max_size"`
+	State       bool                          `json:"state" mapstructure:"state"`
+	PolicyItem  []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
+}
+
+type AddWarehouseAutoScalingConfigResp struct {
+	BizId string `json:"biz_id" mapstructure:"biz_id"`
+}
+
+type UpdateWarehouseAutoScalingConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type DeleteWarehouseAutoScalingConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
 func ConvertStrToCustomConfigType(val string) CustomConfigType {
 	var customConfigType CustomConfigType
 	switch val {

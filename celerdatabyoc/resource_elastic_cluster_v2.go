@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
@@ -65,6 +66,17 @@ func resourceElasticClusterV2() *schema.Resource {
 			"builtin_warehouse": {
 				Type:     schema.TypeList,
 				Required: true,
+				ValidateDiagFunc: func(i interface{}, p cty.Path) diag.Diagnostics {
+					var diags diag.Diagnostics
+					v := i.([]interface{})
+					if len(v) > 1 {
+						diags = append(diags, diag.Diagnostic{
+							Severity: diag.Error,
+							Summary:  fmt.Sprintf("`builtin_warehouse` cannot have more than one item, got %d", len(v)),
+						})
+					}
+					return diags
+				},
 				Elem: map[string]*schema.Schema{
 					"warehouse_id": {
 						Type:     schema.TypeString,
