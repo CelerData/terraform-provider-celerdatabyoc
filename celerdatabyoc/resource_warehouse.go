@@ -127,17 +127,6 @@ func resourceWarehouse() *schema.Resource {
 			"auto_scaling_policies": {
 				Type:     schema.TypeSet,
 				Optional: true,
-				ValidateDiagFunc: func(i interface{}, p cty.Path) diag.Diagnostics {
-					var diags diag.Diagnostics
-					v := i.([]interface{})
-					if len(v) > 1 {
-						diags = append(diags, diag.Diagnostic{
-							Severity: diag.Error,
-							Summary:  fmt.Sprintf("`auto_scaling_policies` cannot have more than one item, got %d", len(v)),
-						})
-					}
-					return diags
-				},
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"biz_id": {
