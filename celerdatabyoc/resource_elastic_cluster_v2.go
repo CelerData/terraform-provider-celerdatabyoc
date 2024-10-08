@@ -63,7 +63,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
 			"builtin_warehouse": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Required: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
@@ -347,7 +347,9 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	if err != nil {
 		return diag.FromErr(err)
 	}
+	log.Printf("[DEBUG] submit deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
+	d.SetId(resp.ClusterID)
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
 		clusterID:  resp.ClusterID,
@@ -374,8 +376,6 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		d.SetId("")
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
-
-	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
 	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
@@ -412,7 +412,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	return resourceElasticClusterV2Read(ctx, d, m)
+	return diags
 }
 
 func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
