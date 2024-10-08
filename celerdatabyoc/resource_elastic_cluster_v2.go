@@ -63,7 +63,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
 			"builtin_warehouse": {
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Required: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{

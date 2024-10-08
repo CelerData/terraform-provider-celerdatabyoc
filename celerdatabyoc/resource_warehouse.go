@@ -125,7 +125,7 @@ func resourceWarehouse() *schema.Resource {
 				},
 			},
 			"auto_scaling_policies": {
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Optional: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
