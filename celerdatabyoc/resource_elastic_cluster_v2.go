@@ -64,7 +64,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
 			"builtin_warehouse": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Required: true,
 				ValidateDiagFunc: func(i interface{}, p cty.Path) diag.Diagnostics {
 					var diags diag.Diagnostics
@@ -77,63 +77,65 @@ func resourceElasticClusterV2() *schema.Resource {
 					}
 					return diags
 				},
-				Elem: map[string]*schema.Schema{
-					"warehouse_id": {
-						Type:     schema.TypeString,
-						Computed: true,
-					},
-					"compute_node_size": {
-						Type:         schema.TypeString,
-						Required:     true,
-						ValidateFunc: validation.StringIsNotEmpty,
-					},
-					"compute_node_count": {
-						Type:         schema.TypeInt,
-						Optional:     true,
-						Default:      3,
-						ValidateFunc: validation.IntAtLeast(1),
-					},
-					"compute_node_ebs_disk_per_size": {
-						Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
-						Type:        schema.TypeInt,
-						Optional:    true,
-						ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-							v, ok := i.(int)
-							if !ok {
-								errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-								return warnings, errors
-							}
-
-							m := 16 * 1000
-							if v > m {
-								errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
-							}
-
-							return warnings, errors
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"warehouse_id": {
+							Type:     schema.TypeString,
+							Computed: true,
 						},
-					},
-					"compute_node_ebs_disk_number": {
-						Description: "Specifies the number of disk. The default value is 2.",
-						Type:        schema.TypeInt,
-						ForceNew:    true,
-						Optional:    true,
-						ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-							v, ok := i.(int)
-							if !ok {
-								errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-								return warnings, errors
-							}
-
-							if v > 24 {
-								errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
-							}
-
-							return warnings, errors
+						"compute_node_size": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
 						},
-					},
-					"compute_node_is_instance_store": {
-						Type:     schema.TypeBool,
-						Computed: true,
+						"compute_node_count": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							Default:      3,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+						"compute_node_ebs_disk_per_size": {
+							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+								v, ok := i.(int)
+								if !ok {
+									errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+									return warnings, errors
+								}
+
+								m := 16 * 1000
+								if v > m {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
+								}
+
+								return warnings, errors
+							},
+						},
+						"compute_node_ebs_disk_number": {
+							Description: "Specifies the number of disk. The default value is 2.",
+							Type:        schema.TypeInt,
+							ForceNew:    true,
+							Optional:    true,
+							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+								v, ok := i.(int)
+								if !ok {
+									errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+									return warnings, errors
+								}
+
+								if v > 24 {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+								}
+
+								return warnings, errors
+							},
+						},
+						"compute_node_is_instance_store": {
+							Type:     schema.TypeBool,
+							Computed: true,
+						},
 					},
 				},
 			},

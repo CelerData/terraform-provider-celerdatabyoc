@@ -125,7 +125,7 @@ func resourceWarehouse() *schema.Resource {
 				},
 			},
 			"auto_scaling_policies": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeSet,
 				Optional: true,
 				ValidateDiagFunc: func(i interface{}, p cty.Path) diag.Diagnostics {
 					var diags diag.Diagnostics
@@ -138,53 +138,59 @@ func resourceWarehouse() *schema.Resource {
 					}
 					return diags
 				},
-				Elem: map[string]*schema.Schema{
-					"biz_id": {
-						Type:     schema.TypeString,
-						Computed: true,
-					},
-					"min_size": {
-						Type:         schema.TypeInt,
-						Required:     true,
-						ValidateFunc: validation.IntAtLeast(1),
-					},
-					"max_size": {
-						Type:         schema.TypeInt,
-						Required:     true,
-						ValidateFunc: validation.IntAtLeast(1),
-					},
-					"policyItem": {
-						Type:     schema.TypeSet,
-						Required: true,
-						Elem: map[string]*schema.Schema{
-							"type": {
-								Type:         schema.TypeString,
-								Computed:     true,
-								ValidateFunc: validation.StringInSlice([]string{"SCALE_OUT", "SCALE_IN"}, false),
-							},
-							"step_size": {
-								Type:         schema.TypeInt,
-								Required:     true,
-								ValidateFunc: validation.IntAtLeast(1),
-							},
-							"conditions": {
-								Type:     schema.TypeSet,
-								Optional: true,
-								Elem: map[string]*schema.Schema{
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"biz_id": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"min_size": {
+							Type:         schema.TypeInt,
+							Required:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+						"max_size": {
+							Type:         schema.TypeInt,
+							Required:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+						"policyItem": {
+							Type:     schema.TypeSet,
+							Required: true,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
 									"type": {
 										Type:         schema.TypeString,
 										Computed:     true,
-										ValidateFunc: validation.StringInSlice([]string{"AVERAGE_CPU_UTILIZATION"}, false),
+										ValidateFunc: validation.StringInSlice([]string{"SCALE_OUT", "SCALE_IN"}, false),
 									},
-									"duration_seconds": {
+									"step_size": {
 										Type:         schema.TypeInt,
 										Required:     true,
-										ValidateFunc: validation.IntAtLeast(300),
+										ValidateFunc: validation.IntAtLeast(1),
 									},
-									"value": {
-										Type:         schema.TypeFloat,
-										Required:     true,
-										ValidateFunc: validation.FloatAtLeast(0.00),
+									"conditions": {
+										Type:     schema.TypeSet,
+										Optional: true,
+										Elem: &schema.Resource{
+											Schema: map[string]*schema.Schema{
+												"type": {
+													Type:         schema.TypeString,
+													Computed:     true,
+													ValidateFunc: validation.StringInSlice([]string{"AVERAGE_CPU_UTILIZATION"}, false),
+												},
+												"duration_seconds": {
+													Type:         schema.TypeInt,
+													Required:     true,
+													ValidateFunc: validation.IntAtLeast(300),
+												},
+												"value": {
+													Type:         schema.TypeFloat,
+													Required:     true,
+													ValidateFunc: validation.FloatAtLeast(0.00),
+												},
+											},
+										},
 									},
 								},
 							},
