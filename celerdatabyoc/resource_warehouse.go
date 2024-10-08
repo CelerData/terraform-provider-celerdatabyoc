@@ -161,7 +161,7 @@ func resourceWarehouse() *schema.Resource {
 								Schema: map[string]*schema.Schema{
 									"type": {
 										Type:         schema.TypeString,
-										Computed:     true,
+										Required:     true,
 										ValidateFunc: validation.StringInSlice([]string{"SCALE_OUT", "SCALE_IN"}, false),
 									},
 									"step_size": {
@@ -176,7 +176,7 @@ func resourceWarehouse() *schema.Resource {
 											Schema: map[string]*schema.Schema{
 												"type": {
 													Type:         schema.TypeString,
-													Computed:     true,
+													Required:     true,
 													ValidateFunc: validation.StringInSlice([]string{"AVERAGE_CPU_UTILIZATION"}, false),
 												},
 												"duration_seconds": {
