@@ -558,7 +558,7 @@ type WarehouseAutoScalingConfig struct {
 	BizId      string                        `json:"biz_id" mapstructure:"biz_id"`
 	MinSize    int32                         `json:"min_size" mapstructure:"min_size"`
 	MaxSize    int32                         `json:"max_size" mapstructure:"max_size"`
-	PolicyItem []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
+	PolicyItem []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policy_item"`
 }
 
 type GetWarehouseAutoScalingConfigResp struct {

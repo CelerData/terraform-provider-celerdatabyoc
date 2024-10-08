@@ -154,7 +154,7 @@ func resourceWarehouse() *schema.Resource {
 							Required:     true,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
-						"policyItem": {
+						"policy_item": {
 							Type:     schema.TypeSet,
 							Required: true,
 							Elem: &schema.Resource{
