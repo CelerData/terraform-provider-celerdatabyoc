@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"log"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
 )
@@ -53,8 +54,7 @@ type IClusterAPI interface {
 	GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error)
 	UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error
 	GetWarehouseAutoScalingConfig(ctx context.Context, req *GetWarehouseAutoScalingConfigReq) (*GetWarehouseAutoScalingConfigResp, error)
-	AddWarehouseAutoScalingConfig(ctx context.Context, req *AddWarehouseAutoScalingConfigReq) (*AddWarehouseAutoScalingConfigResp, error)
-	UpdateWarehouseAutoScalingConfig(ctx context.Context, req *UpdateWarehouseAutoScalingConfigReq) error
+	SaveWarehouseAutoScalingConfig(ctx context.Context, req *SaveWarehouseAutoScalingConfigReq) (*SaveWarehouseAutoScalingConfigResp, error)
 	DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error
 }
 
@@ -71,12 +71,10 @@ func (c *clusterAPI) DeleteWarehouseAutoScalingConfig(ctx context.Context, req *
 	return c.cli.Delete(ctx, fmt.Sprintf("/api/%s/warehouses/%s/auto-scaling-policy", c.apiVersion, req.WarehouseId), nil, nil)
 }
 
-func (c *clusterAPI) UpdateWarehouseAutoScalingConfig(ctx context.Context, req *UpdateWarehouseAutoScalingConfigReq) error {
-	return c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/auto-scaling-policy", c.apiVersion, req.WarehouseId), req, nil)
-}
+func (c *clusterAPI) SaveWarehouseAutoScalingConfig(ctx context.Context, req *SaveWarehouseAutoScalingConfigReq) (*SaveWarehouseAutoScalingConfigResp, error) {
 
-func (c *clusterAPI) AddWarehouseAutoScalingConfig(ctx context.Context, req *AddWarehouseAutoScalingConfigReq) (*AddWarehouseAutoScalingConfigResp, error) {
-	resp := &AddWarehouseAutoScalingConfigResp{}
+	log.Printf("[DEBUG] Save warehouse auto scaling config, req:%+v", req)
+	resp := &SaveWarehouseAutoScalingConfigResp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/auto-scaling-policy", c.apiVersion, req.WarehouseId), req, resp)
 	if err != nil {
 		return nil, err
@@ -85,6 +83,8 @@ func (c *clusterAPI) AddWarehouseAutoScalingConfig(ctx context.Context, req *Add
 }
 
 func (c *clusterAPI) GetWarehouseAutoScalingConfig(ctx context.Context, req *GetWarehouseAutoScalingConfigReq) (*GetWarehouseAutoScalingConfigResp, error) {
+
+	log.Printf("[DEBUG] Query warehouse auto scaling config, warehouseId:%s", req.WarehouseId)
 	resp := &GetWarehouseAutoScalingConfigResp{}
 	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/warehouses/%s/auto-scaling-policy", c.apiVersion, req.WarehouseId), nil, resp)
 	if err != nil {

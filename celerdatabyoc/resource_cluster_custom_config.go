@@ -181,9 +181,9 @@ func resourceClusterCustomConfigDelete(ctx context.Context, d *schema.ResourceDa
 	log.Printf("[DEBUG] remove cluster custom config, req:%+v", req)
 	var err error
 	resp, err := clusterAPI.CleanCustomConfig(ctx, &cluster.CleanCustomConfigReq{
-		ClusterID:  clusterID,
+		ClusterID:   clusterID,
 		WarehouseID: warehouseID,
-		ConfigType: configType,
+		ConfigType:  configType,
 	})
 
 	if err != nil {

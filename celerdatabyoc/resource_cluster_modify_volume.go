@@ -29,7 +29,7 @@ func resourceClusterModifyVolume() *schema.Resource {
 				Type:         schema.TypeString,
 				Required:     true,
 				ForceNew:     true,
-				ValidateFunc: validation.StringInSlice(cluster.SupportedClusterNodeType, false),
+				ValidateFunc: validation.StringInSlice(cluster.ClusterNodeType, false),
 			},
 			"vol_cate": {
 				Type:         schema.TypeString,

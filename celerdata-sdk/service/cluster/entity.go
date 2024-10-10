@@ -6,10 +6,14 @@ type ClusterType string
 type DomainAllocateState int32
 type CustomConfigType int
 type ClusterInfraActionState string
+type WearhouseScalingType int32
+type WearhouseScalingConditionType int32
 
 var (
-	SupportedConfigType      = []string{"FE", "BE", "RANGER"}
-	SupportedClusterNodeType = []string{"FE", "BE", "COORDINATOR"}
+	SupportedConfigType                     = []string{"FE", "BE", "RANGER"}
+	ClusterNodeType                         = []string{"FE", "BE", "COORDINATOR"}
+	WarehouseAutoScalingPolicyType          = []string{"SCALE_OUT", "SCALE_IN"}
+	WarehouseAutoScalingPolicyConditionType = []string{"AVERAGE_CPU_UTILIZATION"}
 )
 
 const (
@@ -48,6 +52,11 @@ const (
 	CustomConfigTypeFe          CustomConfigType = 4
 
 	RANGER_CONFIG_KEY = "s3_path"
+
+	WearhouseScalingType_SCALE_IN  WearhouseScalingType = 1
+	WearhouseScalingType_SCALE_OUT WearhouseScalingType = 2
+
+	WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION WearhouseScalingConditionType = 1
 )
 
 type Kv struct {
@@ -142,8 +151,9 @@ type DeployReq struct {
 }
 
 type DeployResp struct {
-	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
-	ActionID  string `json:"action_id" mapstructure:"action_id"`
+	ClusterID          string `json:"cluster_id" mapstructure:"cluster_id"`
+	ActionID           string `json:"action_id" mapstructure:"action_id"`
+	DefaultWarehouseId string `json:"default_warehouse_id" mapstructure:"default_warehouse_id"`
 }
 
 type Module struct {
@@ -543,43 +553,39 @@ type GetWarehouseAutoScalingConfigReq struct {
 }
 
 type WearhouseScalingCondition struct {
-	Type            string `json:"type" mapstructure:"type"`
+	Type            int32  `json:"type" mapstructure:"type"`
 	DurationSeconds int64  `json:"duration_seconds" mapstructure:"duration_seconds"`
 	Value           string `json:"value" mapstructure:"value"`
 }
 
 type WearhouseScalingPolicyItem struct {
-	Type       string                       `json:"type" mapstructure:"type"`
+	Type       int32                        `json:"type" mapstructure:"type"`
 	StepSize   int32                        `json:"step_size" mapstructure:"step_size"`
 	Conditions []*WearhouseScalingCondition `json:"conditions" mapstructure:"conditions"`
 }
 
 type WarehouseAutoScalingConfig struct {
-	BizId      string                        `json:"biz_id" mapstructure:"biz_id"`
 	MinSize    int32                         `json:"min_size" mapstructure:"min_size"`
 	MaxSize    int32                         `json:"max_size" mapstructure:"max_size"`
-	PolicyItem []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policy_item"`
+	PolicyItem []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
+	State      bool                          `json:"state" mapstructure:"state"`
 }
 
 type GetWarehouseAutoScalingConfigResp struct {
 	Policy *WarehouseAutoScalingConfig `json:"policy" mapstructure:"policy"`
 }
 
-type AddWarehouseAutoScalingConfigReq struct {
+type SaveWarehouseAutoScalingConfigReq struct {
 	ClusterId   string                        `json:"cluster_id" mapstructure:"cluster_id"`
 	WarehouseId string                        `json:"warehouse_id" mapstructure:"warehouse_id"`
 	MinSize     int32                         `json:"min_size" mapstructure:"min_size"`
 	MaxSize     int32                         `json:"max_size" mapstructure:"max_size"`
 	State       bool                          `json:"state" mapstructure:"state"`
-	PolicyItem  []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
+	PolicyItem  []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policy_item"`
 }
 
-type AddWarehouseAutoScalingConfigResp struct {
+type SaveWarehouseAutoScalingConfigResp struct {
 	BizId string `json:"biz_id" mapstructure:"biz_id"`
-}
-
-type UpdateWarehouseAutoScalingConfigReq struct {
-	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
 }
 
 type DeleteWarehouseAutoScalingConfigReq struct {
