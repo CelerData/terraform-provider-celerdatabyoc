@@ -164,7 +164,6 @@ type Module struct {
 	VmVolSizeGB     int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
 	VmVolNum        int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
-	VmCate          string `json:"vm_cate" mapstructure:"vm_cate"`
 }
 
 type Warehouse struct {
@@ -576,12 +575,10 @@ type GetWarehouseAutoScalingConfigResp struct {
 }
 
 type SaveWarehouseAutoScalingConfigReq struct {
-	ClusterId   string                        `json:"cluster_id" mapstructure:"cluster_id"`
-	WarehouseId string                        `json:"warehouse_id" mapstructure:"warehouse_id"`
-	MinSize     int32                         `json:"min_size" mapstructure:"min_size"`
-	MaxSize     int32                         `json:"max_size" mapstructure:"max_size"`
-	State       bool                          `json:"state" mapstructure:"state"`
-	PolicyItem  []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policy_item"`
+	WarehouseAutoScalingConfig
+	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	State       bool   `json:"state" mapstructure:"state"`
 }
 
 type SaveWarehouseAutoScalingConfigResp struct {

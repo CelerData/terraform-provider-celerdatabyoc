@@ -67,13 +67,17 @@ func resourceElasticClusterV2() *schema.Resource {
 				Default:      1,
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
-			"builtin_warehouse": {
+			"warehouse": {
 				Type:     schema.TypeSet,
 				Required: true,
 				MinItems: 1,
-				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
+						"name": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
 						"compute_node_size": {
 							Type:         schema.TypeString,
 							Required:     true,
@@ -107,7 +111,6 @@ func resourceElasticClusterV2() *schema.Resource {
 						"compute_node_ebs_disk_number": {
 							Description: "Specifies the number of disk. The default value is 2.",
 							Type:        schema.TypeInt,
-							ForceNew:    true,
 							Optional:    true,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
@@ -124,97 +127,15 @@ func resourceElasticClusterV2() *schema.Resource {
 							},
 						},
 						"auto_scaling_policy": {
-							Type:     schema.TypeList,
+							Type:     schema.TypeString,
 							Optional: true,
-							MaxItems: 1,
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"min_size": {
-										Type:         schema.TypeInt,
-										Required:     true,
-										ValidateFunc: validation.IntAtLeast(1),
-									},
-									"max_size": {
-										Type:         schema.TypeInt,
-										Required:     true,
-										ValidateFunc: validation.IntAtLeast(1),
-									},
-									"policy_items": {
-										Type:     schema.TypeSet,
-										Required: true,
-										MinItems: 2,
-										MaxItems: 2,
-										Set: func(v interface{}) int {
-											m := v.(map[string]interface{})
-											return schema.HashString(m["type"].(string))
-										},
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
-												"type": {
-													Type:         schema.TypeString,
-													Required:     true,
-													ValidateFunc: validation.StringInSlice(cluster.WarehouseAutoScalingPolicyType, false),
-												},
-												"step_size": {
-													Type:         schema.TypeInt,
-													Required:     true,
-													ValidateFunc: validation.IntAtLeast(1),
-												},
-												"conditions": {
-													Type:     schema.TypeSet,
-													Optional: true,
-													MinItems: 1,
-													MaxItems: 1,
-													Set: func(v interface{}) int {
-														m := v.(map[string]interface{})
-														return schema.HashString(m["type"].(string))
-													},
-													Elem: &schema.Resource{
-														Schema: map[string]*schema.Schema{
-															"type": {
-																Type:         schema.TypeString,
-																Required:     true,
-																ValidateFunc: validation.StringInSlice(cluster.WarehouseAutoScalingPolicyConditionType, false),
-															},
-															"duration_seconds": {
-																Type:         schema.TypeInt,
-																Required:     true,
-																ValidateFunc: validation.IntAtLeast(300),
-															},
-															"value": {
-																Type:     schema.TypeFloat,
-																Required: true,
-																ValidateFunc: func(i interface{}, k string) (s []string, es []error) {
-																	v, ok := i.(float64)
-																	if !ok {
-																		es = append(es, fmt.Errorf("expected type of %s to be float", k))
-																		return
-																	}
-
-																	if v < float64(0) {
-																		es = append(es, fmt.Errorf("expected %s to be at least (%f), got %f", k, float64(0), v))
-																		return
-																	}
-
-																	if v > float64(100) {
-																		es = append(es, fmt.Errorf("expected %s to be at most (%f), got %f", k, float64(100), v))
-																		return
-																	}
-																	return
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
+							ValidateFunc: func(i interface{}, s string) ([]string, []error) {
+								err := ValidateAutoScalingPolicyStr(i.(string))
+								if err != nil {
+									return nil, []error{err}
+								}
+								return nil, nil
 							},
-						},
-						"compute_node_is_instance_store": {
-							Type:     schema.TypeBool,
-							Computed: true,
 						},
 					},
 				},
@@ -285,6 +206,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				Type:     schema.TypeInt,
 				Optional: true,
 				Default:  9030,
+				ForceNew: true,
 				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 					v, ok := i.(int)
 					if !ok {
@@ -415,20 +337,34 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		InstanceType:  d.Get("coordinator_node_size").(string),
 	})
 
-	whInfos := d.Get("builtin_warehouse").(*schema.Set).List()
+	whInfos := d.Get("warehouse").(*schema.Set).List()
 	if len(whInfos) > 1 {
 		return diag.FromErr(fmt.Errorf("a maximum of one built-in warehouse is allowed to be created"))
 	}
 
-	whInfo := whInfos[0].(map[string]interface{})
+	var defaultWhMap map[string]interface{}
+	normalWhMaps := make([]map[string]interface{}, 0)
+	for _, wh := range whInfos {
+		whMap := wh.(map[string]interface{})
+		if whMap["name"] == "default_warehouse" {
+			defaultWhMap = whMap
+		} else {
+			normalWhMaps = append(normalWhMaps, whMap)
+		}
+	}
+
+	if defaultWhMap == nil {
+		return diag.Errorf("`default_warehouse` is required")
+	}
+
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
 		Type:         cluster.ClusterModuleTypeWarehouse,
-		Name:         "default_warehouse",
-		Num:          uint32(whInfo["compute_node_count"].(int)),
-		InstanceType: whInfo["compute_node_size"].(string),
+		Name:         defaultWhMap["name"].(string),
+		Num:          uint32(defaultWhMap["compute_node_count"].(int)),
+		InstanceType: defaultWhMap["compute_node_size"].(string),
 		DiskInfo: &cluster.DiskInfo{
-			Number:  uint32(whInfo["compute_node_ebs_disk_number"].(int)),
-			PerSize: uint64(whInfo["compute_node_ebs_disk_per_size"].(int)),
+			Number:  uint32(defaultWhMap["compute_node_ebs_disk_number"].(int)),
+			PerSize: uint64(defaultWhMap["compute_node_ebs_disk_per_size"].(int)),
 		},
 	})
 
@@ -507,14 +443,28 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if v, ok := whInfo["auto_scaling_policy"]; ok {
-		scalingPolicyMap := v.(*schema.Set).List()[0].(map[string]interface{})
-		scalingPolicyReq := ToAutoScalingConfigStruct(clusterId, defaultWarehouseId, scalingPolicyMap)
-		_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, scalingPolicyReq)
-		if err != nil {
-			msg := fmt.Sprintf("Add warehouse auto-scaling configuration failed, errMsg:%s", err.Error())
-			log.Printf("[ERROR] %s", msg)
-			return diag.FromErr(fmt.Errorf("%s", msg))
+	for _, v := range whInfos {
+		whMap := v.(map[string]interface{})
+		if v, ok := whMap["auto_scaling_policy"]; ok {
+			var autoScalingConfig *cluster.WarehouseAutoScalingConfig
+			json.Unmarshal([]byte(v.(string)), autoScalingConfig)
+			req := &cluster.SaveWarehouseAutoScalingConfigReq{
+				ClusterId:                  clusterId,
+				WarehouseId:                defaultWarehouseId,
+				WarehouseAutoScalingConfig: *autoScalingConfig,
+				State:                      true,
+			}
+			_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, req)
+			if err != nil {
+				msg := fmt.Sprintf("Add warehouse auto-scaling configuration failed, errMsg:%s", err.Error())
+				log.Printf("[ERROR] %s", msg)
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  err.Error(),
+					},
+				}
+			}
 		}
 	}
 
@@ -597,48 +547,45 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
 
-	dwMapping := make(map[string]interface{}, 0)
+	dwObj := make([]map[string]interface{}, 0)
 	for _, v := range resp.Cluster.Warehouses {
+		dwMapping := make(map[string]interface{}, 0)
+		warehouseId := v.Id
 		if v.IsDefaultWarehouse {
-			warehouseId := v.Id
 			d.Set("default_warehouse_id", warehouseId)
-			dwMapping["compute_node_size"] = v.Module.VmCate
-			dwMapping["compute_node_count"] = v.Module.Num
-			dwMapping["compute_node_is_instance_store"] = v.Module.IsInstanceStore
-			if !v.Module.IsInstanceStore {
-				dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
-				dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
-			}
+		}
+		dwMapping["name"] = v.Name
+		dwMapping["compute_node_size"] = v.Module.InstanceType
+		dwMapping["compute_node_count"] = v.Module.Num
+		if !v.Module.IsInstanceStore {
+			dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
+			dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
+		}
 
-			autoScalingConfigResp, err := clusterAPI.GetWarehouseAutoScalingConfig(ctx, &cluster.GetWarehouseAutoScalingConfigReq{
-				WarehouseId: warehouseId,
-			})
-			if err != nil {
-				log.Printf("[ERROR] Query warehouse auto scaling config failed, warehouseId:%s", warehouseId)
-				return diag.Diagnostics{
-					diag.Diagnostic{
-						Severity: diag.Warning,
-						Summary:  fmt.Sprintf("Failed to get warehouse auto scaling config, warehouseId:[%s] ", warehouseId),
-						Detail:   err.Error(),
-					},
-				}
-			}
-
-			policy := autoScalingConfigResp.Policy
-			autoScalingItemMap := FromAutoScalingConfigStruct(policy)
-			if autoScalingItemMap != nil {
-				autoScalingMap := make([]map[string]interface{}, 0)
-				autoScalingMap = append(autoScalingMap, autoScalingItemMap)
-				dwMapping["auto_scaling_policy"] = autoScalingMap
+		autoScalingConfigResp, err := clusterAPI.GetWarehouseAutoScalingConfig(ctx, &cluster.GetWarehouseAutoScalingConfigReq{
+			WarehouseId: warehouseId,
+		})
+		if err != nil {
+			log.Printf("[ERROR] Query warehouse auto scaling config failed, warehouseId:%s", warehouseId)
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("Failed to get warehouse auto scaling config, warehouseId:[%s] ", warehouseId),
+					Detail:   err.Error(),
+				},
 			}
 		}
+
+		policy := autoScalingConfigResp.Policy
+		if policy != nil && policy.State {
+			bytes, _ := json.Marshal(policy)
+			dwMapping["auto_scaling_policy"] = string(bytes)
+		}
+		dwObj = append(dwObj, dwMapping)
 	}
+	d.Set("warehouse", dwObj)
 
-	dwObj := make([]map[string]interface{}, 0)
-	dwObj = append(dwObj, dwMapping)
-	d.Set("builtin_warehouse", dwObj)
-
-	log.Printf("[DEBUG] get cluster, builtin_warehouse:%+v", dwObj)
+	log.Printf("[DEBUG] get cluster, warehouse:%+v", dwObj)
 
 	return diags
 }
@@ -716,8 +663,8 @@ func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
 			d.HasChange("compute_node_size") ||
 			d.HasChange("compute_node_count"))
 
-	if !result && d.HasChange("builtin_warehouse") {
-		o, n := d.GetChange("builtin_warehouse")
+	if !result && d.HasChange("warehouse") {
+		o, n := d.GetChange("warehouse")
 		oldWhInfo := o.(*schema.Set).List()[0].(map[string]interface{})
 		newWhInfo := n.(*schema.Set).List()[0].(map[string]interface{})
 		changed := (newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) || newWhInfo["compute_node_count"].(int) != oldWhInfo["compute_node_count"].(int))
@@ -863,9 +810,9 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if d.HasChange("builtin_warehouse") {
+	if d.HasChange("warehouse") {
 		warehouseId := d.Get("default_warehouse_id").(string)
-		o, n := d.GetChange("builtin_warehouse")
+		o, n := d.GetChange("warehouse")
 		oldWhInfo := o.(*schema.Set).List()[0].(map[string]interface{})
 		newWhInfo := n.(*schema.Set).List()[0].(map[string]interface{})
 		if newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) {
@@ -922,14 +869,22 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 			}
 		}
 
-		if !newWhInfo["compute_node_is_instance_store"].(bool) && (newWhInfo["compute_node_ebs_disk_number"].(int) != oldWhInfo["compute_node_ebs_disk_number"].(int)) {
-			return diag.FromErr(errors.New("modifying the number of ebs disks is not supported"))
-		}
+		/*
+			if !newWhInfo["compute_node_is_instance_store"].(bool) && (newWhInfo["compute_node_ebs_disk_number"].(int) != oldWhInfo["compute_node_ebs_disk_number"].(int)) {
+				return diag.FromErr(errors.New("modifying the number of ebs disks is not supported"))
+			}
+		*/
 
 		if v, ok := newWhInfo["auto_scaling_policy"]; ok {
-			scalingPolicyMap := v.(*schema.Set).List()[0].(map[string]interface{})
-			scalingPolicyReq := ToAutoScalingConfigStruct(clusterId, defaultWarehouseId, scalingPolicyMap)
-			_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, scalingPolicyReq)
+			var autoScalingConfig *cluster.WarehouseAutoScalingConfig
+			json.Unmarshal([]byte(v.(string)), autoScalingConfig)
+			req := &cluster.SaveWarehouseAutoScalingConfigReq{
+				ClusterId:                  clusterId,
+				WarehouseId:                defaultWarehouseId,
+				WarehouseAutoScalingConfig: *autoScalingConfig,
+				State:                      true,
+			}
+			_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, req)
 			if err != nil {
 				msg := fmt.Sprintf("Update warehouse auto-scaling configuration failed, errMsg:%s", err.Error())
 				log.Printf("[ERROR] %s", msg)

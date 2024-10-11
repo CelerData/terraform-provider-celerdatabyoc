@@ -2,12 +2,12 @@ package celerdatabyoc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"regexp"
 	"strconv"
-	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"terraform-provider-celerdatabyoc/common"
@@ -124,92 +124,14 @@ func resourceWarehouse() *schema.Resource {
 				},
 			},
 			"auto_scaling_policy": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeString,
 				Optional: true,
-				MaxItems: 1,
-				Elem: &schema.Resource{
-					Schema: map[string]*schema.Schema{
-						"min_size": {
-							Type:         schema.TypeInt,
-							Required:     true,
-							ValidateFunc: validation.IntAtLeast(1),
-						},
-						"max_size": {
-							Type:         schema.TypeInt,
-							Required:     true,
-							ValidateFunc: validation.IntAtLeast(1),
-						},
-						"policy_items": {
-							Type:     schema.TypeSet,
-							Required: true,
-							MinItems: 2,
-							MaxItems: 2,
-							Set: func(v interface{}) int {
-								m := v.(map[string]interface{})
-								return schema.HashString(m["type"].(string))
-							},
-							Elem: &schema.Resource{
-								Schema: map[string]*schema.Schema{
-									"type": {
-										Type:         schema.TypeString,
-										Required:     true,
-										ValidateFunc: validation.StringInSlice(cluster.WarehouseAutoScalingPolicyType, false),
-									},
-									"step_size": {
-										Type:         schema.TypeInt,
-										Required:     true,
-										ValidateFunc: validation.IntAtLeast(1),
-									},
-									"conditions": {
-										Type:     schema.TypeSet,
-										Optional: true,
-										MinItems: 1,
-										MaxItems: 1,
-										Set: func(v interface{}) int {
-											m := v.(map[string]interface{})
-											return schema.HashString(m["type"].(string))
-										},
-										Elem: &schema.Resource{
-											Schema: map[string]*schema.Schema{
-												"type": {
-													Type:         schema.TypeString,
-													Required:     true,
-													ValidateFunc: validation.StringInSlice(cluster.WarehouseAutoScalingPolicyConditionType, false),
-												},
-												"duration_seconds": {
-													Type:         schema.TypeInt,
-													Required:     true,
-													ValidateFunc: validation.IntAtLeast(300),
-												},
-												"value": {
-													Type:     schema.TypeFloat,
-													Required: true,
-													ValidateFunc: func(i interface{}, k string) (s []string, es []error) {
-														v, ok := i.(float64)
-														if !ok {
-															es = append(es, fmt.Errorf("expected type of %s to be float", k))
-															return
-														}
-
-														if v < float64(0) {
-															es = append(es, fmt.Errorf("expected %s to be at least (%f), got %f", k, float64(0), v))
-															return
-														}
-
-														if v > float64(100) {
-															es = append(es, fmt.Errorf("expected %s to be at most (%f), got %f", k, float64(100), v))
-															return
-														}
-														return
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
+				ValidateFunc: func(i interface{}, s string) ([]string, []error) {
+					err := ValidateAutoScalingPolicyStr(i.(string))
+					if err != nil {
+						return nil, []error{err}
+					}
+					return nil, nil
 				},
 			},
 			"expected_state": {
@@ -291,11 +213,9 @@ func resourceWarehouseRead(ctx context.Context, d *schema.ResourceData, m interf
 	}
 
 	policy := autoScalingConfigResp.Policy
-	autoScalingItemMap := FromAutoScalingConfigStruct(policy)
-	if autoScalingItemMap != nil {
-		autoScalingMap := make([]map[string]interface{}, 0)
-		autoScalingMap = append(autoScalingMap, autoScalingItemMap)
-		d.Set("auto_scaling_policy", autoScalingMap)
+	if policy != nil {
+		bytes, _ := json.Marshal(policy)
+		d.Set("auto_scaling_policy", string(bytes))
 	}
 
 	warehouseInfo := resp.Info
@@ -373,9 +293,15 @@ func resourceWarehouseCreate(ctx context.Context, d *schema.ResourceData, m inte
 	}
 
 	if v, ok := d.GetOk("auto_scaling_policy"); ok {
-		scalingPolicyMap := v.(*schema.Set).List()[0].(map[string]interface{})
-		scalingPolicyReq := ToAutoScalingConfigStruct(clusterId, warehouseId, scalingPolicyMap)
-		_, err = clusterAPI.SaveWarehouseAutoScalingConfig(ctx, scalingPolicyReq)
+		var autoScalingConfig cluster.WarehouseAutoScalingConfig
+		json.Unmarshal([]byte(v.(string)), autoScalingConfig)
+		req := &cluster.SaveWarehouseAutoScalingConfigReq{
+			ClusterId:                  clusterId,
+			WarehouseId:                warehouseId,
+			WarehouseAutoScalingConfig: autoScalingConfig,
+			State:                      true,
+		}
+		_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, req)
 		if err != nil {
 			msg := fmt.Sprintf("Add warehouse auto-scaling configuration failed, errMsg:%s", err.Error())
 			log.Printf("[ERROR] %s", msg)
@@ -575,9 +501,15 @@ func resourceWarehouseUpdate(ctx context.Context, d *schema.ResourceData, m inte
 
 	if d.HasChange("auto_scaling_policy") {
 		if v, ok := d.GetOk("auto_scaling_policy"); ok {
-			scalingPolicyMap := v.(*schema.Set).List()[0].(map[string]interface{})
-			scalingPolicyReq := ToAutoScalingConfigStruct(clusterId, warehouseId, scalingPolicyMap)
-			_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, scalingPolicyReq)
+			var autoScalingConfig *cluster.WarehouseAutoScalingConfig
+			json.Unmarshal([]byte(v.(string)), autoScalingConfig)
+			req := &cluster.SaveWarehouseAutoScalingConfigReq{
+				ClusterId:                  clusterId,
+				WarehouseId:                warehouseId,
+				WarehouseAutoScalingConfig: *autoScalingConfig,
+				State:                      true,
+			}
+			_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, req)
 			if err != nil {
 				msg := fmt.Sprintf("Update warehouse auto-scaling configuration failed, errMsg:%s", err.Error())
 				log.Printf("[ERROR] %s", msg)
@@ -745,45 +677,6 @@ func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 	return diags
 }
 
-func ToAutoScalingConfigStruct(clusterId, warehouseId string, scalingPolicyMap map[string]interface{}) *cluster.SaveWarehouseAutoScalingConfigReq {
-
-	policyItems := make([]*cluster.WearhouseScalingPolicyItem, 0)
-	policyItemsArr := scalingPolicyMap["policy_items"].(*schema.Set).List()
-	for _, v := range policyItemsArr {
-		policyItemMap := v.(map[string]interface{})
-		policyTypeStr := policyItemMap["type"].(string)
-		stepSize := int32(policyItemMap["step_size"].(int))
-
-		conditons := make([]*cluster.WearhouseScalingCondition, 0)
-		policyConditionMap := scalingPolicyMap["conditions"].(*schema.Set).List()[0].(map[string]interface{})
-		conditons = append(conditons, &cluster.WearhouseScalingCondition{
-			Type:            int32(cluster.WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION),
-			DurationSeconds: int64(policyConditionMap["duration_seconds"].(int)),
-			Value:           policyConditionMap["value"].(string),
-		})
-
-		policyType := cluster.WearhouseScalingType_SCALE_OUT
-		if strings.EqualFold(policyTypeStr, "SCALE_IN") {
-			policyType = cluster.WearhouseScalingType_SCALE_IN
-		}
-
-		policyItems = append(policyItems, &cluster.WearhouseScalingPolicyItem{
-			Type:       int32(policyType),
-			StepSize:   stepSize,
-			Conditions: conditons,
-		})
-	}
-
-	return &cluster.SaveWarehouseAutoScalingConfigReq{
-		ClusterId:   clusterId,
-		WarehouseId: warehouseId,
-		MinSize:     int32(scalingPolicyMap["min_size"].(int)),
-		MaxSize:     int32(scalingPolicyMap["max_size"].(int)),
-		PolicyItem:  policyItems,
-		State:       true,
-	}
-}
-
 func FromAutoScalingConfigStruct(scalingPolicy *cluster.WarehouseAutoScalingConfig) map[string]interface{} {
 
 	if scalingPolicy == nil || !scalingPolicy.State {
@@ -812,15 +705,15 @@ func FromAutoScalingConfigStruct(scalingPolicy *cluster.WarehouseAutoScalingConf
 			policyType = "SCALE_IN"
 		}
 		policyItemsMap = append(policyItemsMap, map[string]interface{}{
-			"type":       policyType,
-			"step_size":  v.StepSize,
-			"conditions": conditionMap,
+			"type":      policyType,
+			"step_size": v.StepSize,
+			"condition": conditionMap,
 		})
 	}
 
 	return map[string]interface{}{
-		"min_size":     scalingPolicy.MinSize,
-		"max_size":     scalingPolicy.MaxSize,
-		"policy_items": policyItemsMap,
+		"min_size":    scalingPolicy.MinSize,
+		"max_size":    scalingPolicy.MaxSize,
+		"policy_item": policyItemsMap,
 	}
 }
