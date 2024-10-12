@@ -1309,7 +1309,7 @@ func DeleteWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 				string(cluster.ClusterStateUpdating),
 			},
 			targetStates: []string{
-				string(cluster.ClusterStateRunning),
+				string(cluster.ClusterStateReleased),
 				string(cluster.ClusterStateAbnormal),
 			},
 		})
