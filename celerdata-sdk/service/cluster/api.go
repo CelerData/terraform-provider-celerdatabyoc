@@ -108,7 +108,7 @@ func (c *clusterAPI) GetWarehouseIdleConfig(ctx context.Context, req *GetWarehou
 
 func (c *clusterAPI) ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error) {
 	resp := &ReleaseWarehouseResp{}
-	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s", c.apiVersion, req.WarehouseId), nil, resp)
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/warehouses/%s", c.apiVersion, req.WarehouseId), nil, resp)
 	if err != nil {
 		return nil, err
 	}
