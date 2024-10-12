@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"terraform-provider-celerdatabyoc/common"
@@ -18,6 +19,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	DEFAULT_WAREHOUSE_NAME = "default_warehouse"
 )
 
 // V2 support multi-warehouse
@@ -73,9 +78,18 @@ func resourceElasticClusterV2() *schema.Resource {
 				MinItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
+						"warehouse_id": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
 						"name": {
 							Type:         schema.TypeString,
 							Required:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
+						"description": {
+							Type:         schema.TypeString,
+							Optional:     true,
 							ValidateFunc: validation.StringIsNotEmpty,
 						},
 						"compute_node_size": {
@@ -126,6 +140,27 @@ func resourceElasticClusterV2() *schema.Resource {
 								return warnings, errors
 							},
 						},
+						"idle_suspend_interval": {
+							Type:        schema.TypeInt,
+							Description: "Specifies the amount of time (in minutes) during which a warehouse can stay idle. After the specified time period elapses, the warehouse will be automatically suspended.",
+							Optional:    true,
+							Default:     0,
+							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+								v, ok := i.(int)
+								if !ok {
+									errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+									return warnings, errors
+								}
+
+								if v != 0 {
+									if v < 15 || v > 999999 {
+										errors = append(errors, fmt.Errorf("the %s range should be [15,999999]", k))
+										return warnings, errors
+									}
+								}
+								return warnings, errors
+							},
+						},
 						"auto_scaling_policy": {
 							Type:     schema.TypeString,
 							Optional: true,
@@ -136,6 +171,20 @@ func resourceElasticClusterV2() *schema.Resource {
 								}
 								return nil, nil
 							},
+						},
+						"compute_node_is_instance_store": {
+							Type:     schema.TypeBool,
+							Computed: true,
+						},
+						"state": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"expected_state": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      string(cluster.ClusterStateRunning),
+							ValidateFunc: validation.StringInSlice([]string{string(cluster.ClusterStateSuspended), string(cluster.ClusterStateRunning)}, false),
 						},
 					},
 				},
@@ -282,6 +331,42 @@ func resourceElasticClusterV2() *schema.Resource {
 			Create: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 			Update: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 		},
+		CustomizeDiff: func(ctx context.Context, rd *schema.ResourceDiff, i interface{}) error {
+
+			items := rd.Get("warehouse").(*schema.Set).List()
+			countMap := make(map[string]int, 0)
+
+			hasDefaultWh := false
+			for _, item := range items {
+				m := item.(map[string]interface{})
+				whName := strings.TrimSpace(m["name"].(string))
+				if whName == DEFAULT_WAREHOUSE_NAME {
+					hasDefaultWh = true
+					if v, ok := m["idle_suspend_interval"]; ok {
+						if v.(int) != 0 {
+							return fmt.Errorf("the warehouse with name '%s' does not support the `idle_suspend_interval` attribute", DEFAULT_WAREHOUSE_NAME)
+						}
+					}
+				}
+				if v, ok := countMap[whName]; ok {
+					v++
+					countMap[whName] = v
+				} else {
+					countMap[whName] = 1
+				}
+			}
+
+			if !hasDefaultWh {
+				return fmt.Errorf("warehouse with name '%s' is required", DEFAULT_WAREHOUSE_NAME)
+			}
+
+			for k, v := range countMap {
+				if v > 1 {
+					return fmt.Errorf("only one warehouse with name '%s' is allowed", k)
+				}
+			}
+			return nil
+		},
 	}
 }
 
@@ -338,15 +423,12 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	})
 
 	whInfos := d.Get("warehouse").(*schema.Set).List()
-	if len(whInfos) > 1 {
-		return diag.FromErr(fmt.Errorf("a maximum of one built-in warehouse is allowed to be created"))
-	}
-
 	var defaultWhMap map[string]interface{}
 	normalWhMaps := make([]map[string]interface{}, 0)
 	for _, wh := range whInfos {
 		whMap := wh.(map[string]interface{})
-		if whMap["name"] == "default_warehouse" {
+		whMap["name"] = strings.TrimSpace(whMap["name"].(string))
+		if whMap["name"] == DEFAULT_WAREHOUSE_NAME {
 			defaultWhMap = whMap
 		} else {
 			normalWhMaps = append(normalWhMaps, whMap)
@@ -354,7 +436,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	}
 
 	if defaultWhMap == nil {
-		return diag.Errorf("`default_warehouse` is required")
+		return diag.Errorf("`%s` is required", DEFAULT_WAREHOUSE_NAME)
 	}
 
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
@@ -400,7 +482,11 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		},
 	})
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) change complete: %s", d.Id(), err))
+		diags = append(diags, diag.Diagnostic{
+			Severity: diag.Warning,
+			Summary:  "Operation state not complete",
+			Detail:   fmt.Sprintf("waiting for cluster (%s) change complete failed errMsg: %s", d.Id(), err.Error()),
+		})
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
@@ -426,13 +512,6 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
-		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
-		if errDiag != nil {
-			return errDiag
-		}
-	}
-
 	if d.Get("idle_suspend_interval").(int) > 0 {
 		enable := true
 		clusterId := resp.ClusterID
@@ -443,28 +522,40 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	for _, v := range whInfos {
-		whMap := v.(map[string]interface{})
-		if v, ok := whMap["auto_scaling_policy"]; ok {
-			var autoScalingConfig *cluster.WarehouseAutoScalingConfig
-			json.Unmarshal([]byte(v.(string)), autoScalingConfig)
-			req := &cluster.SaveWarehouseAutoScalingConfigReq{
-				ClusterId:                  clusterId,
-				WarehouseId:                defaultWarehouseId,
-				WarehouseAutoScalingConfig: *autoScalingConfig,
-				State:                      true,
+	policyJson := defaultWhMap["auto_scaling_policy"].(string)
+	if len(policyJson) > 0 {
+		err := setWarehouseAutoScalingPolicy(ctx, clusterAPI, clusterId, defaultWarehouseId, policyJson)
+		if err != nil {
+			msg := fmt.Sprintf("Add warehouse auto-scaling configuration failed, errMsg:%s", err.Error())
+			log.Printf("[ERROR] %s", msg)
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("Config warehouse[%s] auto-scaling configuration failed", DEFAULT_WAREHOUSE_NAME),
+					Detail:   msg,
+				},
 			}
-			_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, req)
-			if err != nil {
-				msg := fmt.Sprintf("Add warehouse auto-scaling configuration failed, errMsg:%s", err.Error())
-				log.Printf("[ERROR] %s", msg)
-				return diag.Diagnostics{
-					diag.Diagnostic{
-						Severity: diag.Warning,
-						Summary:  err.Error(),
-					},
-				}
+		}
+	}
+
+	// create normal warehouses
+	for _, v := range normalWhMaps {
+		errDiag := createWarehouse(ctx, clusterAPI, clusterId, v)
+		if errDiag != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Create warehouse",
+					Detail:   errDiag[0].Detail,
+				},
 			}
+		}
+	}
+
+	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
+		warningDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
+		if warningDiag != nil {
+			return warningDiag
 		}
 	}
 
@@ -554,9 +645,12 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		if v.IsDefaultWarehouse {
 			d.Set("default_warehouse_id", warehouseId)
 		}
+		dwMapping["warehouse_id"] = v.Id
 		dwMapping["name"] = v.Name
 		dwMapping["compute_node_size"] = v.Module.InstanceType
 		dwMapping["compute_node_count"] = v.Module.Num
+		dwMapping["state"] = v.State
+		dwMapping["expected_state"] = v.State
 		if !v.Module.IsInstanceStore {
 			dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
 			dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
@@ -658,17 +752,18 @@ func resourceElasticClusterV2Delete(ctx context.Context, d *schema.ResourceData,
 
 func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
 	result := !d.IsNewResource() && d.Get("free_tier").(bool) &&
-		(d.HasChange("coordinator_node_size") ||
-			d.HasChange("coordinator_node_count") ||
-			d.HasChange("compute_node_size") ||
-			d.HasChange("compute_node_count"))
+		(d.HasChange("coordinator_node_size") || d.HasChange("coordinator_node_count"))
 
 	if !result && d.HasChange("warehouse") {
 		o, n := d.GetChange("warehouse")
-		oldWhInfo := o.(*schema.Set).List()[0].(map[string]interface{})
-		newWhInfo := n.(*schema.Set).List()[0].(map[string]interface{})
-		changed := (newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) || newWhInfo["compute_node_count"].(int) != oldWhInfo["compute_node_count"].(int))
-		result = result || changed
+		if len(n.(*schema.Set).List()) > 1 {
+			result = true
+		} else {
+			oldWhInfo := o.(*schema.Set).List()[0].(map[string]interface{})
+			newWhInfo := n.(*schema.Set).List()[0].(map[string]interface{})
+			changed := (newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) || newWhInfo["compute_node_count"].(int) != oldWhInfo["compute_node_count"].(int))
+			result = result || changed
+		}
 	}
 
 	return result
@@ -680,8 +775,6 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 	// Warning or errors can be collected in a slice type
 	clusterId := d.Id()
-	defaultWarehouseId := d.Get("default_warehouse_id").(string)
-
 	clusterAPI := cluster.NewClustersAPI(c)
 	log.Printf("[DEBUG] resourceElasticClusterV2Update cluster id:%s", clusterId)
 	if d.HasChange("query_port") {
@@ -811,76 +904,351 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	}
 
 	if d.HasChange("warehouse") {
-		warehouseId := d.Get("default_warehouse_id").(string)
 		o, n := d.GetChange("warehouse")
-		oldWhInfo := o.(*schema.Set).List()[0].(map[string]interface{})
-		newWhInfo := n.(*schema.Set).List()[0].(map[string]interface{})
-		if newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) {
-			resp, err := clusterAPI.ScaleWarehouseSize(ctx, &cluster.ScaleWarehouseSizeReq{
-				WarehouseId: warehouseId,
-				VmCate:      newWhInfo["compute_node_size"].(string),
-			})
+		old := o.(*schema.Set).List()
+		new := n.(*schema.Set).List()
 
-			if err != nil {
-				return diag.FromErr(fmt.Errorf("built-in warehouse failed to scale size, clusterId:%s warehouseId:%s, errMsg:%s", d.Id(), warehouseId, err))
-			}
+		oldWhMap := make(map[string]map[string]interface{})
+		for _, v := range old {
+			whMap := v.(map[string]interface{})
+			oldWhMap[whMap["name"].(string)] = whMap
+		}
+		newWhMap := make(map[string]map[string]interface{})
+		for _, v := range new {
+			whMap := v.(map[string]interface{})
+			newWhMap[whMap["name"].(string)] = whMap
+		}
 
-			stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-				clusterAPI:    clusterAPI,
-				actionID:      resp.ActionID,
-				clusterID:     clusterId,
-				timeout:       common.DeployOrScaleClusterTimeout,
-				pendingStates: []string{string(cluster.ClusterStateScaling)},
-				targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-			})
-			if err != nil {
-				return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
-			}
-
-			if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-				return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		for _, v := range new {
+			newWh := v.(map[string]interface{})
+			if oldWh, ok := oldWhMap[newWh["name"].(string)]; ok {
+				// modified
+				diags := updateWarehouse(ctx, clusterAPI, clusterId, oldWh, newWh)
+				if diags != nil {
+					return diags
+				}
+			} else {
+				// added
+				diags := createWarehouse(ctx, clusterAPI, clusterId, newWh)
+				if diags != nil {
+					return diags
+				}
 			}
 		}
 
-		if newWhInfo["compute_node_count"].(int) != oldWhInfo["compute_node_count"].(int) {
-			resp, err := clusterAPI.ScaleWarehouseNum(ctx, &cluster.ScaleWarehouseNumReq{
-				WarehouseId: warehouseId,
-				VmNum:       int32(newWhInfo["compute_node_count"].(int)),
-			})
-
-			if err != nil {
-				return diag.FromErr(fmt.Errorf("built-in warehouse failed to scale number, clusterId:%s warehouseId:%s, errMsg:%s", d.Id(), warehouseId, err))
+		for _, v := range old {
+			oldWh := v.(map[string]interface{})
+			if _, ok := newWhMap[oldWh["name"].(string)]; !ok {
+				// removed
+				diags := DeleteWarehouse(ctx, clusterAPI, clusterId, oldWh["warehouse_id"].(string))
+				if diags != nil {
+					return diags
+				}
 			}
+		}
+	}
 
+	if needSuspend(d) {
+		o, n := d.GetChange("expected_cluster_state")
+		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
+	return diags
+}
+
+func setWarehouseAutoScalingPolicy(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, policyJson string) error {
+
+	if len(policyJson) > 0 {
+		autoScalingConfig := &cluster.WarehouseAutoScalingConfig{}
+		json.Unmarshal([]byte(policyJson), autoScalingConfig)
+		req := &cluster.SaveWarehouseAutoScalingConfigReq{
+			ClusterId:                  clusterId,
+			WarehouseId:                warehouseId,
+			WarehouseAutoScalingConfig: *autoScalingConfig,
+			State:                      true,
+		}
+		_, err := clusterAPI.SaveWarehouseAutoScalingConfig(ctx, req)
+		return err
+	}
+	return nil
+}
+
+func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, whParamMap map[string]interface{}) diag.Diagnostics {
+
+	warehouseName := whParamMap["name"].(string)
+	req := &cluster.CreateWarehouseReq{
+		ClusterId:    clusterId,
+		Name:         warehouseName,
+		VmCate:       whParamMap["compute_node_size"].(string),
+		VmNum:        int32(whParamMap["compute_node_count"].(int)),
+		VolumeSizeGB: int64(whParamMap["compute_node_ebs_disk_per_size"].(int)),
+		VolumeNum:    int32(whParamMap["compute_node_ebs_disk_number"].(int)),
+	}
+
+	if v, ok := whParamMap["description"].(string); ok {
+		req.Description = v
+	}
+
+	log.Printf("[DEBUG] Create warehouse, req:%+v", req)
+	resp, err := clusterAPI.CreateWarehouse(ctx, req)
+	if err != nil {
+		log.Printf("[ERROR] Create warehouse failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+	log.Printf("[DEBUG] Create warehouse, resp:%+v", resp)
+
+	warehouseId := resp.WarehouseId
+	infraActionId := resp.ActionID
+	if len(infraActionId) > 0 {
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   resp.ActionID,
+			timeout:    common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{
+				string(cluster.ClusterStateDeploying),
+				string(cluster.ClusterStateScaling),
+				string(cluster.ClusterStateResuming),
+				string(cluster.ClusterStateSuspending),
+				string(cluster.ClusterStateReleasing),
+				string(cluster.ClusterStateUpdating),
+			},
+			targetStates: []string{
+				string(cluster.ClusterStateRunning),
+				string(cluster.ClusterStateAbnormal),
+			},
+		})
+
+		if err != nil {
+			summary := fmt.Sprintf("create warehouse[%s] of the cluster[%s] failed, errMsg:%s", warehouseName, clusterId, err.Error())
+			return diag.FromErr(fmt.Errorf("%s", summary))
+		}
+
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		}
+	}
+
+	if v, ok := whParamMap["auto_scaling_policy"]; ok {
+		policyJson := v.(string)
+		err := setWarehouseAutoScalingPolicy(ctx, clusterAPI, clusterId, warehouseId, policyJson)
+		if err != nil {
+			msg := fmt.Sprintf("Add warehouse auto-scaling configuration failed, errMsg:%s", err.Error())
+			log.Printf("[ERROR] %s", msg)
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("Config warehouse[%s] auto-scaling configuration failed", warehouseName),
+					Detail:   msg,
+				},
+			}
+		}
+	}
+
+	expectedState := whParamMap["expected_state"].(string)
+	if expectedState == string(cluster.ClusterStateSuspended) {
+		summary := fmt.Sprintf("Suspend warehouse[%s] failed", warehouseName)
+		suspendWhResp, err := clusterAPI.SuspendWarehouse(ctx, &cluster.SuspendWarehouseReq{
+			WarehouseId: warehouseId,
+		})
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+		infraActionId := suspendWhResp.ActionID
+		if len(infraActionId) > 0 {
 			stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-				clusterAPI:    clusterAPI,
-				actionID:      resp.ActionID,
-				clusterID:     clusterId,
-				timeout:       common.DeployOrScaleClusterTimeout,
-				pendingStates: []string{string(cluster.ClusterStateScaling)},
-				targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+				clusterAPI: clusterAPI,
+				clusterID:  clusterId,
+				actionID:   resp.ActionID,
+				timeout:    common.DeployOrScaleClusterTimeout,
+				pendingStates: []string{
+					string(cluster.ClusterStateDeploying),
+					string(cluster.ClusterStateScaling),
+					string(cluster.ClusterStateResuming),
+					string(cluster.ClusterStateSuspending),
+					string(cluster.ClusterStateReleasing),
+					string(cluster.ClusterStateUpdating),
+				},
+				targetStates: []string{
+					string(cluster.ClusterStateRunning),
+					string(cluster.ClusterStateAbnormal),
+				},
 			})
+
+			summary := fmt.Sprintf("suspend warehouse[%s] of the cluster[%s] failed", warehouseName, clusterId)
 			if err != nil {
-				return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  summary,
+						Detail:   fmt.Sprintf("%s. errMsg:%s", summary, err.Error()),
+					},
+				}
 			}
 
 			if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-				return diag.FromErr(errors.New(stateResp.AbnormalReason))
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  summary,
+						Detail:   fmt.Sprintf("%s. errMsg:%s", summary, stateResp.AbnormalReason),
+					},
+				}
 			}
 		}
+	}
 
-		/*
-			if !newWhInfo["compute_node_is_instance_store"].(bool) && (newWhInfo["compute_node_ebs_disk_number"].(int) != oldWhInfo["compute_node_ebs_disk_number"].(int)) {
-				return diag.FromErr(errors.New("modifying the number of ebs disks is not supported"))
+	idleSuspendInterval := whParamMap["idle_suspend_interval"].(int)
+	if idleSuspendInterval > 0 {
+		err = clusterAPI.UpdateWarehouseIdleConfig(ctx, &cluster.UpdateWarehouseIdleConfigReq{
+			WarehouseId: warehouseId,
+			IntervalMs:  int64(idleSuspendInterval * 60 * 1000),
+			State:       true,
+		})
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("Config warehouse[%s] idle config failed", warehouseName),
+					Detail:   err.Error(),
+				},
 			}
-		*/
+		}
+	}
+	return nil
+}
 
-		if v, ok := newWhInfo["auto_scaling_policy"]; ok {
-			var autoScalingConfig *cluster.WarehouseAutoScalingConfig
-			json.Unmarshal([]byte(v.(string)), autoScalingConfig)
+func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, oldParamMap, newParamMap map[string]interface{}) diag.Diagnostics {
+
+	warehouseId := oldParamMap["warehouse_id"].(string)
+	warehouseName := newParamMap["name"].(string)
+	expectedState := newParamMap["expected_state"].(string)
+
+	expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
+	computeNodeSizeChanged := oldParamMap["compute_node_size"].(string) != newParamMap["compute_node_size"].(string)
+	computeNodeCountChanged := oldParamMap["compute_node_count"].(int) != newParamMap["compute_node_count"].(int)
+	computeNodeIsInstanceStore := oldParamMap["compute_node_is_instance_store"].(bool)
+	computeNodeEbsDiskNumberChanged := oldParamMap["compute_node_ebs_disk_number"].(int) != newParamMap["compute_node_ebs_disk_number"].(int)
+	idleSuspendIntervalChanged := oldParamMap["idle_suspend_interval"].(int) != newParamMap["idle_suspend_interval"].(int)
+	autoScalingPolicyChanged := oldParamMap["auto_scaling_policy"].(string) != newParamMap["auto_scaling_policy"].(string)
+
+	if expectedStateChanged {
+		if expectedState == string(cluster.ClusterStateRunning) {
+			resp := ResumeWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
+			if resp != nil {
+				return resp
+			}
+		}
+	}
+
+	if computeNodeSizeChanged {
+		vmCate := newParamMap["compute_node_size"].(string)
+		resp, err := clusterAPI.ScaleWarehouseSize(ctx, &cluster.ScaleWarehouseSizeReq{
+			WarehouseId: warehouseId,
+			VmCate:      vmCate,
+		})
+
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("failed to scale warehouse size, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
+		}
+
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI:    clusterAPI,
+			actionID:      resp.ActionID,
+			clusterID:     clusterId,
+			timeout:       common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{string(cluster.ClusterStateScaling)},
+			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err))
+		}
+
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		}
+	}
+
+	if computeNodeCountChanged {
+		vmNum := int32(newParamMap["compute_node_count"].(int))
+		resp, err := clusterAPI.ScaleWarehouseNum(ctx, &cluster.ScaleWarehouseNumReq{
+			WarehouseId: warehouseId,
+			VmNum:       vmNum,
+		})
+
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("failed to scale warehouse number, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
+		}
+
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI:    clusterAPI,
+			actionID:      resp.ActionID,
+			clusterID:     clusterId,
+			timeout:       common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{string(cluster.ClusterStateScaling)},
+			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err))
+		}
+
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		}
+	}
+
+	if !computeNodeIsInstanceStore && computeNodeEbsDiskNumberChanged {
+		return diag.FromErr(errors.New("modifying the number of ebs disks is not supported"))
+	}
+
+	if idleSuspendIntervalChanged {
+		idleSuspendInterval := newParamMap["idle_suspend_interval"].(int)
+		err := clusterAPI.UpdateWarehouseIdleConfig(ctx, &cluster.UpdateWarehouseIdleConfigReq{
+			WarehouseId: warehouseId,
+			IntervalMs:  int64(idleSuspendInterval * 60 * 1000),
+			State:       idleSuspendInterval > 0,
+		})
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Config warehouse idle config failed",
+					Detail:   err.Error(),
+				},
+			}
+		}
+	}
+
+	if expectedStateChanged {
+		if expectedState == string(cluster.ClusterStateSuspended) {
+			resp := SuspendWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
+			if resp != nil {
+				return resp
+			}
+		}
+	}
+
+	if autoScalingPolicyChanged {
+		policyJson := ""
+		if v, ok := newParamMap["auto_scaling_policy"]; ok {
+			policyJson = v.(string)
+		}
+
+		if len(policyJson) > 0 {
+			autoScalingConfig := &cluster.WarehouseAutoScalingConfig{}
+			json.Unmarshal([]byte(policyJson), autoScalingConfig)
 			req := &cluster.SaveWarehouseAutoScalingConfigReq{
 				ClusterId:                  clusterId,
-				WarehouseId:                defaultWarehouseId,
+				WarehouseId:                warehouseId,
 				WarehouseAutoScalingConfig: *autoScalingConfig,
 				State:                      true,
 			}
@@ -906,13 +1274,153 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if needSuspend(d) {
-		o, n := d.GetChange("expected_cluster_state")
-		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
-		if errDiag != nil {
-			return errDiag
-		}
+	return nil
+}
+
+func DeleteWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId string) (diags diag.Diagnostics) {
+
+	resp, err := clusterAPI.ReleaseWarehouse(ctx, &cluster.ReleaseWarehouseReq{
+		WarehouseId: warehouseId,
+	})
+
+	if err != nil {
+		log.Printf("[ERROR] release warehouse failed, err:%+v", err)
+		return diag.FromErr(err)
 	}
 
+	infraActionId := resp.ActionID
+	if len(infraActionId) > 0 {
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   resp.ActionID,
+			timeout:    common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{
+				string(cluster.ClusterStateDeploying),
+				string(cluster.ClusterStateScaling),
+				string(cluster.ClusterStateResuming),
+				string(cluster.ClusterStateSuspending),
+				string(cluster.ClusterStateReleasing),
+				string(cluster.ClusterStateUpdating),
+			},
+			targetStates: []string{
+				string(cluster.ClusterStateRunning),
+				string(cluster.ClusterStateAbnormal),
+			},
+		})
+
+		if err != nil {
+			summary := fmt.Sprintf("release warehouse[%s] of the cluster[%s] failed, errMsg:%s", warehouseId, clusterId, err.Error())
+			return diag.FromErr(fmt.Errorf(summary))
+		}
+
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		}
+	}
+	return diags
+}
+
+func SuspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, warehouseName string) (diags diag.Diagnostics) {
+	suspendWhResp, err := clusterAPI.SuspendWarehouse(ctx, &cluster.SuspendWarehouseReq{
+		WarehouseId: warehouseId,
+	})
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Suspend warehouse failed",
+				Detail:   err.Error(),
+			},
+		}
+	}
+	infraActionId := suspendWhResp.ActionID
+	if len(infraActionId) > 0 {
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   infraActionId,
+			timeout:    common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{
+				string(cluster.ClusterStateDeploying),
+				string(cluster.ClusterStateScaling),
+				string(cluster.ClusterStateResuming),
+				string(cluster.ClusterStateSuspending),
+				string(cluster.ClusterStateReleasing),
+				string(cluster.ClusterStateUpdating),
+			},
+			targetStates: []string{
+				string(cluster.ClusterStateSuspended),
+				string(cluster.ClusterStateAbnormal),
+			},
+		})
+
+		if err != nil {
+			msg := fmt.Sprintf("suspend warehouse[%s] of the cluster[%s] failed, errMsg:%s", warehouseName, clusterId, err.Error())
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Suspend warehouse",
+					Detail:   msg,
+				},
+			}
+		}
+
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Suspend warehouse",
+					Detail:   stateResp.AbnormalReason,
+				},
+			}
+		}
+	}
+	return diags
+}
+
+func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, warehouseName string) (diags diag.Diagnostics) {
+	resumeWhResp, err := clusterAPI.ResumeWarehouse(ctx, &cluster.ResumeWarehouseReq{
+		WarehouseId: warehouseId,
+	})
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Resume warehouse failed",
+				Detail:   err.Error(),
+			},
+		}
+	}
+	infraActionId := resumeWhResp.ActionID
+	if len(infraActionId) > 0 {
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   infraActionId,
+			timeout:    common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{
+				string(cluster.ClusterStateDeploying),
+				string(cluster.ClusterStateScaling),
+				string(cluster.ClusterStateResuming),
+				string(cluster.ClusterStateSuspending),
+				string(cluster.ClusterStateReleasing),
+				string(cluster.ClusterStateUpdating),
+			},
+			targetStates: []string{
+				string(cluster.ClusterStateRunning),
+				string(cluster.ClusterStateAbnormal),
+			},
+		})
+
+		if err != nil {
+			summary := fmt.Sprintf("resume warehouse[%s] of the cluster[%s] failed, errMsg:%s", warehouseName, clusterId, err.Error())
+			return diag.FromErr(fmt.Errorf(summary))
+		}
+
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		}
+	}
 	return diags
 }

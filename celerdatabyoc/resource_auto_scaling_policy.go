@@ -15,9 +15,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-func dataSourceAutoScalingPolicy() *schema.Resource {
+func resourceAutoScalingPolicy() *schema.Resource {
 	resource := &schema.Resource{
 		ReadContext: func(ctx context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
+			autoScalingConfig := ToAutoScalingConfigStruct(rd)
+			bytes, err := json.Marshal(autoScalingConfig)
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("generate auto scaling config json failed, errMsg:%s", err.Error()))
+			}
+			rd.Set("policy_json", string(bytes))
+			return nil
+		},
+		CreateContext: func(ctx context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
 			autoScalingConfig := ToAutoScalingConfigStruct(rd)
 			bytes, err := json.Marshal(autoScalingConfig)
 			if err != nil {
@@ -27,6 +36,10 @@ func dataSourceAutoScalingPolicy() *schema.Resource {
 			md5Str := hex.EncodeToString(hash[:])
 			rd.Set("policy_json", string(bytes))
 			rd.SetId(md5Str)
+			return nil
+		},
+		DeleteContext: func(ctx context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
+			rd.SetId("")
 			return nil
 		},
 		Schema: map[string]*schema.Schema{
@@ -115,11 +128,14 @@ func dataSourceAutoScalingPolicy() *schema.Resource {
 				Computed: true,
 			},
 		},
-	}
-	resource.Schema["max_size"].DiffSuppressFunc = func(k, old, new string, d *schema.ResourceData) bool {
-		min, _ := d.Get("min_size").(int)
-		max, _ := d.Get("max_size").(int)
-		return max > min
+		CustomizeDiff: func(ctx context.Context, rd *schema.ResourceDiff, i interface{}) error {
+			min, _ := rd.Get("min_size").(int)
+			max, _ := rd.Get("max_size").(int)
+			if min > max {
+				return fmt.Errorf("field `max_size` should be greater than or equal `min_size`")
+			}
+			return nil
+		},
 	}
 	return resource
 }
@@ -162,25 +178,25 @@ func ToAutoScalingConfigStruct(d *schema.ResourceData) *cluster.WarehouseAutoSca
 }
 
 func ValidateAutoScalingPolicyStr(jsonStr string) error {
-	var autoScalingPolicy cluster.WarehouseAutoScalingConfig
-	err := json.Unmarshal([]byte(jsonStr), autoScalingPolicy)
+	autoScalingConfig := &cluster.WarehouseAutoScalingConfig{}
+	err := json.Unmarshal([]byte(jsonStr), autoScalingConfig)
 	if err != nil {
 		return fmt.Errorf("policy json is invalid, errMsg:%s", err.Error())
 	}
 
-	if autoScalingPolicy.MinSize < 1 {
-		return fmt.Errorf("expected %s to be at least (%d), got %d", "min_size", 1, autoScalingPolicy.MinSize)
+	if autoScalingConfig.MinSize < 1 {
+		return fmt.Errorf("expected %s to be at least (%d), got %d", "min_size", 1, autoScalingConfig.MinSize)
 	}
 
-	if autoScalingPolicy.MaxSize < autoScalingPolicy.MinSize {
-		return fmt.Errorf("min_size (%d) cannot be larger than max_size (%d)", autoScalingPolicy.MinSize, autoScalingPolicy.MaxSize)
+	if autoScalingConfig.MaxSize < autoScalingConfig.MinSize {
+		return fmt.Errorf("min_size (%d) cannot be larger than max_size (%d)", autoScalingConfig.MinSize, autoScalingConfig.MaxSize)
 	}
 
-	if len(autoScalingPolicy.PolicyItem) == 0 {
+	if len(autoScalingConfig.PolicyItem) == 0 {
 		return fmt.Errorf("policyItem field can`t be empty")
 	}
 
-	for _, item := range autoScalingPolicy.PolicyItem {
+	for _, item := range autoScalingConfig.PolicyItem {
 		if !isInArray([]int32{int32(cluster.WearhouseScalingType_SCALE_IN), int32(cluster.WearhouseScalingType_SCALE_OUT)}, item.Type) {
 			return fmt.Errorf("policyItem.type is invalid, expect:[%s] get %d", "1: SCALE_IN, 2: SCALE_OUT,", item.Type)
 		}

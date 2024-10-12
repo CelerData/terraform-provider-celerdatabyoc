@@ -86,13 +86,12 @@ func Provider() *schema.Provider {
 			"celerdatabyoc_cluster_apply_custom_config":             resourceClusterApplyCustomConfig(),
 			"celerdatabyoc_cluster_modify_volume_detail":            resourceClusterModifyVolume(),
 			"celerdatabyoc_elastic_cluster_v2":                      resourceElasticClusterV2(),
-			"celerdatabyoc_warehouse":                               resourceWarehouse(),
+			"celerdatabyoc_auto_scaling_policy":                     resourceAutoScalingPolicy(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"celerdatabyoc_aws_data_credential_assume_policy": dataAwsDataCredentialAssumeRolePolicy(),
 			"celerdatabyoc_data_cluster_volume_detail":        dataSourceClusterVolumeDetail(),
 			"celerdatabyoc_clusters":                          dataSourceClusters(),
-			"celerdatabyoc_auto_scaling_policy":               dataSourceAutoScalingPolicy(),
 		},
 		ConfigureContextFunc: providerConfigure,
 	}
