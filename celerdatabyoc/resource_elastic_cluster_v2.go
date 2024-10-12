@@ -347,6 +347,11 @@ func resourceElasticClusterV2() *schema.Resource {
 							return fmt.Errorf("the warehouse with name '%s' does not support the `idle_suspend_interval` attribute", DEFAULT_WAREHOUSE_NAME)
 						}
 					}
+					if v, ok := m["expected_state"]; ok {
+						if v.(string) != string(cluster.ClusterStateRunning) {
+							return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
+						}
+					}
 				}
 				if v, ok := countMap[whName]; ok {
 					v++
