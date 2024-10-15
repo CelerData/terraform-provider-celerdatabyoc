@@ -310,7 +310,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		Type:          cluster.ClusterModuleTypeFE,
 		Name:          "FE",
 		Num:           uint32(d.Get("fe_node_count").(int)),
-		StorageSizeGB: 50,
+		StorageSizeGB: 100,
 		InstanceType:  d.Get("fe_instance_type").(string),
 	})
 

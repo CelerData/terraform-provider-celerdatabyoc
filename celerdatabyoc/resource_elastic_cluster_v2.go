@@ -423,7 +423,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		Type:          cluster.ClusterModuleTypeFE,
 		Name:          "FE",
 		Num:           uint32(d.Get("coordinator_node_count").(int)),
-		StorageSizeGB: 50,
+		StorageSizeGB: 100,
 		InstanceType:  d.Get("coordinator_node_size").(string),
 	})
 
