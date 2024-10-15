@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
@@ -151,10 +152,11 @@ func ToAutoScalingConfigStruct(d *schema.ResourceData) *cluster.WarehouseAutoSca
 
 		conditons := make([]*cluster.WearhouseScalingCondition, 0)
 		policyConditionMap := policyItemMap["condition"].(*schema.Set).List()[0].(map[string]interface{})
+		value := math.Round(policyConditionMap["value"].(float64)*100) / 100
 		conditons = append(conditons, &cluster.WearhouseScalingCondition{
 			Type:            int32(cluster.WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION),
 			DurationSeconds: int64(policyConditionMap["duration_seconds"].(int)),
-			Value:           fmt.Sprintf("%f", policyConditionMap["value"].(float64)),
+			Value:           fmt.Sprintf("%.2f", value),
 		})
 
 		policyType := cluster.WearhouseScalingType_SCALE_OUT
