@@ -107,6 +107,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 							Type:        schema.TypeInt,
 							Optional:    true,
+							Computed:    true,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
 								if !ok {
@@ -126,6 +127,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Description: "Specifies the number of disk. The default value is 2.",
 							Type:        schema.TypeInt,
 							Optional:    true,
+							Computed:    true,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
 								if !ok {
@@ -181,9 +183,9 @@ func resourceElasticClusterV2() *schema.Resource {
 							Computed: true,
 						},
 						"expected_state": {
-							Type:         schema.TypeString,
-							Optional:     true,
-							Default:      string(cluster.ClusterStateRunning),
+							Type:     schema.TypeString,
+							Optional: true,
+							//Default:      string(cluster.ClusterStateRunning),
 							ValidateFunc: validation.StringInSlice([]string{string(cluster.ClusterStateSuspended), string(cluster.ClusterStateRunning)}, false),
 						},
 					},
@@ -347,11 +349,13 @@ func resourceElasticClusterV2() *schema.Resource {
 							return fmt.Errorf("the warehouse with name '%s' does not support the `idle_suspend_interval` attribute", DEFAULT_WAREHOUSE_NAME)
 						}
 					}
-					if v, ok := m["expected_state"]; ok {
-						if v.(string) != string(cluster.ClusterStateRunning) {
-							return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
+					/*
+						if v, ok := m["expected_state"]; ok {
+							if v.(string) != string(cluster.ClusterStateRunning) {
+								return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
+							}
 						}
-					}
+					*/
 				}
 				if v, ok := countMap[whName]; ok {
 					v++
@@ -654,12 +658,16 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		dwMapping["name"] = v.Name
 		dwMapping["compute_node_size"] = v.Module.InstanceType
 		dwMapping["compute_node_count"] = v.Module.Num
-		dwMapping["state"] = v.State
 		dwMapping["expected_state"] = v.State
-		if !v.Module.IsInstanceStore {
-			dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
-			dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
-		}
+		dwMapping["state"] = v.State
+		/*
+			if !v.Module.IsInstanceStore {
+
+			}
+		*/
+		dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
+		dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
+		dwMapping["compute_node_is_instance_store"] = v.Module.IsInstanceStore
 
 		autoScalingConfigResp, err := clusterAPI.GetWarehouseAutoScalingConfig(ctx, &cluster.GetWarehouseAutoScalingConfigReq{
 			WarehouseId: warehouseId,
