@@ -88,7 +88,9 @@ func resourceElasticCluster() *schema.Resource {
 					}
 
 					m := 16 * 1000
-					if v > m {
+					if v <= 0 {
+						errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
+					} else if v > m {
 						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
 					}
 
@@ -107,10 +109,9 @@ func resourceElasticCluster() *schema.Resource {
 						return warnings, errors
 					}
 
-					if v > 24 {
+					if v < 1 || v > 24 {
 						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
 					}
-
 					return warnings, errors
 				},
 			},
@@ -306,9 +307,18 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		Type:          cluster.ClusterModuleTypeFE,
 		Name:          "FE",
 		Num:           uint32(d.Get("coordinator_node_count").(int)),
-		StorageSizeGB: 50,
+		StorageSizeGB: 100,
 		InstanceType:  d.Get("coordinator_node_size").(string),
 	})
+
+	diskNumber := 2
+	perDiskSize := 100
+	if v, ok := d.GetOk("compute_node_ebs_disk_number"); ok {
+		diskNumber = v.(int)
+	}
+	if v, ok := d.GetOk("compute_node_ebs_disk_per_size"); ok {
+		perDiskSize = v.(int)
+	}
 
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
 		Type:         cluster.ClusterModuleTypeBE,
@@ -316,8 +326,8 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		Num:          uint32(d.Get("compute_node_count").(int)),
 		InstanceType: d.Get("compute_node_size").(string),
 		DiskInfo: &cluster.DiskInfo{
-			Number:  uint32(d.Get("compute_node_ebs_disk_number").(int)),
-			PerSize: uint64(d.Get("compute_node_ebs_disk_per_size").(int)),
+			Number:  uint32(diskNumber),
+			PerSize: uint64(perDiskSize),
 		},
 	})
 
