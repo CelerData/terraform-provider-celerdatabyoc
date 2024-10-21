@@ -37,10 +37,6 @@ func resourceElasticClusterV2() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
-			"default_warehouse_id": {
-				Type:     schema.TypeString,
-				Computed: true,
-			},
 			"csp": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -321,48 +317,56 @@ func resourceElasticClusterV2() *schema.Resource {
 			Create: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 			Update: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 		},
-		CustomizeDiff: func(ctx context.Context, rd *schema.ResourceDiff, i interface{}) error {
-
-			items := rd.Get("warehouse").(*schema.Set).List()
-			countMap := make(map[string]int, 0)
-
-			hasDefaultWh := false
-			for _, item := range items {
-				m := item.(map[string]interface{})
-				whName := strings.TrimSpace(m["name"].(string))
-				if whName == DEFAULT_WAREHOUSE_NAME {
-					hasDefaultWh = true
-					if v, ok := m["idle_suspend_interval"]; ok {
-						if v.(int) != 0 {
-							return fmt.Errorf("the warehouse with name '%s' does not support the `idle_suspend_interval` attribute", DEFAULT_WAREHOUSE_NAME)
-						}
-					}
-					if v, ok := m["expected_state"]; ok {
-						if v.(string) != "" {
-							return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
-						}
-					}
-				}
-				if v, ok := countMap[whName]; ok {
-					v++
-					countMap[whName] = v
-				} else {
-					countMap[whName] = 1
-				}
-			}
-
-			if !hasDefaultWh {
-				return fmt.Errorf("warehouse with name '%s' is required", DEFAULT_WAREHOUSE_NAME)
-			}
-
-			for k, v := range countMap {
-				if v > 1 {
-					return fmt.Errorf("only one warehouse with name '%s' is allowed", k)
-				}
-			}
-			return nil
-		},
+		CustomizeDiff: customizeDiff,
 	}
+}
+
+func customizeDiff(ctx context.Context, d *schema.ResourceDiff, _ interface{}) error {
+
+	if d.HasChange("warehouse") {
+
+		_, new := d.GetChange("warehouse")
+		// must has default warehouse
+		hasDefaultWh := false
+		// warehosue name must be unique
+		countMap := make(map[string]int, 0)
+
+		items := new.(*schema.Set).List()
+		for _, item := range items {
+			m := item.(map[string]interface{})
+			whName := strings.TrimSpace(m["name"].(string))
+			if whName == DEFAULT_WAREHOUSE_NAME {
+				hasDefaultWh = true
+				if v, ok := m["idle_suspend_interval"]; ok {
+					if v.(int) != 0 {
+						return fmt.Errorf("the warehouse with name '%s' does not support the `idle_suspend_interval` attribute", DEFAULT_WAREHOUSE_NAME)
+					}
+				}
+				if v, ok := m["expected_state"]; ok {
+					if v.(string) != "" {
+						return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
+					}
+				}
+			}
+			if v, ok := countMap[whName]; ok {
+				v++
+				countMap[whName] = v
+			} else {
+				countMap[whName] = 1
+			}
+		}
+
+		if !hasDefaultWh {
+			return fmt.Errorf("warehouse with name '%s' is required", DEFAULT_WAREHOUSE_NAME)
+		}
+
+		for k, v := range countMap {
+			if v > 1 {
+				return fmt.Errorf("only one warehouse with name '%s' is allowed", k)
+			}
+		}
+	}
+	return nil
 }
 
 func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
@@ -466,7 +470,6 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	clusterId := resp.ClusterID
 	defaultWarehouseId := resp.DefaultWarehouseId
 	d.SetId(clusterId)
-	d.Set("default_warehouse_id", defaultWarehouseId)
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
 		clusterID:  resp.ClusterID,
@@ -642,7 +645,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
 
-	warehouses := make([]map[string]interface{}, 0)
+	warehouses := make([]interface{}, 0)
 	warehouseExternalInfo := make(map[string]interface{}, 0)
 
 	for _, v := range resp.Cluster.Warehouses {
@@ -1124,6 +1127,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 				timeout:    common.DeployOrScaleClusterTimeout,
 				pendingStates: []string{
 					string(cluster.ClusterStateDeploying),
+					string(cluster.ClusterStateRunning),
 					string(cluster.ClusterStateScaling),
 					string(cluster.ClusterStateResuming),
 					string(cluster.ClusterStateSuspending),
@@ -1215,12 +1219,14 @@ func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		}
 
 		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      resp.ActionID,
-			clusterID:     clusterId,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+			clusterAPI: clusterAPI,
+			actionID:   resp.ActionID,
+			clusterID:  clusterId,
+			timeout:    common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{
+				string(cluster.ClusterStateRunning),
+				string(cluster.ClusterStateScaling)},
+			targetStates: []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
 		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err))
@@ -1243,12 +1249,14 @@ func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		}
 
 		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      resp.ActionID,
-			clusterID:     clusterId,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+			clusterAPI: clusterAPI,
+			actionID:   resp.ActionID,
+			clusterID:  clusterId,
+			timeout:    common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{
+				string(cluster.ClusterStateRunning),
+				string(cluster.ClusterStateScaling)},
+			targetStates: []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
 		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err))
@@ -1350,6 +1358,7 @@ func DeleteWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			timeout:    common.DeployOrScaleClusterTimeout,
 			pendingStates: []string{
 				string(cluster.ClusterStateDeploying),
+				string(cluster.ClusterStateRunning),
 				string(cluster.ClusterStateScaling),
 				string(cluster.ClusterStateResuming),
 				string(cluster.ClusterStateSuspending),
@@ -1396,6 +1405,7 @@ func SuspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clust
 			timeout:    common.DeployOrScaleClusterTimeout,
 			pendingStates: []string{
 				string(cluster.ClusterStateDeploying),
+				string(cluster.ClusterStateRunning),
 				string(cluster.ClusterStateScaling),
 				string(cluster.ClusterStateResuming),
 				string(cluster.ClusterStateSuspending),
@@ -1457,6 +1467,7 @@ func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 				string(cluster.ClusterStateScaling),
 				string(cluster.ClusterStateResuming),
 				string(cluster.ClusterStateSuspending),
+				string(cluster.ClusterStateSuspended),
 				string(cluster.ClusterStateReleasing),
 				string(cluster.ClusterStateUpdating),
 			},
