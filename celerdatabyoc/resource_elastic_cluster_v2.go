@@ -107,7 +107,6 @@ func resourceElasticClusterV2() *schema.Resource {
 							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 							Type:        schema.TypeInt,
 							Optional:    true,
-							Computed:    true,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
 								if !ok {
@@ -116,7 +115,7 @@ func resourceElasticClusterV2() *schema.Resource {
 								}
 
 								m := 16 * 1000
-								if v > m {
+								if v < 1 || v > m {
 									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
 								}
 
@@ -127,7 +126,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Description: "Specifies the number of disk. The default value is 2.",
 							Type:        schema.TypeInt,
 							Optional:    true,
-							Computed:    true,
+							ForceNew:    true,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
 								if !ok {
@@ -135,7 +134,7 @@ func resourceElasticClusterV2() *schema.Resource {
 									return warnings, errors
 								}
 
-								if v > 24 {
+								if v < 1 || v > 24 {
 									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
 								}
 
@@ -448,14 +447,23 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		return diag.Errorf("`%s` is required", DEFAULT_WAREHOUSE_NAME)
 	}
 
+	diskNumber := 2
+	perDiskSize := 100
+	if v, ok := defaultWhMap["compute_node_ebs_disk_number"]; ok {
+		diskNumber = v.(int)
+	}
+	if v, ok := defaultWhMap["compute_node_ebs_disk_per_size"]; ok {
+		perDiskSize = v.(int)
+	}
+
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
 		Type:         cluster.ClusterModuleTypeWarehouse,
 		Name:         defaultWhMap["name"].(string),
 		Num:          uint32(defaultWhMap["compute_node_count"].(int)),
 		InstanceType: defaultWhMap["compute_node_size"].(string),
 		DiskInfo: &cluster.DiskInfo{
-			Number:  uint32(defaultWhMap["compute_node_ebs_disk_number"].(int)),
-			PerSize: uint64(defaultWhMap["compute_node_ebs_disk_per_size"].(int)),
+			Number:  uint32(diskNumber),
+			PerSize: uint64(perDiskSize),
 		},
 	})
 
@@ -660,13 +668,10 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		dwMapping["compute_node_count"] = v.Module.Num
 		dwMapping["expected_state"] = v.State
 		dwMapping["state"] = v.State
-		/*
-			if !v.Module.IsInstanceStore {
-
-			}
-		*/
-		dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
-		dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
+		if !v.Module.IsInstanceStore {
+			dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
+			dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
+		}
 		dwMapping["compute_node_is_instance_store"] = v.Module.IsInstanceStore
 
 		autoScalingConfigResp, err := clusterAPI.GetWarehouseAutoScalingConfig(ctx, &cluster.GetWarehouseAutoScalingConfigReq{
@@ -992,13 +997,22 @@ func setWarehouseAutoScalingPolicy(ctx context.Context, clusterAPI cluster.IClus
 func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, whParamMap map[string]interface{}) diag.Diagnostics {
 
 	warehouseName := whParamMap["name"].(string)
+
+	diskNumber := 2
+	perDiskSize := 100
+	if v, ok := whParamMap["compute_node_ebs_disk_number"]; ok {
+		diskNumber = v.(int)
+	}
+	if v, ok := whParamMap["compute_node_ebs_disk_per_size"]; ok {
+		perDiskSize = v.(int)
+	}
 	req := &cluster.CreateWarehouseReq{
 		ClusterId:    clusterId,
 		Name:         warehouseName,
 		VmCate:       whParamMap["compute_node_size"].(string),
 		VmNum:        int32(whParamMap["compute_node_count"].(int)),
-		VolumeSizeGB: int64(whParamMap["compute_node_ebs_disk_per_size"].(int)),
-		VolumeNum:    int32(whParamMap["compute_node_ebs_disk_number"].(int)),
+		VolumeSizeGB: int64(perDiskSize),
+		VolumeNum:    int32(diskNumber),
 	}
 
 	if v, ok := whParamMap["description"].(string); ok {
