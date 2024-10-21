@@ -175,6 +175,12 @@ type Warehouse struct {
 	CreatedAt          int64        `json:"created_at" mapstructure:"created_at"`
 }
 
+type WarehouseExternalInfo struct {
+	Id                 string `json:"id"`
+	IsInstanceStore    bool   `json:"is_instance_store"`
+	IsDefaultWarehouse bool   `json:"is_default_warehouse"`
+}
+
 type Cluster struct {
 	ClusterID           string       `json:"cluster_id" mapstructure:"cluster_id"`
 	ClusterName         string       `json:"cluster_name" mapstructure:"cluster_name"`

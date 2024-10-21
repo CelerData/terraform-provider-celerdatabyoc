@@ -78,18 +78,9 @@ func resourceElasticClusterV2() *schema.Resource {
 				MinItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"warehouse_id": {
-							Type:     schema.TypeString,
-							Computed: true,
-						},
 						"name": {
 							Type:         schema.TypeString,
 							Required:     true,
-							ValidateFunc: validation.StringIsNotEmpty,
-						},
-						"description": {
-							Type:         schema.TypeString,
-							Optional:     true,
 							ValidateFunc: validation.StringIsNotEmpty,
 						},
 						"compute_node_size": {
@@ -172,14 +163,6 @@ func resourceElasticClusterV2() *schema.Resource {
 								return nil, nil
 							},
 						},
-						"compute_node_is_instance_store": {
-							Type:     schema.TypeBool,
-							Computed: true,
-						},
-						"state": {
-							Type:     schema.TypeString,
-							Computed: true,
-						},
 						"expected_state": {
 							Type:     schema.TypeString,
 							Optional: true,
@@ -187,6 +170,13 @@ func resourceElasticClusterV2() *schema.Resource {
 							ValidateFunc: validation.StringInSlice([]string{string(cluster.ClusterStateSuspended), string(cluster.ClusterStateRunning)}, false),
 						},
 					},
+				},
+			},
+			"warehouse_external_info": {
+				Type:     schema.TypeMap,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
 				},
 			},
 			"resource_tags": {
@@ -347,13 +337,11 @@ func resourceElasticClusterV2() *schema.Resource {
 							return fmt.Errorf("the warehouse with name '%s' does not support the `idle_suspend_interval` attribute", DEFAULT_WAREHOUSE_NAME)
 						}
 					}
-					/*
-						if v, ok := m["expected_state"]; ok {
-							if v.(string) != string(cluster.ClusterStateRunning) {
-								return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
-							}
+					if v, ok := m["expected_state"]; ok {
+						if v.(string) != "" {
+							return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
 						}
-					*/
+					}
 				}
 				if v, ok := countMap[whName]; ok {
 					v++
@@ -654,23 +642,46 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
 
-	dwObj := make([]map[string]interface{}, 0)
+	warehouses := make([]map[string]interface{}, 0)
+	warehouseExternalInfo := make(map[string]interface{}, 0)
+
 	for _, v := range resp.Cluster.Warehouses {
-		dwMapping := make(map[string]interface{}, 0)
+
 		warehouseId := v.Id
-		if !v.IsDefaultWarehouse {
-			dwMapping["expected_state"] = v.State
+		warehouseName := v.Name
+		isDefaultWarehouse := v.IsDefaultWarehouse
+
+		whMap := make(map[string]interface{}, 0)
+		whMap["name"] = warehouseName
+		whMap["compute_node_size"] = v.Module.InstanceType
+		whMap["compute_node_count"] = v.Module.Num
+		if !isDefaultWarehouse {
+			whMap["expected_state"] = v.State
 		}
-		dwMapping["warehouse_id"] = v.Id
-		dwMapping["name"] = v.Name
-		dwMapping["compute_node_size"] = v.Module.InstanceType
-		dwMapping["compute_node_count"] = v.Module.Num
-		dwMapping["state"] = v.State
 		if !v.Module.IsInstanceStore {
-			dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
-			dwMapping["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
+			whMap["compute_node_ebs_disk_number"] = v.Module.VmVolNum
+			whMap["compute_node_ebs_disk_per_size"] = v.Module.VmVolSizeGB
 		}
-		dwMapping["compute_node_is_instance_store"] = v.Module.IsInstanceStore
+
+		idleConfigResp, err := clusterAPI.GetWarehouseIdleConfig(ctx, &cluster.GetWarehouseIdleConfigReq{
+			WarehouseId: warehouseId,
+		})
+		if err != nil {
+			log.Printf("[ERROR] Query warehouse idle suspend config failed, warehouseId:%s", warehouseId)
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("Failed to get warehouse idle suspend config, warehouseId:[%s] ", warehouseId),
+					Detail:   err.Error(),
+				},
+			}
+		}
+		idleConfig := idleConfigResp.Config
+		if idleConfig != nil && idleConfig.State {
+			whMap["idle_suspend_interval"] = idleConfig.IntervalMs / 1000 / 60
+		} else {
+			whMap["idle_suspend_interval"] = 0
+		}
 
 		autoScalingConfigResp, err := clusterAPI.GetWarehouseAutoScalingConfig(ctx, &cluster.GetWarehouseAutoScalingConfigReq{
 			WarehouseId: warehouseId,
@@ -689,13 +700,23 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		policy := autoScalingConfigResp.Policy
 		if policy != nil && policy.State {
 			bytes, _ := json.Marshal(policy)
-			dwMapping["auto_scaling_policy"] = string(bytes)
+			whMap["auto_scaling_policy"] = string(bytes)
 		}
-		dwObj = append(dwObj, dwMapping)
-	}
-	d.Set("warehouse", dwObj)
 
-	log.Printf("[DEBUG] get cluster, warehouse:%+v", dwObj)
+		warehouses = append(warehouses, whMap)
+
+		whInfo := &cluster.WarehouseExternalInfo{
+			Id:                 warehouseId,
+			IsInstanceStore:    v.Module.IsInstanceStore,
+			IsDefaultWarehouse: isDefaultWarehouse,
+		}
+		whInfoBytes, _ := json.Marshal(whInfo)
+		warehouseExternalInfo[warehouseName] = string(whInfoBytes)
+	}
+	d.Set("warehouse", warehouses)
+	d.Set("warehouse_external_info", warehouseExternalInfo)
+
+	log.Printf("[DEBUG] get cluster, warehouses:%+v", warehouses)
 
 	return diags
 }
@@ -923,6 +944,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		o, n := d.GetChange("warehouse")
 		old := o.(*schema.Set).List()
 		new := n.(*schema.Set).List()
+		whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
 
 		oldWhMap := make(map[string]map[string]interface{})
 		for _, v := range old {
@@ -937,9 +959,13 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 		for _, v := range new {
 			newWh := v.(map[string]interface{})
-			if oldWh, ok := oldWhMap[newWh["name"].(string)]; ok {
+			whName := newWh["name"].(string)
+			if oldWh, ok := oldWhMap[whName]; ok {
 				// modified
-				diags := updateWarehouse(ctx, clusterAPI, clusterId, oldWh, newWh)
+				whExternalInfoStr := whExternalInfoMap[whName].(string)
+				whExternalInfo := &cluster.WarehouseExternalInfo{}
+				json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+				diags := updateWarehouse(ctx, clusterAPI, clusterId, oldWh, newWh, whExternalInfo)
 				if diags != nil {
 					return diags
 				}
@@ -954,9 +980,14 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 		for _, v := range old {
 			oldWh := v.(map[string]interface{})
-			if _, ok := newWhMap[oldWh["name"].(string)]; !ok {
+			whName := oldWh["name"].(string)
+			if _, ok := newWhMap[whName]; !ok {
 				// removed
-				diags := DeleteWarehouse(ctx, clusterAPI, clusterId, oldWh["warehouse_id"].(string))
+				whExternalInfoStr := whExternalInfoMap[whName].(string)
+				whExternalInfo := &cluster.WarehouseExternalInfo{}
+				json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+				whId := whExternalInfo.Id
+				diags := DeleteWarehouse(ctx, clusterAPI, clusterId, whId)
 				if diags != nil {
 					return diags
 				}
@@ -1011,10 +1042,6 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		VmNum:        int32(whParamMap["compute_node_count"].(int)),
 		VolumeSizeGB: int64(perDiskSize),
 		VolumeNum:    int32(diskNumber),
-	}
-
-	if v, ok := whParamMap["description"].(string); ok {
-		req.Description = v
 	}
 
 	log.Printf("[DEBUG] Create warehouse, req:%+v", req)
@@ -1152,21 +1179,22 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 	return nil
 }
 
-func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, oldParamMap, newParamMap map[string]interface{}) diag.Diagnostics {
+func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, oldParamMap, newParamMap map[string]interface{}, whExternalInfo *cluster.WarehouseExternalInfo) diag.Diagnostics {
 
-	warehouseId := oldParamMap["warehouse_id"].(string)
+	warehouseId := whExternalInfo.Id
+	isDefaultWarehouse := whExternalInfo.IsDefaultWarehouse
 	warehouseName := newParamMap["name"].(string)
 	expectedState := newParamMap["expected_state"].(string)
 
+	computeNodeIsInstanceStore := whExternalInfo.IsInstanceStore
 	expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
 	computeNodeSizeChanged := oldParamMap["compute_node_size"].(string) != newParamMap["compute_node_size"].(string)
 	computeNodeCountChanged := oldParamMap["compute_node_count"].(int) != newParamMap["compute_node_count"].(int)
-	computeNodeIsInstanceStore := oldParamMap["compute_node_is_instance_store"].(bool)
 	computeNodeEbsDiskNumberChanged := oldParamMap["compute_node_ebs_disk_number"].(int) != newParamMap["compute_node_ebs_disk_number"].(int)
 	idleSuspendIntervalChanged := oldParamMap["idle_suspend_interval"].(int) != newParamMap["idle_suspend_interval"].(int)
 	autoScalingPolicyChanged := oldParamMap["auto_scaling_policy"].(string) != newParamMap["auto_scaling_policy"].(string)
 
-	if expectedStateChanged {
+	if expectedStateChanged && !isDefaultWarehouse {
 		if expectedState == string(cluster.ClusterStateRunning) {
 			resp := ResumeWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
 			if resp != nil {
@@ -1253,7 +1281,7 @@ func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		}
 	}
 
-	if expectedStateChanged {
+	if expectedStateChanged && !isDefaultWarehouse {
 		if expectedState == string(cluster.ClusterStateSuspended) {
 			resp := SuspendWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
 			if resp != nil {
