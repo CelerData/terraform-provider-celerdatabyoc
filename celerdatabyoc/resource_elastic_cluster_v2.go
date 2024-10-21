@@ -126,7 +126,6 @@ func resourceElasticClusterV2() *schema.Resource {
 							Description: "Specifies the number of disk. The default value is 2.",
 							Type:        schema.TypeInt,
 							Optional:    true,
-							ForceNew:    true,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
 								if !ok {
@@ -659,14 +658,13 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	for _, v := range resp.Cluster.Warehouses {
 		dwMapping := make(map[string]interface{}, 0)
 		warehouseId := v.Id
-		if v.IsDefaultWarehouse {
-			d.Set("default_warehouse_id", warehouseId)
+		if !v.IsDefaultWarehouse {
+			dwMapping["expected_state"] = v.State
 		}
 		dwMapping["warehouse_id"] = v.Id
 		dwMapping["name"] = v.Name
 		dwMapping["compute_node_size"] = v.Module.InstanceType
 		dwMapping["compute_node_count"] = v.Module.Num
-		dwMapping["expected_state"] = v.State
 		dwMapping["state"] = v.State
 		if !v.Module.IsInstanceStore {
 			dwMapping["compute_node_ebs_disk_number"] = v.Module.VmVolNum
@@ -1106,7 +1104,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 					string(cluster.ClusterStateUpdating),
 				},
 				targetStates: []string{
-					string(cluster.ClusterStateRunning),
+					string(cluster.ClusterStateSuspended),
 					string(cluster.ClusterStateAbnormal),
 				},
 			})
