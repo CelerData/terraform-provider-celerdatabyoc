@@ -1127,7 +1127,6 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 				timeout:    common.DeployOrScaleClusterTimeout,
 				pendingStates: []string{
 					string(cluster.ClusterStateDeploying),
-					string(cluster.ClusterStateRunning),
 					string(cluster.ClusterStateScaling),
 					string(cluster.ClusterStateResuming),
 					string(cluster.ClusterStateSuspending),
@@ -1140,7 +1139,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 				},
 			})
 
-			summary := fmt.Sprintf("suspend warehouse[%s] of the cluster[%s] failed", warehouseName, clusterId)
+			summary := fmt.Sprintf("suspend warehouse[%s] failed", warehouseName)
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
