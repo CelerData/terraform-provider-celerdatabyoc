@@ -56,6 +56,8 @@ type IClusterAPI interface {
 	GetWarehouseAutoScalingConfig(ctx context.Context, req *GetWarehouseAutoScalingConfigReq) (*GetWarehouseAutoScalingConfigResp, error)
 	SaveWarehouseAutoScalingConfig(ctx context.Context, req *SaveWarehouseAutoScalingConfigReq) (*SaveWarehouseAutoScalingConfigResp, error)
 	DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error
+
+	GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -65,6 +67,16 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+// GetVmInfo implements IClusterAPI.
+func (c *clusterAPI) GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error) {
+	resp := &GetVmInfoResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/vm-instance/info", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (c *clusterAPI) DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error {

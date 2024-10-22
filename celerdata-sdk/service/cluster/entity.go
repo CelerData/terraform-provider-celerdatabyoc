@@ -596,6 +596,24 @@ type DeleteWarehouseAutoScalingConfigReq struct {
 	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
 }
 
+type GetVmInfoReq struct {
+	Csp         string `json:"csp" mapstructure:"csp"`
+	Region      string `json:"region" mapstructure:"region"`
+	ProcessType string `json:"process_type" mapstructure:"process_type"`
+	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
+}
+
+type VMInfo struct {
+	ProcessType     string `json:"process_type" mapstructure:"process_type"` // FE/BE
+	VmCate          string `json:"vm_cate" mapstructure:"vm_cate"`
+	Arch            string `json:"arch" mapstructure:"arch"`
+	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+}
+
+type GetVmInfoResp struct {
+	VmInfo *VMInfo `json:"vm_info" mapstructure:"vm_info"`
+}
+
 func ConvertStrToCustomConfigType(val string) CustomConfigType {
 	var customConfigType CustomConfigType
 	switch val {
