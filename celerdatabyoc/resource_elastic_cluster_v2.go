@@ -649,7 +649,9 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	warehouseExternalInfo := make(map[string]interface{}, 0)
 
 	for _, v := range resp.Cluster.Warehouses {
-
+		if v.Deleted {
+			continue
+		}
 		warehouseId := v.Id
 		warehouseName := v.Name
 		isDefaultWarehouse := v.IsDefaultWarehouse

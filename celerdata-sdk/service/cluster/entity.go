@@ -171,6 +171,7 @@ type Warehouse struct {
 	Name               string       `json:"name" mapstructure:"name"`
 	State              ClusterState `json:"state" mapstructure:"state"`
 	Module             *Module      `json:"module" mapstructure:"module"`
+	Deleted            bool         `json:"deleted" mapstructure:"deleted"`
 	IsDefaultWarehouse bool         `json:"is_default_warehouse" mapstructure:"is_default_warehouse"`
 	CreatedAt          int64        `json:"created_at" mapstructure:"created_at"`
 }
