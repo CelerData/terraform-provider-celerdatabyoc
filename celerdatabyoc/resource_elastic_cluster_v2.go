@@ -1123,7 +1123,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 				clusterAPI: clusterAPI,
 				clusterID:  clusterId,
-				actionID:   resp.ActionID,
+				actionID:   infraActionId,
 				timeout:    common.DeployOrScaleClusterTimeout,
 				pendingStates: []string{
 					string(cluster.ClusterStateDeploying),
