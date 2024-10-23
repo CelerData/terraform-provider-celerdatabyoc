@@ -72,7 +72,12 @@ type clusterAPI struct {
 // GetVmInfo implements IClusterAPI.
 func (c *clusterAPI) GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error) {
 	resp := &GetVmInfoResp{}
-	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/vm-instance/info", c.apiVersion), req, resp)
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/vm-instance/info", c.apiVersion), map[string]string{
+		"csp":          req.Csp,
+		"region":       req.Region,
+		"process_type": req.ProcessType,
+		"vm_cate":      req.VmCate,
+	}, resp)
 	if err != nil {
 		return nil, err
 	}

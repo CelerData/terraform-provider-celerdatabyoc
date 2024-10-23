@@ -257,7 +257,90 @@ func resourceElasticCluster() *schema.Resource {
 			Create: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 			Update: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 		},
+		CustomizeDiff: customizeElDiff,
 	}
+}
+
+func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+
+	c := m.(*client.CelerdataClient)
+	clusterAPI := cluster.NewClustersAPI(c)
+
+	clusterId := d.Id()
+	csp := d.Get("csp").(string)
+	region := d.Get("region").(string)
+
+	n := d.Get("coordinator_node_size")
+	newVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+		Csp:         csp,
+		Region:      region,
+		ProcessType: string(cluster.ClusterModuleTypeFE),
+		VmCate:      n.(string),
+	})
+	if err != nil {
+		log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, n.(string), err)
+		return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, n.(string), err.Error())
+	}
+	if newVmInfoResp.VmInfo == nil {
+		return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, n.(string))
+	}
+
+	feArch := newVmInfoResp.VmInfo.Arch
+
+	if d.HasChange("coordinator_node_size") {
+		if len(clusterId) > 0 {
+			o, _ := d.GetChange("coordinator_node_size")
+			oldVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+				Csp:         csp,
+				Region:      region,
+				ProcessType: string(cluster.ClusterModuleTypeFE),
+				VmCate:      o.(string),
+			})
+			if err != nil {
+				log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, o.(string), err)
+				return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, o.(string), err.Error())
+			}
+			if oldVmInfoResp.VmInfo == nil {
+				return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, o.(string))
+			}
+			if feArch != oldVmInfoResp.VmInfo.Arch {
+				return fmt.Errorf("vm architecture can not be changed, csp:%s region:%s oldVmCate:%s  newVmCate:%s", csp, region, o.(string), n.(string))
+			}
+		}
+	}
+
+	if d.HasChange("compute_node_size") {
+		cn := d.Get("compute_node_size")
+		cnVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+			Csp:         csp,
+			Region:      region,
+			ProcessType: string(cluster.ClusterModuleTypeBE),
+			VmCate:      cn.(string),
+		})
+		if err != nil {
+			log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, cn.(string), err)
+			return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, cn.(string), err.Error())
+		}
+		if cnVmInfoResp.VmInfo == nil {
+			return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, cn.(string))
+		}
+
+		if feArch != cnVmInfoResp.VmInfo.Arch {
+			return fmt.Errorf("compute node architecture should be same with coordinator node, expect:%s but found:%s", feArch, cnVmInfoResp.VmInfo.Arch)
+		}
+
+		if len(clusterId) > 0 {
+			isInstanceStore := d.Get("compute_node_is_instance_store").(bool)
+			expectStr := "local disk vm instance type"
+			if !isInstanceStore {
+				expectStr = "nonlocal disk vm instance type"
+			}
+			if cnVmInfoResp.VmInfo.IsInstanceStore != isInstanceStore {
+				return fmt.Errorf("the disk type of the compute node must be the same as the previous disk type, expect:%s", expectStr)
+			}
+		}
+	}
+	return nil
 }
 
 func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {

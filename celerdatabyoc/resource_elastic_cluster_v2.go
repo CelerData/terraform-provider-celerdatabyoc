@@ -317,22 +317,65 @@ func resourceElasticClusterV2() *schema.Resource {
 			Create: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 			Update: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 		},
-		CustomizeDiff: customizeDiff,
+		CustomizeDiff: customizeEl2Diff,
 	}
 }
 
-func customizeDiff(ctx context.Context, d *schema.ResourceDiff, _ interface{}) error {
+func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+
+	c := m.(*client.CelerdataClient)
+	clusterAPI := cluster.NewClustersAPI(c)
+
+	clusterId := d.Id()
+	csp := d.Get("csp").(string)
+	region := d.Get("region").(string)
+
+	n := d.Get("coordinator_node_size")
+	newVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+		Csp:         csp,
+		Region:      region,
+		ProcessType: string(cluster.ClusterModuleTypeFE),
+		VmCate:      n.(string),
+	})
+	if err != nil {
+		log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, n.(string), err)
+		return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, n.(string), err.Error())
+	}
+	if newVmInfoResp.VmInfo == nil {
+		return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, n.(string))
+	}
+
+	feArch := newVmInfoResp.VmInfo.Arch
+
+	if d.HasChange("coordinator_node_size") {
+		if len(clusterId) > 0 {
+			o, _ := d.GetChange("coordinator_node_size")
+			oldVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+				Csp:         csp,
+				Region:      region,
+				ProcessType: string(cluster.ClusterModuleTypeFE),
+				VmCate:      o.(string),
+			})
+			if err != nil {
+				log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, o.(string), err)
+				return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, o.(string), err.Error())
+			}
+			if oldVmInfoResp.VmInfo == nil {
+				return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, o.(string))
+			}
+			if feArch != oldVmInfoResp.VmInfo.Arch {
+				return fmt.Errorf("the vm instance architecture can not be changed, csp:%s region:%s oldVmCate:%s  newVmCate:%s", csp, region, o.(string), n.(string))
+			}
+		}
+	}
 
 	if d.HasChange("warehouse") {
 
-		_, new := d.GetChange("warehouse")
-		// must has default warehouse
+		_, n := d.GetChange("warehouse")
+		// 1. pre check, must has default warehouse and warehosue name must be unique
 		hasDefaultWh := false
-		// warehosue name must be unique
 		countMap := make(map[string]int, 0)
-
-		items := new.(*schema.Set).List()
-		for _, item := range items {
+		for _, item := range n.(*schema.Set).List() {
 			m := item.(map[string]interface{})
 			whName := strings.TrimSpace(m["name"].(string))
 			if whName == DEFAULT_WAREHOUSE_NAME {
@@ -342,10 +385,8 @@ func customizeDiff(ctx context.Context, d *schema.ResourceDiff, _ interface{}) e
 						return fmt.Errorf("the warehouse with name '%s' does not support the `idle_suspend_interval` attribute", DEFAULT_WAREHOUSE_NAME)
 					}
 				}
-				if v, ok := m["expected_state"]; ok {
-					if v.(string) != "" {
-						return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
-					}
+				if v, ok := m["expected_state"]; ok && len(v.(string)) > 0 {
+					return fmt.Errorf("the warehouse with name '%s' does not support change the `expected_state` attribute", DEFAULT_WAREHOUSE_NAME)
 				}
 			}
 			if v, ok := countMap[whName]; ok {
@@ -363,6 +404,50 @@ func customizeDiff(ctx context.Context, d *schema.ResourceDiff, _ interface{}) e
 		for k, v := range countMap {
 			if v > 1 {
 				return fmt.Errorf("only one warehouse with name '%s' is allowed", k)
+			}
+		}
+
+		// 2. check vm arch
+		whVmInfoMap := make(map[string]*cluster.VMInfo)
+		for _, item := range n.(*schema.Set).List() {
+			m := item.(map[string]interface{})
+			whName := strings.TrimSpace(m["name"].(string))
+			vmCateName := m["compute_node_size"].(string)
+			vmCateInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+				Csp:         csp,
+				Region:      region,
+				ProcessType: string(cluster.ClusterModuleTypeBE),
+				VmCate:      vmCateName,
+			})
+			if err != nil {
+				log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, vmCateName, err)
+				return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, vmCateName, err.Error())
+			}
+			if vmCateInfoResp.VmInfo == nil {
+				return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, vmCateName)
+			}
+			if vmCateInfoResp.VmInfo.Arch != feArch {
+				return fmt.Errorf("the vm instance`s architecture of the warehouse[%s] must be the same as the coordinator node, expect:%s but found:%s", whName, feArch, vmCateInfoResp.VmInfo.Arch)
+			}
+			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
+		}
+
+		if len(clusterId) > 0 {
+			// 3. check is instance store
+			whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+			for whName, whExInfo := range whExternalInfoMap {
+				if v, ok := whVmInfoMap[whName]; ok {
+					whExternalInfo := &cluster.WarehouseExternalInfo{}
+					json.Unmarshal([]byte(whExInfo.(string)), whExternalInfo)
+
+					expectStr := "local disk vm instance type"
+					if !whExternalInfo.IsInstanceStore {
+						expectStr = "nonlocal disk vm instance type"
+					}
+					if whExternalInfo.IsInstanceStore != v.IsInstanceStore {
+						return fmt.Errorf("the disk type of the warehouse[%s] must be the same as the previous disk type, expect:%s", whName, expectStr)
+					}
+				}
 			}
 		}
 	}
@@ -440,10 +525,10 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 
 	diskNumber := 2
 	perDiskSize := 100
-	if v, ok := defaultWhMap["compute_node_ebs_disk_number"]; ok {
+	if v, ok := defaultWhMap["compute_node_ebs_disk_number"]; ok && v.(int) > 0 {
 		diskNumber = v.(int)
 	}
-	if v, ok := defaultWhMap["compute_node_ebs_disk_per_size"]; ok {
+	if v, ok := defaultWhMap["compute_node_ebs_disk_per_size"]; ok && v.(int) > 0 {
 		perDiskSize = v.(int)
 	}
 
