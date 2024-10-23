@@ -429,6 +429,31 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			if vmCateInfoResp.VmInfo.Arch != feArch {
 				return fmt.Errorf("the vm instance`s architecture of the warehouse[%s] must be the same as the coordinator node, expect:%s but found:%s", whName, feArch, vmCateInfoResp.VmInfo.Arch)
 			}
+
+			if vmCateInfoResp.VmInfo.IsInstanceStore {
+				attrs := make([]string, 0)
+				if v, ok := m["compute_node_ebs_disk_per_size"]; ok && v.(int) > 0 {
+					attrs = append(attrs, "compute_node_ebs_disk_per_size")
+				}
+				if v, ok := m["compute_node_ebs_disk_number"]; ok && v.(int) > 0 {
+					attrs = append(attrs, "compute_node_ebs_disk_number")
+				}
+				if len(attrs) > 0 {
+					return fmt.Errorf("the vm instance type[%s] of the warehouse[%s] does not support specifying the number or size of disks, field: %+v is not supported", vmCateName, whName, strings.Join(attrs, ","))
+				}
+			} else {
+				attrs := make([]string, 0)
+				if v, ok := m["compute_node_ebs_disk_per_size"]; !ok || v.(int) <= 0 {
+					attrs = append(attrs, "compute_node_ebs_disk_per_size")
+				}
+				if v, ok := m["compute_node_ebs_disk_number"]; !ok || v.(int) <= 0 {
+					attrs = append(attrs, "compute_node_ebs_disk_number")
+				}
+				if len(attrs) > 0 {
+					return fmt.Errorf("the vm instance type[%s] of the warehouse[%s] needs specifying the number and size of disks, field: %+v is needed", vmCateName, whName, strings.Join(attrs, ","))
+				}
+			}
+
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
 		}
 
@@ -523,8 +548,8 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		return diag.Errorf("`%s` is required", DEFAULT_WAREHOUSE_NAME)
 	}
 
-	diskNumber := 2
-	perDiskSize := 100
+	diskNumber := 0
+	perDiskSize := 0
 	if v, ok := defaultWhMap["compute_node_ebs_disk_number"]; ok && v.(int) > 0 {
 		diskNumber = v.(int)
 	}
