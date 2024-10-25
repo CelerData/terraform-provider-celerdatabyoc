@@ -1306,8 +1306,19 @@ func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 	computeNodeSizeChanged := oldParamMap["compute_node_size"].(string) != newParamMap["compute_node_size"].(string)
 	computeNodeCountChanged := oldParamMap["compute_node_count"].(int) != newParamMap["compute_node_count"].(int)
 	computeNodeEbsDiskNumberChanged := oldParamMap["compute_node_ebs_disk_number"].(int) != newParamMap["compute_node_ebs_disk_number"].(int)
+	computeNodeEbsDiskPerSizeChanged := oldParamMap["compute_node_ebs_disk_per_size"].(int) != newParamMap["compute_node_ebs_disk_per_size"].(int)
+
 	idleSuspendIntervalChanged := oldParamMap["idle_suspend_interval"].(int) != newParamMap["idle_suspend_interval"].(int)
 	autoScalingPolicyChanged := oldParamMap["auto_scaling_policy"].(string) != newParamMap["auto_scaling_policy"].(string)
+
+	if !computeNodeIsInstanceStore {
+		if computeNodeEbsDiskNumberChanged {
+			return diag.FromErr(errors.New("modifying the number of ebs disks is not supported"))
+		}
+		if computeNodeEbsDiskPerSizeChanged && oldParamMap["compute_node_ebs_disk_per_size"].(int) > newParamMap["compute_node_ebs_disk_per_size"].(int) {
+			return diag.FromErr(errors.New("disk capacity reduction is not supported"))
+		}
+	}
 
 	if expectedStateChanged && !isDefaultWarehouse {
 		if expectedState == string(cluster.ClusterStateRunning) {
@@ -1378,8 +1389,62 @@ func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		}
 	}
 
-	if !computeNodeIsInstanceStore && computeNodeEbsDiskNumberChanged {
-		return diag.FromErr(errors.New("modifying the number of ebs disks is not supported"))
+	if !computeNodeIsInstanceStore && computeNodeEbsDiskPerSizeChanged {
+
+		perDiskSize := newParamMap["compute_node_ebs_disk_per_size"].(int)
+
+		req := &cluster.ModifyClusterVolumeReq{
+			ClusterId: clusterId,
+			Type:      cluster.ClusterModuleTypeWarehouse,
+			VmVolSize: int64(perDiskSize),
+		}
+
+		log.Printf("[DEBUG] modify warehouse[%s] volume config, req:%+v", warehouseName, req)
+		modifyVolumeResp, err := clusterAPI.ModifyClusterVolume(ctx, req)
+		if err != nil {
+			log.Printf("[ERROR] modify warehouse[%s] volume config failed, err:%+v", warehouseName, err)
+			return diag.FromErr(err)
+		}
+		infraActionId := modifyVolumeResp.ActionID
+		if len(infraActionId) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterId,
+				actionID:   infraActionId,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+
+			summary := fmt.Sprintf("Modify warehouse[%s] volume config failed", warehouseName)
+
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   err.Error(),
+					},
+				}
+			}
+
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   infraActionResp.ErrMsg,
+					},
+				}
+			}
+		}
 	}
 
 	if idleSuspendIntervalChanged {
