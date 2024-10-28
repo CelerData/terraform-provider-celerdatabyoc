@@ -8,7 +8,7 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
 
-Used for generate a warehouse auto-scaling policy json.
+Used for generates a warehouse auto-scaling policy in the JSON format.
 
 This policy will automatically scale the number of Compute nodes (CN), based
 on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse]
