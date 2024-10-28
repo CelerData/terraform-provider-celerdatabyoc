@@ -46,7 +46,7 @@ resource "celerdatabyoc_auto_scaling_policy" "policy_1" {
 This resource exports the following attribute:
 
 - `id`: The ID of this resource.
-- `policy_json`: The auto-scaling policy json.
+- `policy_json`: The JSON-formatted auto-scaling policy.
 
 ## See Also
 
