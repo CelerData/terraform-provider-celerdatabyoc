@@ -1394,9 +1394,10 @@ func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		perDiskSize := newParamMap["compute_node_ebs_disk_per_size"].(int)
 
 		req := &cluster.ModifyClusterVolumeReq{
-			ClusterId: clusterId,
-			Type:      cluster.ClusterModuleTypeWarehouse,
-			VmVolSize: int64(perDiskSize),
+			ClusterId:   clusterId,
+			WarehouseID: warehouseId,
+			Type:        cluster.ClusterModuleTypeWarehouse,
+			VmVolSize:   int64(perDiskSize),
 		}
 
 		log.Printf("[DEBUG] modify warehouse[%s] volume config, req:%+v", warehouseName, req)

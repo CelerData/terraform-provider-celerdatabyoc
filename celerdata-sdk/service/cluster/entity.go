@@ -434,13 +434,14 @@ type GetClusterVolumeDetailResp struct {
 }
 
 type ModifyClusterVolumeReq struct {
-	ClusterId  string            `json:"cluster_id"`
-	Type       ClusterModuleType `json:"type"` // FE/BE
-	VmVolCate  string            `json:"vm_vol_cate"`
-	VmVolSize  int64             `json:"vm_vol_size"` // unit:GB
-	VmVolNum   int32             `json:"vm_vol_num"`
-	Iops       int64             `json:"iops"`
-	Throughput int64             `json:"throughput"`
+	ClusterId   string            `json:"cluster_id"`
+	WarehouseID string            `json:"warehouse_id"`
+	Type        ClusterModuleType `json:"type"` // FE/BE
+	VmVolCate   string            `json:"vm_vol_cate"`
+	VmVolSize   int64             `json:"vm_vol_size"` // unit:GB
+	VmVolNum    int32             `json:"vm_vol_num"`
+	Iops        int64             `json:"iops"`
+	Throughput  int64             `json:"throughput"`
 }
 
 type ModifyClusterVolumeResp struct {
