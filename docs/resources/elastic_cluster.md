@@ -7,6 +7,8 @@ description: |-
 ---
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
+~> If you want to deploy a multi-warehouses based elastic CelerData cluster, please see [Multi-warehouse Based 
+elastic cluster](../resources/elastic_cluster_v2.md).
 
 Deploys an elastic CelerData cluster on AWS EC2 instances.
 
