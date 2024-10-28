@@ -120,9 +120,6 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     // When using an EBS-backed instance type, specify the following two parameters. Otherwise, delete them.
     compute_node_ebs_disk_number   = <compute_node_ebs_disk_number>
     compute_node_ebs_disk_per_size = <compute_node_ebs_disk_per_size>
-    #expected_state = "Running" | "Suspended"
-    #idle_suspend_interval = 30
-    #auto_scaling_policy = resource.celerdatabyoc_auto_scaling_policy.policy_1.policy_json
    }
   
   default_admin_password = "<SQL_user_initial_password>"
