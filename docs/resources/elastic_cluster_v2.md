@@ -340,7 +340,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
       can only increase the value of this parameter, and the time interval between two value changes must be greater
       than 6 hours. This parameter only takes effect when using EBS-backed instance type.
 
-    - `expected_state`: (Optional) When creating none-default warehouse, you can declare the status of the warehouse
+    - `expected_state`: (Optional) When creating non-default warehouse, you can declare the status of the warehouse
       you are creating. Warehouse states are categorized as `Suspended` and `Running`. If you want the warehouse to
       start after provisioning, set
       this argument to `Running`. If you set this argument to `Suspended`, the warehouse will be suspended after
