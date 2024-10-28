@@ -3,12 +3,16 @@
 page_title: "celerdatabyoc_auto_scaling_policy Resource - terraform-provider-celerdatabyoc"
 subcategory: "Security"
 description: |-
-  
+
 ---
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
 
 Used for generate a warehouse auto-scaling policy json.
+
+This policy will automatically scale the number of Compute nodes (CN), based
+on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse]
+(https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling).
 
 ## Example Usage
 
@@ -36,23 +40,6 @@ resource "celerdatabyoc_auto_scaling_policy" "policy_1" {
   }
 }
 ```
-
-## Argument Reference
-
-This resource contains the following required arguments:
-
-- `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.
-
-  - If the cluster is a classic cluster, set this argument to `celerdatabyoc_classic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
-  - If the cluster is an elastic cluster, set this argument to `celerdatabyoc_elastic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
-
-- `login_user`: (String) The name of the database user who has permission to create other database users.
-
-- `login_password`: (String) The password for the preceding authorized database user.
-
-- `user_name`: (String, Forces new resource) The name of the database user to be created.
-
-- `user_password`: (String) The password of the preceding database user to be created.
 
 ## Attribute Reference
 

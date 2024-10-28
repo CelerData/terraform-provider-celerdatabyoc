@@ -357,7 +357,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of Compute nodes (CN), based
       on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse]
       (https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). See resource
-      `celerdatabyoc_auto_scaling_policy`.
+      [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md).
 
 - `default_admin_password`: (Forces new resource) The initial password of the cluster `admin` user.
 
