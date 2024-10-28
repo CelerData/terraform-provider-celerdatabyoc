@@ -319,7 +319,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 - `network_id`: (Forces new resource) Set the value to `celerdatabyoc_aws_network.network.id`.
 
-- `warehouse`: (List of Object) The list of warehouse. The attributes of a warehouse include:
+- `warehouse`: (List of Object) The list of warehouses. The attributes of a warehouse include:
     - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance
       type
       from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
