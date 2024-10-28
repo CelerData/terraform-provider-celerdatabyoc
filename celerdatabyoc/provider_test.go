@@ -32,12 +32,12 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	err = os.Setenv("CELERDATA_CLIENT_ID", "a2735be0-4542-4c11-9871-8426fc6d4f25")
+	err = os.Setenv("CELERDATA_CLIENT_ID", "1c627f4c-39b6-465f-bbc7-347928f95056")
 	if err != nil {
 		panic(err)
 	}
 
-	err = os.Setenv("CELERDATA_CLIENT_SECRET", "s74dAo7T6IpzhRuE58UsGTluBMEBLjIxSiPKcWrr")
+	err = os.Setenv("CELERDATA_CLIENT_SECRET", "R84fPK9R0zkU8Pm8n3edURBsFSldDKS44OaUW31r")
 	if err != nil {
 		panic(err)
 	}

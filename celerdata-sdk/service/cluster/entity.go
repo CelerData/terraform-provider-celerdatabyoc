@@ -6,10 +6,14 @@ type ClusterType string
 type DomainAllocateState int32
 type CustomConfigType int
 type ClusterInfraActionState string
+type WearhouseScalingType int32
+type WearhouseScalingConditionType int32
 
 var (
-	SupportedConfigType      = []string{"FE", "BE", "RANGER"}
-	SupportedClusterNodeType = []string{"FE", "BE", "COORDINATOR"}
+	SupportedConfigType                     = []string{"FE", "BE", "RANGER"}
+	ClusterNodeType                         = []string{"FE", "BE", "COORDINATOR"}
+	WarehouseAutoScalingPolicyType          = []string{"SCALE_OUT", "SCALE_IN"}
+	WarehouseAutoScalingPolicyConditionType = []string{"AVERAGE_CPU_UTILIZATION"}
 )
 
 const (
@@ -48,6 +52,11 @@ const (
 	CustomConfigTypeFe          CustomConfigType = 4
 
 	RANGER_CONFIG_KEY = "s3_path"
+
+	WearhouseScalingType_SCALE_IN  WearhouseScalingType = 1
+	WearhouseScalingType_SCALE_OUT WearhouseScalingType = 2
+
+	WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION WearhouseScalingConditionType = 1
 )
 
 type Kv struct {
@@ -142,8 +151,9 @@ type DeployReq struct {
 }
 
 type DeployResp struct {
-	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
-	ActionID  string `json:"action_id" mapstructure:"action_id"`
+	ClusterID          string `json:"cluster_id" mapstructure:"cluster_id"`
+	ActionID           string `json:"action_id" mapstructure:"action_id"`
+	DefaultWarehouseId string `json:"default_warehouse_id" mapstructure:"default_warehouse_id"`
 }
 
 type Module struct {
@@ -154,6 +164,22 @@ type Module struct {
 	VmVolSizeGB     int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
 	VmVolNum        int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+}
+
+type Warehouse struct {
+	Id                 string       `json:"id" mapstructure:"id"`
+	Name               string       `json:"name" mapstructure:"name"`
+	State              ClusterState `json:"state" mapstructure:"state"`
+	Module             *Module      `json:"module" mapstructure:"module"`
+	Deleted            bool         `json:"deleted" mapstructure:"deleted"`
+	IsDefaultWarehouse bool         `json:"is_default_warehouse" mapstructure:"is_default_warehouse"`
+	CreatedAt          int64        `json:"created_at" mapstructure:"created_at"`
+}
+
+type WarehouseExternalInfo struct {
+	Id                 string `json:"id"`
+	IsInstanceStore    bool   `json:"is_instance_store"`
+	IsDefaultWarehouse bool   `json:"is_default_warehouse"`
 }
 
 type Cluster struct {
@@ -175,6 +201,8 @@ type Cluster struct {
 	QueryPort           int32        `json:"query_port" mapstructure:"query_port"`
 	IdleSuspendInterval int32        `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
 	LdapSslCerts        []string     `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
+	Warehouses          []*Warehouse `json:"warehouses" mapstructure:"warehouses"`
+	IsMultiWarehouse    bool         `json:"is_multi_warehouse" mapstructure:"is_multi_warehouse"`
 }
 
 type ScaleInReq struct {
@@ -406,13 +434,14 @@ type GetClusterVolumeDetailResp struct {
 }
 
 type ModifyClusterVolumeReq struct {
-	ClusterId  string            `json:"cluster_id"`
-	Type       ClusterModuleType `json:"type"` // FE/BE
-	VmVolCate  string            `json:"vm_vol_cate"`
-	VmVolSize  int64             `json:"vm_vol_size"` // unit:GB
-	VmVolNum   int32             `json:"vm_vol_num"`
-	Iops       int64             `json:"iops"`
-	Throughput int64             `json:"throughput"`
+	ClusterId   string            `json:"cluster_id"`
+	WarehouseID string            `json:"warehouse_id"`
+	Type        ClusterModuleType `json:"type"` // FE/BE
+	VmVolCate   string            `json:"vm_vol_cate"`
+	VmVolSize   int64             `json:"vm_vol_size"` // unit:GB
+	VmVolNum    int32             `json:"vm_vol_num"`
+	Iops        int64             `json:"iops"`
+	Throughput  int64             `json:"throughput"`
 }
 
 type ModifyClusterVolumeResp struct {
@@ -427,6 +456,163 @@ type ClusterInfo struct {
 type ListClusterResp struct {
 	Total int64          `json:"total" mapstructure:"total"`
 	List  []*ClusterInfo `json:"list" mapstructure:"list"`
+}
+
+type GetWarehouseReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type WarehouseInfo struct {
+	WarehouseId     string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	WarehouseName   string `json:"warehouse_name" mapstructure:"warehouse_name"`
+	NodeCount       int32  `json:"node_count" mapstructure:"node_count"`
+	State           string `json:"state" mapstructure:"state"`
+	IsDefault       bool   `json:"is_default" mapstructure:"is_default"`
+	VmCate          string `json:"vm_cate" mapstructure:"vm_cate"`
+	VmVolSizeGB     int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
+	VmVolNum        int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
+	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+}
+
+type GetWarehouseResp struct {
+	Info *WarehouseInfo
+}
+
+type CreateWarehouseReq struct {
+	ClusterId    string `json:"cluster_id" mapstructure:"cluster_id"`
+	Name         string `json:"name" mapstructure:"name"`
+	Description  string `json:"description" mapstructure:"description"`
+	VmCate       string `json:"vm_cate" mapstructure:"vm_cate"`
+	VmNum        int32  `json:"vm_num" mapstructure:"vm_num"`
+	VolumeSizeGB int64  `json:"volume_size_gb" mapstructure:"volume_size_gb"`
+	VolumeNum    int32  `json:"volume_num" mapstructure:"volume_num"`
+}
+
+type CreateWarehouseResp struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	ActionID    string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ScaleWarehouseNumReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	VmNum       int32  `json:"vm_num" mapstructure:"vm_num"`
+}
+
+type ScaleWarehouseNumResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ScaleWarehouseSizeReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
+}
+
+type ScaleWarehouseSizeResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ResumeWarehouseReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type ResumeWarehouseResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type SuspendWarehouseReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type SuspendWarehouseResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ReleaseWarehouseReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type ReleaseWarehouseResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type GetWarehouseIdleConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type GetWarehouseIdleConfigResp struct {
+	Config *WarehouseIdleConfig `json:"config" mapstructure:"config"`
+}
+
+type WarehouseIdleConfig struct {
+	ResourceNodeId string `json:"resource_node_id" mapstructure:"resource_node_id"`
+	IntervalMs     int64  `json:"interval_ms" mapstructure:"interval_ms"`
+	State          bool   `json:"state" mapstructure:"state"`
+}
+
+type UpdateWarehouseIdleConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	IntervalMs  int64  `json:"interval_ms" mapstructure:"interval_ms"`
+	State       bool   `json:"state" mapstructure:"state"`
+}
+
+type GetWarehouseAutoScalingConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type WearhouseScalingCondition struct {
+	Type            int32  `json:"type" mapstructure:"type"`
+	DurationSeconds int64  `json:"duration_seconds" mapstructure:"duration_seconds"`
+	Value           string `json:"value" mapstructure:"value"`
+}
+
+type WearhouseScalingPolicyItem struct {
+	Type       int32                        `json:"type" mapstructure:"type"`
+	StepSize   int32                        `json:"step_size" mapstructure:"step_size"`
+	Conditions []*WearhouseScalingCondition `json:"conditions" mapstructure:"conditions"`
+}
+
+type WarehouseAutoScalingConfig struct {
+	MinSize    int32                         `json:"min_size" mapstructure:"min_size"`
+	MaxSize    int32                         `json:"max_size" mapstructure:"max_size"`
+	PolicyItem []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
+	State      bool                          `json:"state" mapstructure:"state"`
+}
+
+type GetWarehouseAutoScalingConfigResp struct {
+	Policy *WarehouseAutoScalingConfig `json:"policy" mapstructure:"policy"`
+}
+
+type SaveWarehouseAutoScalingConfigReq struct {
+	WarehouseAutoScalingConfig
+	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	State       bool   `json:"state" mapstructure:"state"`
+}
+
+type SaveWarehouseAutoScalingConfigResp struct {
+	BizId string `json:"biz_id" mapstructure:"biz_id"`
+}
+
+type DeleteWarehouseAutoScalingConfigReq struct {
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type GetVmInfoReq struct {
+	Csp         string `json:"csp" mapstructure:"csp"`
+	Region      string `json:"region" mapstructure:"region"`
+	ProcessType string `json:"process_type" mapstructure:"process_type"`
+	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
+}
+
+type VMInfo struct {
+	ProcessType     string `json:"process_type" mapstructure:"process_type"` // FE/BE
+	VmCate          string `json:"vm_cate" mapstructure:"vm_cate"`
+	Arch            string `json:"arch" mapstructure:"arch"`
+	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+}
+
+type GetVmInfoResp struct {
+	VmInfo *VMInfo `json:"vm_info" mapstructure:"vm_info"`
 }
 
 func ConvertStrToCustomConfigType(val string) CustomConfigType {

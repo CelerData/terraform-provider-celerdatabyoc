@@ -934,9 +934,16 @@ func UpdateClusterState(ctx context.Context, clusterAPI cluster.IClusterAPI, clu
 
 func SuspendWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string) diag.Diagnostics {
 	log.Printf("[DEBUG] suspend cluster: %s", clusterID)
+	summary := "Suspend cluster"
 	resp, err := clusterAPI.Suspend(ctx, &cluster.SuspendReq{ClusterID: clusterID})
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
 	}
 
 	log.Printf("[DEBUG] suspend succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterID)
@@ -949,20 +956,39 @@ func SuspendWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clu
 		targetStates:  []string{string(cluster.ClusterStateSuspended), string(cluster.ClusterStateAbnormal)},
 	})
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) suspend: %s", clusterID, err.Error()))
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   fmt.Sprintf("waiting for cluster (%s) suspend faild: %s", clusterID, err.Error()),
+			},
+		}
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   fmt.Sprintf("waiting for cluster (%s) suspend faild: %s", clusterID, stateResp.AbnormalReason),
+			},
+		}
 	}
 
 	return nil
 }
 func ResumeWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string) diag.Diagnostics {
 	log.Printf("[DEBUG] resume cluster: %s", clusterID)
+	summary := "resume cluster"
 	resp, err := clusterAPI.Resume(ctx, &cluster.ResumeReq{ClusterID: clusterID})
 	if err != nil {
-		return diag.FromErr(err)
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
 	}
 
 	log.Printf("[DEBUG] resume succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterID)
@@ -975,11 +1001,23 @@ func ResumeWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clus
 		targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
 	})
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) resume: %s", clusterID, err.Error()))
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   fmt.Sprintf("waiting for cluster (%s) resume failed: %s", clusterID, err.Error()),
+			},
+		}
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   fmt.Sprintf("waiting for cluster (%s) resume failed: %s", clusterID, stateResp.AbnormalReason),
+			},
+		}
 	}
 
 	return nil

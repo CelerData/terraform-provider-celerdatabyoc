@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"log"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
 )
@@ -42,6 +43,21 @@ type IClusterAPI interface {
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
 
 	ListCluster(ctx context.Context) (*ListClusterResp, error)
+
+	GetWarehouse(ctx context.Context, req *GetWarehouseReq) (*GetWarehouseResp, error)
+	CreateWarehouse(ctx context.Context, req *CreateWarehouseReq) (*CreateWarehouseResp, error)
+	ScaleWarehouseNum(ctx context.Context, req *ScaleWarehouseNumReq) (*ScaleWarehouseNumResp, error)
+	ScaleWarehouseSize(ctx context.Context, req *ScaleWarehouseSizeReq) (*ScaleWarehouseSizeResp, error)
+	ResumeWarehouse(ctx context.Context, req *ResumeWarehouseReq) (*ResumeWarehouseResp, error)
+	SuspendWarehouse(ctx context.Context, req *SuspendWarehouseReq) (*SuspendWarehouseResp, error)
+	ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error)
+	GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error)
+	UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error
+	GetWarehouseAutoScalingConfig(ctx context.Context, req *GetWarehouseAutoScalingConfigReq) (*GetWarehouseAutoScalingConfigResp, error)
+	SaveWarehouseAutoScalingConfig(ctx context.Context, req *SaveWarehouseAutoScalingConfigReq) (*SaveWarehouseAutoScalingConfigResp, error)
+	DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error
+
+	GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -51,6 +67,130 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+// GetVmInfo implements IClusterAPI.
+func (c *clusterAPI) GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error) {
+	resp := &GetVmInfoResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/vm-instance/info", c.apiVersion), map[string]string{
+		"csp":          req.Csp,
+		"region":       req.Region,
+		"process_type": req.ProcessType,
+		"vm_cate":      req.VmCate,
+	}, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error {
+	return c.cli.Delete(ctx, fmt.Sprintf("/api/%s/warehouses/%s/auto-scaling-policy", c.apiVersion, req.WarehouseId), nil, nil)
+}
+
+func (c *clusterAPI) SaveWarehouseAutoScalingConfig(ctx context.Context, req *SaveWarehouseAutoScalingConfigReq) (*SaveWarehouseAutoScalingConfigResp, error) {
+
+	log.Printf("[DEBUG] Save warehouse auto scaling config, req:%+v", req)
+	resp := &SaveWarehouseAutoScalingConfigResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/auto-scaling-policy", c.apiVersion, req.WarehouseId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) GetWarehouseAutoScalingConfig(ctx context.Context, req *GetWarehouseAutoScalingConfigReq) (*GetWarehouseAutoScalingConfigResp, error) {
+
+	log.Printf("[DEBUG] Query warehouse auto scaling config, warehouseId:%s", req.WarehouseId)
+	resp := &GetWarehouseAutoScalingConfigResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/warehouses/%s/auto-scaling-policy", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/idle-conf", c.apiVersion, req.WarehouseId), req, nil)
+}
+
+func (c *clusterAPI) GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error) {
+	resp := &GetWarehouseIdleConfigResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/warehouses/%s/idle-conf", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error) {
+	resp := &ReleaseWarehouseResp{}
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/warehouses/%s", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ScaleWarehouseSize(ctx context.Context, req *ScaleWarehouseSizeReq) (*ScaleWarehouseSizeResp, error) {
+	resp := &ScaleWarehouseSizeResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scale-size", c.apiVersion, req.WarehouseId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ScaleWarehouseNum(ctx context.Context, req *ScaleWarehouseNumReq) (*ScaleWarehouseNumResp, error) {
+	resp := &ScaleWarehouseNumResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scale-num", c.apiVersion, req.WarehouseId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SuspendWarehouse(ctx context.Context, req *SuspendWarehouseReq) (*SuspendWarehouseResp, error) {
+	resp := &SuspendWarehouseResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/suspend", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ResumeWarehouse(ctx context.Context, req *ResumeWarehouseReq) (*ResumeWarehouseResp, error) {
+	resp := &ResumeWarehouseResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/resume", c.apiVersion, req.WarehouseId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CreateWarehouse(ctx context.Context, req *CreateWarehouseReq) (*CreateWarehouseResp, error) {
+	resp := &CreateWarehouseResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) GetWarehouse(ctx context.Context, req *GetWarehouseReq) (*GetWarehouseResp, error) {
+	warehouseInfo := &WarehouseInfo{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/warehouses/%s", c.apiVersion, req.WarehouseId), nil, warehouseInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(warehouseInfo.WarehouseId) == 0 {
+		warehouseInfo = nil
+	}
+
+	return &GetWarehouseResp{
+		Info: warehouseInfo,
+	}, nil
 }
 
 func (c *clusterAPI) ListCluster(ctx context.Context) (*ListClusterResp, error) {
