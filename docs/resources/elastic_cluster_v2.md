@@ -103,7 +103,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   data_credential_id = celerdatabyoc_aws_data_credential.data_credential.id
   network_id = celerdatabyoc_aws_network.network.id
   
-  // There must be a warehouse configuration with the name “default_warehouse”.
+  // The configuration for “default_warehouse” is required.
   warehouse {
     name                           = "default_warehouse"
     compute_node_size              = "<compute_node_instance_type>"
