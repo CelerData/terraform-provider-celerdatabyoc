@@ -120,6 +120,8 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     // When using an EBS-backed instance type, specify the following two parameters. Otherwise, delete them.
     compute_node_ebs_disk_number   = <compute_node_ebs_disk_number>
     compute_node_ebs_disk_per_size = <compute_node_ebs_disk_per_size>
+    
+    #auto_scaling_policy            = celerdatabyoc_auto_scaling_policy.policy_1.policy_json
    }
   
   default_admin_password = "<SQL_user_initial_password>"
@@ -353,8 +355,9 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
       configuration.
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of Compute nodes (CN), based
       on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse]
-      (https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). See resource
-      [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md).
+      (https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
+      policy_json value for this argument using the [
+      `celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md).
 
 - `default_admin_password`: (Forces new resource) The initial password of the cluster `admin` user.
 
