@@ -8,7 +8,7 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
 
-Deploys a multi-warehouses based elastic CelerData cluster on AWS EC2 instances.
+Deploys a multi-warehouse elastic CelerData cluster on AWS EC2 instances.
 
 This resource depends on the following resources and data source:
 
@@ -24,7 +24,7 @@ This resource depends on the following resources and data source:
 ### Supported Node Sizes
 
 For information about the instance types supported by CelerData,
-see [Supported instance types](https://docs.celerdata.com/byoc/main/get_started/create_cluster/supported_instance_type).
+see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_type/).
 
 ## Example Usage
 
@@ -323,8 +323,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 - `warehouse`: (List of Object) The list of warehouses. The attributes of a warehouse include:
     - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance
-      type
-      from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
+      type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
       `r6id.4xlarge`.
 
     - `compute_node_count`: (Optional) The number of compute nodes in the cluster. Valid values: any non-zero positive
@@ -335,10 +334,10 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
       `compute_node_ebs_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a
       cluster is equal to `compute_node_ebs_disk_number` * `compute_node_ebs_disk_per_size`.
 
-    - `compute_node_ebs_disk_number`: (Unchangeable) The number of disks for each computer node. Valid values: [1,24].
+    - `compute_node_ebs_disk_number`: (Unchangeable) The number of disks for each compute node. Valid values: [1,24].
       This parameter only takes effect when using EBS-backed instance type.
 
-    - `compute_node_ebs_disk_per_size`: The size per disk for each computer node. Unit: GB. Maximum value: `16000`. You
+    - `compute_node_ebs_disk_per_size`: The size per disk for each compute node. Unit: GB. Maximum value: `16000`. You
       can only increase the value of this parameter, and the time interval between two value changes must be greater
       than 6 hours. This parameter only takes effect when using EBS-backed instance type.
 
@@ -351,13 +350,11 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `idle_suspend_interval`: (Optional) The amount of time (in minutes) during which the warehouse can stay idle.
       After the specified time period elapses, the warehouse will be automatically suspended. The Auto Suspend feature
       is disabled by default and unable for `default_warehouse`. To enable the Auto Suspend feature, set this argument
-      to an integer with the range of 15-999999. To disable this feature again, remove this argument from your Terraform
+      to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform
       configuration.
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of Compute nodes (CN), based
-      on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse]
-      (https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
-      policy_json value for this argument using the [
-      `celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md).
+      on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
+      `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
 
 - `default_admin_password`: (Forces new resource) The initial password of the cluster `admin` user.
 

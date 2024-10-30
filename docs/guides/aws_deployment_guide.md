@@ -323,7 +323,7 @@ resource "celerdatabyoc_classic_cluster" "demo_cluster" {
 
 The [`celerdatabyoc_classic_cluster`](../resources/classic_cluster.md) resource contains the following required arguments and optional arguments:
 
-~> For information about the resource used to deploy an elastic CelerData cluster on AWS through Terraform, see [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md).
+~> For information about the resource used to deploy an elastic CelerData cluster on AWS through Terraform, see [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md) (single-warehouse cluster) and [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md) (multi-warehouse cluster).
 
 **Required:**
 

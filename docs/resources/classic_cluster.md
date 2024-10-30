@@ -16,7 +16,7 @@ The implementation of this resource is part of the whole cluster deployment proc
 
 ## Supported Instance Types
 
-For information about the instance types supported by CelerData, see [Supported instance types](https://docs.celerdata.com/byoc/main/get_started/create_cluster/supported_instance_type).
+For information about the instance types supported by CelerData, see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_type/).
 
 ## Example Usage
 
