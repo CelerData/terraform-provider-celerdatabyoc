@@ -7,12 +7,9 @@ description: |-
 ---
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
-~> If you want to deploy a multi-warehouses based elastic CelerData cluster, please see [Multi-warehouse Based 
-elastic cluster](../resources/elastic_cluster_v2.md).
+~> If you want to deploy a multi-warehouse elastic CelerData cluster, please see [Multi-warehouse Based elastic cluster](../resources/elastic_cluster_v2.md).
 
-Deploys an elastic CelerData cluster on AWS EC2 instances.
-
-Note that elastic clusters deployed through Terraform do not support the multi-warehouse feature.
+Deploys a single-warehouse elastic CelerData cluster on AWS EC2 instances.
 
 This resource depends on the following resources and data source:
 
@@ -27,7 +24,7 @@ This resource depends on the following resources and data source:
 
 ### Supported Node Sizes
 
-For information about the instance types supported by CelerData, see [Supported instance types](https://docs.celerdata.com/byoc/main/get_started/create_cluster/supported_instance_type).
+For information about the instance types supported by CelerData, see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_type/).
 
 ## Example Usage
 
@@ -281,9 +278,9 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 
 - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
 
-- `compute_node_ebs_disk_number`: (Forces new resource) The number of disks for each computer node. Valid values: [1,24]. Default value: `2`. This parameter only takes effect when using EBS-backed instance type.
+- `compute_node_ebs_disk_number`: (Forces new resource) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`. This parameter only takes effect when using EBS-backed instance type.
 
-- `compute_node_ebs_disk_per_size`: The size per disk for each computer node. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours. This parameter only takes effect when using EBS-backed instance type.
+- `compute_node_ebs_disk_per_size`: The size per disk for each compute node. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours. This parameter only takes effect when using EBS-backed instance type.
 
 ~> When using an EBS-backed instance type, you can use the `compute_node_ebs_disk_number` and `compute_node_ebs_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a cluster is equal to `compute_node_ebs_disk_number` * `compute_node_ebs_disk_per_size`.
 

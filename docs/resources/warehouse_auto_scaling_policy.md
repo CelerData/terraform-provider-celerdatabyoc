@@ -8,11 +8,10 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
 
-Used for generates a warehouse auto-scaling policy in the JSON format.
+Generates a warehouse Auto Scaling policy in the JSON format.
 
-This policy will automatically scale the number of Compute nodes (CN), based
-on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse]
-(https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling).
+This policy will automatically scale the number of Compute Nodes (CN) based on CPU utilization of the warehouse. For more information, 
+see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling).
 
 ## Example Usage
 
@@ -46,7 +45,7 @@ resource "celerdatabyoc_auto_scaling_policy" "policy_1" {
 This resource exports the following attribute:
 
 - `id`: The ID of this resource.
-- `policy_json`: The JSON-formatted auto-scaling policy.
+- `policy_json`: The JSON-formatted Auto Scaling policy.
 
 ## See Also
 
