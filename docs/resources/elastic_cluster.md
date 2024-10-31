@@ -7,12 +7,9 @@ description: |-
 ---
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
-~> If you want to deploy a multi-warehouses based elastic CelerData cluster, please see [Multi-warehouse Based 
-elastic cluster](../resources/elastic_cluster_v2.md).
+~> If you want to deploy a multi-warehouse elastic CelerData cluster, please see [Multi-warehouse Based elastic cluster](../resources/elastic_cluster_v2.md).
 
-Deploys an elastic CelerData cluster on AWS EC2 instances.
-
-Note that elastic clusters deployed through Terraform do not support the multi-warehouse feature.
+Deploys a single-warehouse elastic CelerData cluster on AWS EC2 instances.
 
 This resource depends on the following resources and data source:
 
