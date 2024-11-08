@@ -187,8 +187,13 @@ func resourceClusterCustomConfigDelete(ctx context.Context, d *schema.ResourceDa
 	})
 
 	if err != nil {
-		log.Printf("[ERROR] remove cluster custom config failed, err:%+v", err)
-		return diag.FromErr(err)
+		log.Printf("[WARN] remove cluster custom config failed, err:%+v", err)
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  err.Error(),
+			},
+		}
 	}
 
 	infraActionId := resp.InfraActionId
