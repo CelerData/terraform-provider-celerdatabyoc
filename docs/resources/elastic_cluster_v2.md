@@ -153,7 +153,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
 
 This resource contains only the following required argument:
 
-- `bucket`: (Forces new resource) The name of the AWS S3 bucket for which to generate the JSON policy document and that
+- `bucket`: (Not allowed to modify) The name of the AWS S3 bucket for which to generate the JSON policy document and that
   stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local
   value `s3_bucket` in your Terraform configuration.
   See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
@@ -169,7 +169,7 @@ This resource contains the following required arguments and optional arguments:
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the IAM role referenced in the data credential. Enter a unique name. If
+- `name`: (Not allowed to modify) The name of the IAM role referenced in the data credential. Enter a unique name. If
   omitted, Terraform will assign a random, unique name.
   See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
 
@@ -190,23 +190,23 @@ This resource contains the following required arguments and optional arguments:
 
 **Required:**
 
-- `role_arn`: (Forces new resource) The ARN of the IAM role referenced in the data credential. Set the value to
+- `role_arn`: (Not allowed to modify) The ARN of the IAM role referenced in the data credential. Set the value to
   `aws_iam_role.celerdata_data_cred_role.arn`.
 
-- `instance_profile_arn`: (Forces new resource) The instance profile ARN of the IAM role referenced in the data
+- `instance_profile_arn`: (Not allowed to modify) The instance profile ARN of the IAM role referenced in the data
   credential. Set the value to `aws_iam_instance_profile.celerdata_data_cred_profile.arn`.
 
-- `bucket_name`: (Forces new resource) The name of the AWS S3 bucket for which to generate the policy document and that
+- `bucket_name`: (Not allowed to modify) The name of the AWS S3 bucket for which to generate the policy document and that
   stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local
   value `s3_bucket` in your Terraform configuration.
   See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
-- `policy_version`: (Forces new resource) Set the value to
+- `policy_version`: (Not allowed to modify) Set the value to
   `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the data credential. Enter a unique name. If omitted, Terraform will assign
+- `name`: (Not allowed to modify) The name of the data credential. Enter a unique name. If omitted, Terraform will assign
   a random, unique name.
 
 ### Deployment credential-related resources
@@ -215,7 +215,7 @@ This resource contains the following required arguments and optional arguments:
 
 This resource contains only the following optional arguments:
 
-- `name`: (Forces new resource) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign
+- `name`: (Not allowed to modify) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign
   a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of
   characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`,
   `.`, `@`, `-`. Spaces are not allowed.
@@ -231,7 +231,7 @@ This resource contains only the following required arguments:
   element as a local value `s3_bucket` in your Terraform configuration.
   See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
-- `data_role_arn`: (Forces new resource) The ARN of the IAM role referenced in the deployment credential. Set the value
+- `data_role_arn`: (Not allowed to modify) The ARN of the IAM role referenced in the deployment credential. Set the value
   to `aws_iam_role.celerdata_data_cred_role.arn`.
 
 #### aws_iam_role (deploy_cred_role)
@@ -245,7 +245,7 @@ This resource contains the following required arguments and optional arguments:
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the IAM role referenced in the deployment credential. Enter a unique name.
+- `name`: (Not allowed to modify) The name of the IAM role referenced in the deployment credential. Enter a unique name.
   If omitted, Terraform will assign a random, unique name.
   See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
 
@@ -266,17 +266,17 @@ This resource contains the following required arguments and optional arguments:
 
 **Required:**
 
-- `role_arn`: (Forces new resource) Set the value to `aws_iam_role.deploy_cred_role.arn`.
+- `role_arn`: (Not allowed to modify) Set the value to `aws_iam_role.deploy_cred_role.arn`.
 
-- `external_id`: (Forces new resource) Set the value to
+- `external_id`: (Not allowed to modify) Set the value to
   `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id`.
 
-- `policy_version`: (Forces new resource) Set the value to
+- `policy_version`: (Not allowed to modify) Set the value to
   `celerdatabyoc_aws_deployment_credential_policy.role_policy.version`.
 
 **Optional:**
 
-- `name`: (Forces new resource) The name of the deployment credential. Enter a unique name. If omitted, Terraform will
+- `name`: (Not allowed to modify) The name of the deployment credential. Enter a unique name. If omitted, Terraform will
   assign a random, unique name.
 
 ### Network configuration-related resources
@@ -285,16 +285,16 @@ The `celerdatabyoc_aws_network` resource contains the following required argumen
 
 **Required:**
 
-- `name`: (Forces new resource) The name of the AWS VPC hosting the cluster. Enter a unique name.
+- `name`: (Not allowed to modify) The name of the AWS VPC hosting the cluster. Enter a unique name.
 
-- `subnet_id`: (Forces new resource) The ID of the subnet within the AWS VPC.
+- `subnet_id`: (Not allowed to modify) The ID of the subnet within the AWS VPC.
 
-- `security_group_id`: (Forces new resource) The ID of the security group within the AWS VPC.
+- `security_group_id`: (Not allowed to modify) The ID of the security group within the AWS VPC.
 
-- `region`: (Forces new resource) The ID of the cloud provider region to which the network hosting the cluster belongs.
+- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs.
   See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
 
-- `deployment_credential_id`: (Forces new resource) Set the value to
+- `deployment_credential_id`: (Not allowed to modify) Set the value to
   `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 
 **Optional:**
@@ -308,18 +308,18 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 **Required:**
 
-- `cluster_name`: (Forces new resource) The desired name for the cluster. Enter a unique name.
+- `cluster_name`: (Not allowed to modify) The desired name for the cluster. Enter a unique name.
 
 - `coordinator_node_size`: The instance type for coordinator nodes in the cluster. Select a coordinator node instance
   type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
   `m6i.4xlarge`.
 
-- `deployment_credential_id`: (Forces new resource) Set the value to
+- `deployment_credential_id`: (Not allowed to modify) Set the value to
   `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 
-- `data_credential_id`: (Forces new resource) Set the value to `celerdatabyoc_aws_data_credential.data_credential.id`.
+- `data_credential_id`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_data_credential.data_credential.id`.
 
-- `network_id`: (Forces new resource) Set the value to `celerdatabyoc_aws_network.network.id`.
+- `network_id`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_network.network.id`.
 
 - `warehouse`: (List of Object) The list of warehouses. The attributes of a warehouse include:
     - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance
@@ -356,15 +356,15 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
       on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
       `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
 
-- `default_admin_password`: (Forces new resource) The initial password of the cluster `admin` user.
+- `default_admin_password`: (Not allowed to modify) The initial password of the cluster `admin` user.
 
 - `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating.
   Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set
   this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
 
-- `csp`: (Forces new resource) The cloud service provider of the cluster. Only AWS is supported.
+- `csp`: (Not allowed to modify) The cloud service provider of the cluster. Only AWS is supported.
 
-- `region`: (Forces new resource) The ID of the cloud provider region to which the network hosting the cluster belongs.
+- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs.
   See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
 
 **Optional:**
@@ -379,17 +379,17 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 ~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
-- `resource_tags`: (Forces new resource) The tags to be attached to the cluster.
+- `resource_tags`: The tags to be attached to the cluster.
 
-- `init_scripts`: (Forces new resource) The configuration block to specify the paths to which scripts and script
+- `init_scripts`: (Not allowed to modify) The configuration block to specify the paths to which scripts and script
   execution results are stored. The maximum number of executable scripts is 20. For information about the formats
   supported by these arguments, see `scripts.logs_dir` and `scripts.script_path`
   in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
 
-    - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This
+    - `logs_dir`: (Not allowed to modify) The path in the AWS S3 bucket to which script execution results are stored. This
       S3 bucket can be the same as or different from the S3 bucket you specify in the
       `celerdatabyoc_aws_data_credential` resource.
-    - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform.
+    - `script_path`: (Not allowed to modify) The path in the AWS S3 bucket that stores the scripts to run via Terraform.
       This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value:
