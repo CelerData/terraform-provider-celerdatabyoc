@@ -183,26 +183,27 @@ type WarehouseExternalInfo struct {
 }
 
 type Cluster struct {
-	ClusterID           string       `json:"cluster_id" mapstructure:"cluster_id"`
-	ClusterName         string       `json:"cluster_name" mapstructure:"cluster_name"`
-	ClusterState        ClusterState `json:"cluster_state"  mapstructure:"cluster_state"`
-	ClusterVersion      string       `json:"cluster_version" mapstructure:"cluster_version"`
-	ClusterType         ClusterType  `json:"cluster_type" mapstructure:"cluster_type"`
-	Csp                 string       `json:"csp" mapstructure:"csp"`
-	Region              string       `json:"region" mapstructure:"region"`
-	AccountID           string       `json:"account_id" mapstructure:"account_id"`
-	FeModule            *Module      `json:"fe_module" mapstructure:"fe_module"`
-	BeModule            *Module      `json:"be_module" mapstructure:"be_module"`
-	SSLConnEnable       bool         `json:"ssl_conn_enable" mapstructure:"ssl_conn_enable"`
-	NetIfaceID          string       `json:"net_iface_id" mapstructure:"net_iface_id"`
-	DeployCredID        string       `json:"deploy_cred_id" mapstructure:"deploy_cred_id"`
-	DataCredID          string       `json:"data_cred_id" mapstructure:"data_cred_id"`
-	FreeTier            bool         `json:"free_tier" mapstructure:"free_tier"`
-	QueryPort           int32        `json:"query_port" mapstructure:"query_port"`
-	IdleSuspendInterval int32        `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
-	LdapSslCerts        []string     `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
-	Warehouses          []*Warehouse `json:"warehouses" mapstructure:"warehouses"`
-	IsMultiWarehouse    bool         `json:"is_multi_warehouse" mapstructure:"is_multi_warehouse"`
+	ClusterID           string            `json:"cluster_id" mapstructure:"cluster_id"`
+	ClusterName         string            `json:"cluster_name" mapstructure:"cluster_name"`
+	ClusterState        ClusterState      `json:"cluster_state"  mapstructure:"cluster_state"`
+	ClusterVersion      string            `json:"cluster_version" mapstructure:"cluster_version"`
+	ClusterType         ClusterType       `json:"cluster_type" mapstructure:"cluster_type"`
+	Csp                 string            `json:"csp" mapstructure:"csp"`
+	Region              string            `json:"region" mapstructure:"region"`
+	AccountID           string            `json:"account_id" mapstructure:"account_id"`
+	FeModule            *Module           `json:"fe_module" mapstructure:"fe_module"`
+	BeModule            *Module           `json:"be_module" mapstructure:"be_module"`
+	SSLConnEnable       bool              `json:"ssl_conn_enable" mapstructure:"ssl_conn_enable"`
+	NetIfaceID          string            `json:"net_iface_id" mapstructure:"net_iface_id"`
+	DeployCredID        string            `json:"deploy_cred_id" mapstructure:"deploy_cred_id"`
+	DataCredID          string            `json:"data_cred_id" mapstructure:"data_cred_id"`
+	FreeTier            bool              `json:"free_tier" mapstructure:"free_tier"`
+	QueryPort           int32             `json:"query_port" mapstructure:"query_port"`
+	IdleSuspendInterval int32             `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
+	LdapSslCerts        []string          `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
+	Warehouses          []*Warehouse      `json:"warehouses" mapstructure:"warehouses"`
+	IsMultiWarehouse    bool              `json:"is_multi_warehouse" mapstructure:"is_multi_warehouse"`
+	Tags                map[string]string `json:"tags" mapstructure:"tags"`
 }
 
 type ScaleInReq struct {
@@ -613,6 +614,12 @@ type VMInfo struct {
 
 type GetVmInfoResp struct {
 	VmInfo *VMInfo `json:"vm_info" mapstructure:"vm_info"`
+}
+
+type UpdateResourceTagsReq struct {
+	ClusterId   string            `json:"cluster_id"`
+	WarehouseId string            `json:"warehouse_id"`
+	Tags        map[string]string `json:"tags"`
 }
 
 func ConvertStrToCustomConfigType(val string) CustomConfigType {

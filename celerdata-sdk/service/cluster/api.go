@@ -41,6 +41,7 @@ type IClusterAPI interface {
 
 	GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error)
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
+	UpdateResourceTags(ctx context.Context, req *UpdateResourceTagsReq) error
 
 	ListCluster(ctx context.Context) (*ListClusterResp, error)
 
@@ -262,6 +263,11 @@ func (c *clusterAPI) Resume(ctx context.Context, req *ResumeReq) (*ResumeResp, e
 	}
 
 	return resp, nil
+}
+
+func (c *clusterAPI) UpdateResourceTags(ctx context.Context, req *UpdateResourceTagsReq) error {
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/clusters/%s/resource-tags", c.apiVersion, req.ClusterId), req, nil)
+	return err
 }
 
 func (c *clusterAPI) UnlockFreeTier(ctx context.Context, clusterID string) error {

@@ -61,30 +61,30 @@ This resource contains the following required arguments and optional arguments:
 
 **Required:**
 
-- `cluster_name`: (Forces new resource) The desired name for the cluster.
+- `cluster_name`: (Not allowed to modify) The desired name for the cluster.
 - `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported Instance Types](#supported-instance-types)".
-- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential.
+- `deployment_credential_id`: (Not allowed to modify) The ID of the deployment credential.
   - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_deployment_role_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_deployment_role_credential` resource.
   - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_deployment_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_deployment_credential` resource.
-- `data_credential_id`: (Forces new resource) The ID of the data credential.
+- `data_credential_id`: (Not allowed to modify) The ID of the data credential.
   - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_data_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_data_credential` resource.
   - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_data_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_data_credential` resource.
-- `network_id`: (Forces new resource) The ID of the network configuration.
+- `network_id`: (Not allowed to modify) The ID of the network configuration.
   - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_network.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_network` resource.
   - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_network.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_network` resource.
 - `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported Instance Types](#supported-instance-types)".
-- `default_admin_password`: (Forces new resource) The initial password of the cluster `admin` user.
+- `default_admin_password`: (Not allowed to modify) The initial password of the cluster `admin` user.
 - `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
-- `csp`: (Forces new resource) The cloud service provider of the cluster.
+- `csp`: (Not allowed to modify) The cloud service provider of the cluster.
   - If you deploy the cluster on AWS, set this argument to `aws`.
   - If you deploy the cluster on Azure, set this argument to `azure`.
-- `region`: (Forces new resource) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
+- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
 
 **Optional:**
 
 - `fe_node_count`: The number of FE nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
 - `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
-- `be_disk_number`: (Forces new resource) The number of disks for each BE. Valid values: [1,24]. Default value: `2`.
+- `be_disk_number`: (Not allowed to modify) The number of disks for each BE. Valid values: [1,24]. Default value: `2`.
 - `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
 
 ~> You can use the `be_disk_number` and `be_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a cluster is equal to `be_disk_number` * `be_disk_per_size`.
@@ -93,10 +93,10 @@ This resource contains the following required arguments and optional arguments:
 
 ~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
-- `resource_tags`: (Forces new resource) The tags to be attached to the cluster.
-- `init_scripts`: (Forces new resource) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
-  - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
-  - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
+- `resource_tags`: The tags to be attached to the cluster.
+- `init_scripts`: (Not allowed to modify) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
+  - `logs_dir`: (Not allowed to modify) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
+  - `script_path`: (Not allowed to modify) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
 - `run_scripts_timeout`: The amount of time after which the script execution times out. Unit: Seconds. Default: `3600` (1 hour). The maximum value of this item is `21600` (6 hours).
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.

@@ -40,12 +40,10 @@ func resourceElasticClusterV2() *schema.Resource {
 			"csp": {
 				Type:     schema.TypeString,
 				Required: true,
-				ForceNew: true,
 			},
 			"region": {
 				Type:     schema.TypeString,
 				Required: true,
-				ForceNew: true,
 			},
 			"cluster_state": {
 				Type:     schema.TypeString,
@@ -53,7 +51,6 @@ func resourceElasticClusterV2() *schema.Resource {
 			},
 			"cluster_name": {
 				Type:         schema.TypeString,
-				ForceNew:     true,
 				Required:     true,
 				ValidateFunc: validation.StringMatch(regexp.MustCompile(`^[0-9a-zA-Z_-]{1,32}$`), "The cluster name is restricted to a maximum length of 32 characters and can only consist of alphanumeric characters (a-z, A-Z, 0-9), hyphens (-), and underscores (_)."),
 			},
@@ -178,30 +175,25 @@ func resourceElasticClusterV2() *schema.Resource {
 			"resource_tags": {
 				Type:     schema.TypeMap,
 				Optional: true,
-				ForceNew: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
 			"default_admin_password": {
 				Type:             schema.TypeString,
 				Required:         true,
-				ForceNew:         true,
 				Sensitive:        true,
 				ValidateDiagFunc: common.ValidatePassword(),
 			},
 			"data_credential_id": {
 				Type:     schema.TypeString,
 				Required: true,
-				ForceNew: true,
 			},
 			"deployment_credential_id": {
 				Type:     schema.TypeString,
 				Required: true,
-				ForceNew: true,
 			},
 			"network_id": {
 				Type:     schema.TypeString,
 				Required: true,
-				ForceNew: true,
 			},
 			"expected_cluster_state": {
 				Type:         schema.TypeString,
@@ -216,18 +208,15 @@ func resourceElasticClusterV2() *schema.Resource {
 			"init_scripts": {
 				Type:     schema.TypeSet,
 				Optional: true,
-				ForceNew: true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"script_path": {
 							Type:     schema.TypeString,
 							Required: true,
-							ForceNew: true,
 						},
 						"logs_dir": {
 							Type:     schema.TypeString,
 							Required: true,
-							ForceNew: true,
 						},
 					},
 				},
@@ -241,7 +230,6 @@ func resourceElasticClusterV2() *schema.Resource {
 				Type:     schema.TypeInt,
 				Optional: true,
 				Default:  9030,
-				ForceNew: true,
 				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 					v, ok := i.(int)
 					if !ok {
@@ -322,7 +310,6 @@ func resourceElasticClusterV2() *schema.Resource {
 }
 
 func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
-
 	c := m.(*client.CelerdataClient)
 	clusterAPI := cluster.NewClustersAPI(c)
 
@@ -733,7 +720,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 
 	jsonBytes, err := json.Marshal(resp.Cluster)
 	if err != nil {
-		log.Printf("[Error] marshaling to JSON:%s %r%n [DEBUG] get cluster, resp:%+v", resp.Cluster)
+		log.Printf("[Error] marshaling to JSON:%s [DEBUG] get cluster, resp:%+v", err.Error(), resp.Cluster)
 	} else {
 		log.Printf("[DEBUG] get cluster, resp:%s", string(jsonBytes))
 	}
@@ -751,6 +738,13 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
 	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
+	tags := make(map[string]string)
+	for k, v := range resp.Cluster.Tags {
+		if !InternalTagKeys[k] {
+			tags[k] = v
+		}
+	}
+	d.Set("resource_tags", tags)
 	if len(resp.Cluster.LdapSslCerts) > 0 {
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
@@ -922,6 +916,12 @@ func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
 }
 
 func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+	var immutableFields = []string{"csp", "region", "cluster_name", "compute_node_ebs_disk_number", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port"}
+	for _, f := range immutableFields {
+		if d.HasChange(f) && !d.IsNewResource() {
+			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
+		}
+	}
 
 	c := m.(*client.CelerdataClient)
 
@@ -929,9 +929,6 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	clusterId := d.Id()
 	clusterAPI := cluster.NewClustersAPI(c)
 	log.Printf("[DEBUG] resourceElasticClusterV2Update cluster id:%s", clusterId)
-	if d.HasChange("query_port") {
-		return diag.FromErr(fmt.Errorf("the `query_port` field is not allowed to be modified"))
-	}
 
 	if d.HasChange("idle_suspend_interval") && !d.IsNewResource() {
 		o, n := d.GetChange("idle_suspend_interval")
@@ -1115,6 +1112,23 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.HasChange("resource_tags") && !d.IsNewResource() {
+		_, n := d.GetChange("resource_tags")
+
+		nTags := n.(map[string]interface{})
+		tags := make(map[string]string, len(nTags))
+		for k, v := range nTags {
+			tags[k] = v.(string)
+		}
+		err := clusterAPI.UpdateResourceTags(ctx, &cluster.UpdateResourceTagsReq{
+			ClusterId: clusterId,
+			Tags:      tags,
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update resource tags: %s", d.Id(), err.Error()))
 		}
 	}
 
@@ -1664,4 +1678,10 @@ func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		}
 	}
 	return diags
+}
+
+var InternalTagKeys = map[string]bool{
+	"Vendor":      true,
+	"Creator":     true,
+	"ClusterName": true,
 }
