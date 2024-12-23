@@ -1681,7 +1681,9 @@ func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 }
 
 var InternalTagKeys = map[string]bool{
-	"Vendor":      true,
-	"Creator":     true,
-	"ClusterName": true,
+	"Vendor":             true,
+	"Creator":            true,
+	"ClusterName":        true,
+	"ServiceAccountName": true,
+	"ServiceAccountID":   true,
 }
