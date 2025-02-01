@@ -57,6 +57,7 @@ type IClusterAPI interface {
 	GetWarehouseAutoScalingConfig(ctx context.Context, req *GetWarehouseAutoScalingConfigReq) (*GetWarehouseAutoScalingConfigResp, error)
 	SaveWarehouseAutoScalingConfig(ctx context.Context, req *SaveWarehouseAutoScalingConfigReq) (*SaveWarehouseAutoScalingConfigResp, error)
 	DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error
+	ChangeWarehouseDistribution(ctx context.Context, req *ChangeWarehouseDistributionReq) (*ChangeWarehouseDistributionResp, error)
 
 	GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error)
 }
@@ -201,6 +202,16 @@ func (c *clusterAPI) ListCluster(ctx context.Context) (*ListClusterResp, error) 
 		return nil, err
 	}
 
+	return resp, nil
+}
+
+func (c *clusterAPI) ChangeWarehouseDistribution(ctx context.Context, req *ChangeWarehouseDistributionReq) (*ChangeWarehouseDistributionResp, error) {
+	log.Printf("[DEBUG] change warehouse distribution , req:%+v", req)
+	resp := &ChangeWarehouseDistributionResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/change-distribution", c.apiVersion, req.WarehouseID), req, resp)
+	if err != nil {
+		return nil, err
+	}
 	return resp, nil
 }
 

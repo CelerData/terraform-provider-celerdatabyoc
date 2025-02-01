@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
+	"terraform-provider-celerdatabyoc/celerdata-sdk/service/network"
 	"terraform-provider-celerdatabyoc/common"
 	"time"
 
@@ -252,6 +253,7 @@ func resourceElasticCluster() *schema.Resource {
 func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
 	c := m.(*client.CelerdataClient)
 	clusterAPI := cluster.NewClustersAPI(c)
+	networkAPI := network.NewNetworkAPI(c)
 
 	clusterId := d.Id()
 	csp := d.Get("csp").(string)
@@ -273,6 +275,17 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 	}
 
 	feArch := newVmInfoResp.VmInfo.Arch
+
+	if len(d.Get("network_id").(string)) > 0 {
+		netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
+		if err != nil {
+			return err
+		}
+
+		if netResp.Network.MultiAz {
+			return errors.New("'celerdatabyoc_elastic_cluster' does not support multi-az deployment, please use 'celerdatabyoc_elastic_cluster_v2'")
+		}
+	}
 
 	if d.HasChange("coordinator_node_size") {
 		if len(clusterId) > 0 {
@@ -334,6 +347,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	c := m.(*client.CelerdataClient)
 
 	clusterAPI := cluster.NewClustersAPI(c)
+	networkAPI := network.NewNetworkAPI(c)
 	clusterName := d.Get("cluster_name").(string)
 
 	clusterConf := &cluster.ClusterConf{
@@ -349,6 +363,15 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
 		QueryPort:          int32(d.Get("query_port").(int)),
 		RunScriptsTimeout:  int32(d.Get("run_scripts_timeout").(int)),
+	}
+
+	netResp, err := networkAPI.GetNetwork(ctx, clusterConf.NetIfaceId)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	if netResp.Network.MultiAz {
+		return diag.FromErr(errors.New("'celerdatabyoc_elastic_cluster' does not support multi-az deployment, please use 'celerdatabyoc_elastic_cluster_v2'"))
 	}
 
 	if v, ok := d.GetOk("resource_tags"); ok {
