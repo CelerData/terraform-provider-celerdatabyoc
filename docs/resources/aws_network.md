@@ -29,7 +29,7 @@ You must have configured these resources before you can implement this resource.
 ## Example Usage
 
 ```terraform
-# Prerequisites for the celerdatabyoc_aws_network resource
+// Prerequisites for the celerdatabyoc_aws_network resource
 resource "celerdatabyoc_aws_data_credential_policy" "role" {
    bucket = "<S3_bucket>"
 }
@@ -84,10 +84,11 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
   policy_version = celerdatabyoc_aws_deployment_credential_policy.role_policy.version 
 }
 
-# The celerdatabyoc_aws_network resource
+// The celerdatabyoc_aws_network resource
 resource "celerdatabyoc_aws_network" "network" {
   name = "<network_name>"
   subnet_id = "<subnet_id>"
+  // subnet_ids = ["<subnet_id_1>, <subnet_id_2>, <subnet_id_3>"]
   security_group_id = "<security_group_id>"
   region = "<AWS_VPC_region>"
   deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
@@ -107,8 +108,6 @@ This resource contains the following required and optional arguments:
 
   ~> The name must be unique within your CelerData cloud account.
 
-- `subnet_id`: (String, Forces new resource) The ID of the subnet in which you use to deploy cluster nodes.
-
 - `security_group_id`: (String, Forces new resource) The ID of the security group that you use to enable connectivity between cluster nodes within your own VPC and between CelerData's VPC and your own VPC over TLS.
 
 - `region`: (String, Forces new resource) The ID of the AWS region in which you want to create deployments. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
@@ -116,6 +115,12 @@ This resource contains the following required and optional arguments:
 - `deployment_credential_id`: (String, Forces new resource) The ID of the deployment credential. Set it to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 
 **Optional**
+
+~> You can only specify either `subnet_id` or `subnet_ids`.
+
+- `subnet_id`: (String, Forces new resource) The ID of the subnet in which you use to deploy cluster nodes.
+
+- `subnet_ids`: (List of strings, Forces new resources) The IDs of the subnets in which you use to deploy cluster nodes if you want to enable Multi-AZ Deployment for the cluster. Please note that Multi-AZ Deployment is only available for elastic clusters. You must reference three subnets in this argument. The three subnets must be under the same VPC in different availability zones. They must all be private subnets or public subnets. For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
 - `vpc_endpoint_id`: (String, Forces new resource) The ID of the VPC from which you want to connect to your CelerData cluster. You need to specify this argument if you want to connect to your CelerData cluster from your own VPC using [PrivateLink](https://docs.aws.amazon.com/whitepapers/latest/aws-vpc-connectivity-options/aws-privatelink.html).
   

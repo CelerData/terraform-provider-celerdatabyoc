@@ -6,8 +6,7 @@ description: |-
   
 ---
 
-~> The resource's API may change in subsequent versions to simplify user experience.
-~> If you want to deploy a multi-warehouse elastic CelerData cluster, please see [Multi-warehouse Based elastic cluster](../resources/elastic_cluster_v2.md).
+~> The resource's API is **deprecated** and may cause unknown behaviors. It is recommended to deploy a multi-warehouse elastic CelerData cluster using [Multi-warehouse Based elastic cluster](../resources/elastic_cluster_v2.md).
 
 Deploys a single-warehouse elastic CelerData cluster on AWS EC2 instances.
 
