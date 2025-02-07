@@ -358,6 +358,9 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
       on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
       `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
     - `distribution_policy`: (Optional) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
+
+      ~> To enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
+
     - `specify_az`: (Optional) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
 
 - `default_admin_password`: (Not allowed to modify) The initial password of the cluster `admin` user.
@@ -374,7 +377,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 **Optional:**
 
 - `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, and `5`. Default
-  value: `1`.
+  value: `1`. If you want to enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
 - `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be
   separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To
