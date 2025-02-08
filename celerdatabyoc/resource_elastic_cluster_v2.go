@@ -10,6 +10,7 @@ import (
 	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
+	"terraform-provider-celerdatabyoc/celerdata-sdk/service/network"
 	"terraform-provider-celerdatabyoc/common"
 	"time"
 
@@ -23,6 +24,8 @@ import (
 
 const (
 	DEFAULT_WAREHOUSE_NAME = "default_warehouse"
+	CROSSING_AZ            = "crossing_az"
+	SPECIFY_AZ             = "specify_az"
 )
 
 // V2 support multi-warehouse
@@ -63,7 +66,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				Type:         schema.TypeInt,
 				Optional:     true,
 				Default:      1,
-				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
+				ValidateFunc: validation.IntInSlice([]int{1, 3, 5, 7}),
 			},
 			"warehouse": {
 				Type:     schema.TypeSet,
@@ -86,6 +89,19 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
+						},
+						"distribution_policy": {
+							Type:     schema.TypeString,
+							Optional: true,
+							Default:  CROSSING_AZ,
+							ValidateFunc: validation.StringInSlice([]string{
+								SPECIFY_AZ,
+								CROSSING_AZ,
+							}, false),
+						},
+						"specify_az": {
+							Type:     schema.TypeString,
+							Optional: true,
 						},
 						"compute_node_ebs_disk_per_size": {
 							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
@@ -312,6 +328,7 @@ func resourceElasticClusterV2() *schema.Resource {
 func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
 	c := m.(*client.CelerdataClient)
 	clusterAPI := cluster.NewClustersAPI(c)
+	networkAPI := network.NewNetworkAPI(c)
 
 	clusterId := d.Id()
 	csp := d.Get("csp").(string)
@@ -330,6 +347,34 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 	}
 	if newVmInfoResp.VmInfo == nil {
 		return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, n.(string))
+	}
+
+	if len(d.Get("network_id").(string)) > 0 {
+		netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
+		if err != nil {
+			return err
+		}
+
+		coordinatorNodeCount := d.Get("coordinator_node_count").(int)
+		if d.HasChange("coordinator_node_count") {
+			_, n := d.GetChange("coordinator_node_count")
+			coordinatorNodeCount = n.(int)
+		}
+		if netResp.Network.MultiAz && coordinatorNodeCount < 3 {
+			return errors.New("in multi-AZ deployment mode, the number of coordinator nodes should be greater than or equal to 3")
+		}
+	}
+
+	warehouses := d.Get("warehouse")
+	if d.HasChange("warehouse") {
+		_, warehouses = d.GetChange("warehouse")
+	}
+
+	for _, v := range warehouses.(*schema.Set).List() {
+		vMap := v.(map[string]interface{})
+		if vMap["distribution_policy"].(string) != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
+			return errors.New("specify_az parameter only takes effect when the distribution_policy value is \"specify_az\"")
+		}
 	}
 
 	feArch := newVmInfoResp.VmInfo.Arch
@@ -470,6 +515,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	c := m.(*client.CelerdataClient)
 
 	clusterAPI := cluster.NewClustersAPI(c)
+	networkAPI := network.NewNetworkAPI(c)
 	clusterName := d.Get("cluster_name").(string)
 
 	clusterConf := &cluster.ClusterConf{
@@ -485,6 +531,20 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
 		QueryPort:          int32(d.Get("query_port").(int)),
 		RunScriptsTimeout:  int32(d.Get("run_scripts_timeout").(int)),
+	}
+
+	netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	coordinatorNodeCount := d.Get("coordinator_node_count").(int)
+	if d.HasChange("coordinator_node_count") {
+		_, n := d.GetChange("coordinator_node_count")
+		coordinatorNodeCount = n.(int)
+	}
+	if netResp.Network.MultiAz && coordinatorNodeCount < 3 {
+		return diag.FromErr(errors.New("in multi-AZ deployment mode, the number of coordinator nodes should be greater than or equal to 3"))
 	}
 
 	if v, ok := d.GetOk("resource_tags"); ok {
@@ -545,10 +605,12 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	}
 
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
-		Type:         cluster.ClusterModuleTypeWarehouse,
-		Name:         defaultWhMap["name"].(string),
-		Num:          uint32(defaultWhMap["compute_node_count"].(int)),
-		InstanceType: defaultWhMap["compute_node_size"].(string),
+		Type:               cluster.ClusterModuleTypeWarehouse,
+		Name:               defaultWhMap["name"].(string),
+		Num:                uint32(defaultWhMap["compute_node_count"].(int)),
+		InstanceType:       defaultWhMap["compute_node_size"].(string),
+		DistributionPolicy: defaultWhMap["distribution_policy"].(string),
+		SpecifyAZ:          defaultWhMap["specify_az"].(string),
 		DiskInfo: &cluster.DiskInfo{
 			Number:  uint32(diskNumber),
 			PerSize: uint64(perDiskSize),
@@ -764,6 +826,8 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap["name"] = warehouseName
 		whMap["compute_node_size"] = v.Module.InstanceType
 		whMap["compute_node_count"] = v.Module.Num
+		whMap["distribution_policy"] = v.DistributionPolicyStr
+		whMap["specify_az"] = v.SpecifyAZ
 		if !isDefaultWarehouse {
 			whMap["expected_state"] = v.State
 		}
@@ -1008,6 +1072,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 	if d.HasChange("coordinator_node_count") && !d.IsNewResource() {
 		o, n := d.GetChange("coordinator_node_count")
+
 		var actionID string
 		if n.(int) > o.(int) {
 			resp, err := clusterAPI.ScaleOut(ctx, &cluster.ScaleOutReq{
@@ -1164,13 +1229,16 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 	if v, ok := whParamMap["compute_node_ebs_disk_per_size"]; ok {
 		perDiskSize = v.(int)
 	}
+
 	req := &cluster.CreateWarehouseReq{
-		ClusterId:    clusterId,
-		Name:         warehouseName,
-		VmCate:       whParamMap["compute_node_size"].(string),
-		VmNum:        int32(whParamMap["compute_node_count"].(int)),
-		VolumeSizeGB: int64(perDiskSize),
-		VolumeNum:    int32(diskNumber),
+		ClusterId:          clusterId,
+		Name:               warehouseName,
+		VmCate:             whParamMap["compute_node_size"].(string),
+		VmNum:              int32(whParamMap["compute_node_count"].(int)),
+		VolumeSizeGB:       int64(perDiskSize),
+		VolumeNum:          int32(diskNumber),
+		DistributionPolicy: whParamMap["distribution_policy"].(string),
+		SpecifyAZ:          whParamMap["specify_az"].(string),
 	}
 
 	log.Printf("[DEBUG] Create warehouse, req:%+v", req)
@@ -1325,6 +1393,8 @@ func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 	idleSuspendIntervalChanged := oldParamMap["idle_suspend_interval"].(int) != newParamMap["idle_suspend_interval"].(int)
 	autoScalingPolicyChanged := oldParamMap["auto_scaling_policy"].(string) != newParamMap["auto_scaling_policy"].(string)
 
+	computeNodeDistributionChanged := oldParamMap["distribution_policy"].(string) != newParamMap["distribution_policy"].(string) ||
+		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string))
 	if !computeNodeIsInstanceStore {
 		if computeNodeEbsDiskNumberChanged {
 			return diag.FromErr(errors.New("modifying the number of ebs disks is not supported"))
@@ -1340,6 +1410,43 @@ func updateWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			if resp != nil {
 				return resp
 			}
+		}
+	}
+
+	if computeNodeDistributionChanged {
+		distributionPolicy := newParamMap["distribution_policy"].(string)
+		specifyAz := newParamMap["specify_az"].(string)
+		resp, err := clusterAPI.ChangeWarehouseDistribution(ctx, &cluster.ChangeWarehouseDistributionReq{
+			WarehouseID:        warehouseId,
+			DistributionPolicy: distributionPolicy,
+			SpecifyAz:          specifyAz,
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("failed to change warehouse distribution, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err.Error()))
+		}
+
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   resp.InfraActionId,
+			timeout:    common.DeployOrScaleClusterTimeout,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, err.Error()))
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, infraActionResp.ErrMsg))
 		}
 	}
 

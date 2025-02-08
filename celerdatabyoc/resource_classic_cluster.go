@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
+	"terraform-provider-celerdatabyoc/celerdata-sdk/service/network"
 	"terraform-provider-celerdatabyoc/common"
 	"time"
 
@@ -247,13 +248,75 @@ func resourceClassicCluster() *schema.Resource {
 			Create: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 			Update: schema.DefaultTimeout(common.DeployOrScaleClusterTimeout),
 		},
+		CustomizeDiff: classicCustomizeElDiff,
 	}
+}
+
+func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+	c := m.(*client.CelerdataClient)
+	clusterAPI := cluster.NewClustersAPI(c)
+	networkAPI := network.NewNetworkAPI(c)
+
+	csp := d.Get("csp").(string)
+	region := d.Get("region").(string)
+
+	feInstanceType := d.Get("fe_instance_type").(string)
+	if d.HasChange("fe_instance_type") {
+		_, n := d.GetChange("fe_instance_type")
+		feInstanceType = n.(string)
+	}
+	feVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+		Csp:         csp,
+		Region:      region,
+		ProcessType: string(cluster.ClusterModuleTypeFE),
+		VmCate:      feInstanceType,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query instance type failed, csp:%s region:%s instance type:%s err:%+v", csp, region, feInstanceType, err)
+		return fmt.Errorf("query instance type failed, csp:%s region:%s instance type:%s errMsg:%s", csp, region, feInstanceType, err.Error())
+	}
+	if feVmInfoResp.VmInfo == nil {
+		return fmt.Errorf("instance type not exists, csp:%s region:%s instance type:%s", csp, region, feInstanceType)
+	}
+
+	beInstanceType := d.Get("be_instance_type").(string)
+	if d.HasChange("be_instance_type") {
+		_, n := d.GetChange("be_instance_type")
+		beInstanceType = n.(string)
+	}
+	beVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+		Csp:         csp,
+		Region:      region,
+		ProcessType: string(cluster.ClusterModuleTypeBE),
+		VmCate:      beInstanceType,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query instance type failed, csp:%s region:%s instance type:%s err:%+v", csp, region, beInstanceType, err)
+		return fmt.Errorf("query instance type failed, csp:%s region:%s instance type:%s errMsg:%s", csp, region, beInstanceType, err.Error())
+	}
+	if beVmInfoResp.VmInfo == nil {
+		return fmt.Errorf("instance type not exists, csp:%s region:%s instance type:%s", csp, region, beInstanceType)
+	}
+
+	if len(d.Get("network_id").(string)) > 0 {
+		netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
+		if err != nil {
+			return err
+		}
+
+		if netResp.Network.MultiAz {
+			return errors.New("classic cluster does not support multi-az deployment")
+		}
+	}
+
+	return nil
 }
 
 func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	c := m.(*client.CelerdataClient)
 
 	clusterAPI := cluster.NewClustersAPI(c)
+	networkAPI := network.NewNetworkAPI(c)
 	clusterName := d.Get("cluster_name").(string)
 
 	clusterConf := &cluster.ClusterConf{
@@ -269,6 +332,14 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
 		QueryPort:          int32(d.Get("query_port").(int)),
 		RunScriptsTimeout:  int32(d.Get("run_scripts_timeout").(int)),
+	}
+	netResp, err := networkAPI.GetNetwork(ctx, clusterConf.NetIfaceId)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	if netResp.Network.MultiAz {
+		return diag.FromErr(errors.New("classic cluster does not support multi-az deployment"))
 	}
 
 	if v, ok := d.GetOk("resource_tags"); ok {

@@ -1,14 +1,15 @@
 package network
 
 type CreateNetworkReq struct {
-	Csp             string `json:"csp" mapstructure:"csp"`
-	Region          string `json:"region" mapstructure:"region"`
-	Name            string `json:"name" mapstructure:"name"`
-	SubnetId        string `json:"subnet_id" mapstructure:"subnet_id"`
-	SecurityGroupId string `json:"security_group_id" mapstructure:"security_group_id"`
-	VpcEndpointId   string `json:"vpc_endpoint_id" mapstructure:"vpc_endpoint_id"`
-	PublicAccess    bool   `json:"public_access" mapstructure:"public_access"`
-	DeployCredID    string `json:"deploy_cred_id" mapstructure:"deploy_cred_id"`
+	Csp             string   `json:"csp" mapstructure:"csp"`
+	Region          string   `json:"region" mapstructure:"region"`
+	Name            string   `json:"name" mapstructure:"name"`
+	SubnetId        string   `json:"subnet_id" mapstructure:"subnet_id"`
+	SecurityGroupId string   `json:"security_group_id" mapstructure:"security_group_id"`
+	VpcEndpointId   string   `json:"vpc_endpoint_id" mapstructure:"vpc_endpoint_id"`
+	PublicAccess    bool     `json:"public_access" mapstructure:"public_access"`
+	DeployCredID    string   `json:"deploy_cred_id" mapstructure:"deploy_cred_id"`
+	SubnetIds       []string `json:"subnet_ids" mapstructure:"subnet_ids"`
 }
 
 type CreateAzureNetworkReq struct {
@@ -26,14 +27,21 @@ type CreateNetworkResp struct {
 	CheckErrMsg string `json:"check_err_msg" mapstructure:"check_err_msg"`
 }
 
+type AZNetWorkInterface struct {
+	Az       string `json:"az" mapstructure:"az"`
+	SubnetId string `json:"subnet_id" mapstructure:"subnet_id"`
+}
+
 type Network struct {
-	BizID           string `json:"biz_id" mapstructure:"biz_id"`
-	CspId           string `json:"csp_id" mapstructure:"csp_id"`
-	RegionId        string `json:"region_id" mapstructure:"region_id"`
-	Name            string `json:"name" mapstructure:"name"`
-	SubnetId        string `json:"subnet_id" mapstructure:"subnet_id"`
-	SecurityGroupId string `json:"security_group_id" mapstructure:"security_group_id"`
-	VpcEndpointId   string `json:"vpc_endpoint_id" mapstructure:"vpc_endpoint_id"`
+	BizID               string                `json:"biz_id" mapstructure:"biz_id"`
+	CspId               string                `json:"csp_id" mapstructure:"csp_id"`
+	RegionId            string                `json:"region_id" mapstructure:"region_id"`
+	Name                string                `json:"name" mapstructure:"name"`
+	SubnetId            string                `json:"subnet_id" mapstructure:"subnet_id"`
+	SecurityGroupId     string                `json:"security_group_id" mapstructure:"security_group_id"`
+	VpcEndpointId       string                `json:"vpc_endpoint_id" mapstructure:"vpc_endpoint_id"`
+	MultiAz             bool                  `json:"multi_az" mapstructure:"multi_az"`
+	AZNetWorkInterfaces []*AZNetWorkInterface `json:"az_netWork_interfaces" mapstructure:"az_netWork_interfaces"`
 }
 
 type GetNetworkResp struct {
