@@ -7,6 +7,7 @@ description: |-
 ---
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
+~> Classic CelerData clusters do not support Multi-AZ Deployment. For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
 Deploys a classic CelerData cluster on AWS EC2 instances or on Azure virtual machines.
 
