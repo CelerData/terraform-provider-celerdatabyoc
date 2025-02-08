@@ -87,6 +87,7 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 resource "celerdatabyoc_aws_network" "network" {
   name = "<VPC_name>"
   subnet_id = "<subnet_id>"
+  // subnet_ids = ["<subnet_id_1>, <subnet_id_2>, <subnet_id_3>"]
   security_group_id = "<security_group_id>"
   region = "<AWS_VPC_region>"
   deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
