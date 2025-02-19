@@ -1,5 +1,10 @@
 package cluster
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 type ClusterModuleType string
 type ClusterState string
 type ClusterType string
@@ -89,6 +94,11 @@ type Script struct {
 	LogsDir    string `json:"logs_dir"`
 }
 
+type CustomAmi struct {
+	AmiID string `json:"amiId"`
+	OS    string `json:"os"`
+}
+
 type ClusterConf struct {
 	ClusterId          string         `json:"cluster_id"`
 	ClusterType        ClusterType    `json:"cluster_type"`
@@ -106,6 +116,7 @@ type ClusterConf struct {
 	RunScriptsParallel bool           `json:"run_scripts_parallel"`
 	QueryPort          int32          `json:"query_port"`
 	RunScriptsTimeout  int32          `json:"run_scripts_timeout"`
+	CustomAmi          *CustomAmi     `json:"custom_ami"`
 }
 
 type GetReq struct {
@@ -642,6 +653,26 @@ type UpdateResourceTagsReq struct {
 	ClusterId   string            `json:"cluster_id"`
 	WarehouseId string            `json:"warehouse_id"`
 	Tags        map[string]string `json:"tags"`
+}
+
+type UpgradeAMIReq struct {
+	ClusterId   string            `json:"cluster_id" validate:"required"`
+	ModuleType  ClusterModuleType `json:"module_type" validate:"required"`
+	Ami         string            `json:"ami" validate:"required"`
+	Os          string            `json:"os" validate:"required"`
+	WarehouseId string            `json:"warehouse_id"`
+}
+
+func (req UpgradeAMIReq) String() string {
+	reqJSON, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Sprintf("UpgradeAMIReq: error marshaling to JSON: %v", err)
+	}
+	return fmt.Sprintf("UpgradeAMIReq: %s", string(reqJSON))
+}
+
+type UpgradeAMIResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
 func ConvertStrToCustomConfigType(val string) CustomConfigType {

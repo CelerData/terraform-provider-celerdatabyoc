@@ -18,6 +18,7 @@ type IClusterAPI interface {
 	ScaleIn(ctx context.Context, req *ScaleInReq) (*ScaleInResp, error)
 	ScaleOut(ctx context.Context, req *ScaleOutReq) (*ScaleOutResp, error)
 	ScaleUp(ctx context.Context, req *ScaleUpReq) (*ScaleUpResp, error)
+	UpgradeAMI(ctx context.Context, req *UpgradeAMIReq) (*UpgradeAMIResp, error)
 	IncrStorageSize(ctx context.Context, req *IncrStorageSizeReq) (*IncrStorageSizeResp, error)
 	UnlockFreeTier(ctx context.Context, clusterID string) error
 	GetClusterEndpoints(ctx context.Context, req *GetClusterEndpointsReq) (*GetClusterEndpointsResp, error)
@@ -308,6 +309,16 @@ func (c *clusterAPI) ScaleOut(ctx context.Context, req *ScaleOutReq) (*ScaleOutR
 func (c *clusterAPI) ScaleUp(ctx context.Context, req *ScaleUpReq) (*ScaleUpResp, error) {
 	resp := &ScaleUpResp{}
 	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/clusters/%s/scale-up", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func (c *clusterAPI) UpgradeAMI(ctx context.Context, req *UpgradeAMIReq) (*UpgradeAMIResp, error) {
+	resp := &UpgradeAMIResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/clusters/%s/upgrade-ami", c.apiVersion, req.ClusterId), req, resp)
 	if err != nil {
 		return nil, err
 	}

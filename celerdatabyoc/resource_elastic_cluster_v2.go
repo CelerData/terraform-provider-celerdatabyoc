@@ -68,6 +68,26 @@ func resourceElasticClusterV2() *schema.Resource {
 				Default:      1,
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5, 7}),
 			},
+			"custom_ami": {
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"ami": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotEmpty,
+						},
+						"os": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringInSlice([]string{"al2023"}, false),
+						},
+					},
+				},
+			},
 			"warehouse": {
 				Type:     schema.TypeSet,
 				Required: true,
@@ -539,10 +559,6 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	}
 
 	coordinatorNodeCount := d.Get("coordinator_node_count").(int)
-	if d.HasChange("coordinator_node_count") {
-		_, n := d.GetChange("coordinator_node_count")
-		coordinatorNodeCount = n.(int)
-	}
 	if netResp.Network.MultiAz && coordinatorNodeCount < 3 {
 		return diag.FromErr(errors.New("in multi-AZ deployment mode, the number of coordinator nodes should be greater than or equal to 3"))
 	}
@@ -568,6 +584,15 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 
 		clusterConf.Scripts = scripts
+	}
+
+	if _, ok := d.GetOk("custom_ami"); ok {
+		customAmi := &cluster.CustomAmi{
+			AmiID: d.Get("custom_ami.0.ami").(string),
+			OS:    d.Get("custom_ami.0.os").(string),
+		}
+
+		clusterConf.CustomAmi = customAmi
 	}
 
 	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
@@ -980,7 +1005,7 @@ func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
 }
 
 func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "compute_node_ebs_disk_number", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "compute_node_ebs_disk_number", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port", "custom_ami"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
@@ -1180,6 +1205,57 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if d.HasChange("custom_ami") && !d.IsNewResource() {
+		o, _ := d.GetChange("custom_ami")
+		if len(o.([]interface{})) == 0 {
+			return diag.FromErr(errors.New("custom ami can only be specified when creating cluster"))
+		}
+
+		if d.HasChange("custom_ami.0.os") && !d.IsNewResource() {
+			oOs, nOs := d.GetChange("custom_ami.0.os")
+			if len(oOs.(string)) > 0 && oOs.(string) != nOs.(string) {
+				return diag.FromErr(errors.New("custom ami os can not be changed"))
+			}
+		}
+
+		if d.HasChange("custom_ami.0.ami") && !d.IsNewResource() {
+			_, nAmi := d.GetChange("custom_ami.0.ami")
+			_, nOs := d.GetChange("custom_ami.0.os")
+
+			clusterResp, err := clusterAPI.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
+			if err != nil {
+				return diag.FromErr(err)
+			}
+
+			if !IsAllRunning(clusterResp.Cluster) {
+				return diag.FromErr(errors.New("custom ami can only be upgraded when the cluster and all warehouse states are running"))
+			}
+
+			for _, wh := range clusterResp.Cluster.Warehouses {
+				err := upgradeAMI(ctx, clusterAPI, &cluster.UpgradeAMIReq{
+					ClusterId:   clusterId,
+					Os:          nOs.(string),
+					Ami:         nAmi.(string),
+					WarehouseId: wh.Id,
+					ModuleType:  cluster.ClusterModuleTypeWarehouse,
+				})
+				if err != nil {
+					return diag.FromErr(err)
+				}
+			}
+
+			err = upgradeAMI(ctx, clusterAPI, &cluster.UpgradeAMIReq{
+				ClusterId:  clusterId,
+				Os:         nOs.(string),
+				Ami:        nAmi.(string),
+				ModuleType: cluster.ClusterModuleTypeFE,
+			})
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+
 	if d.HasChange("resource_tags") && !d.IsNewResource() {
 		_, n := d.GetChange("resource_tags")
 
@@ -1198,6 +1274,38 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	}
 
 	return diags
+}
+
+func upgradeAMI(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.UpgradeAMIReq) error {
+	resp, err := clusterAPI.UpgradeAMI(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to update custom ami, req:%s errMsg:%s", req, err.Error())
+	}
+
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  req.ClusterId,
+		actionID:   resp.InfraActionId,
+		timeout:    common.DeployOrScaleClusterTimeout,
+		pendingStates: []string{
+			string(cluster.ClusterInfraActionStatePending),
+			string(cluster.ClusterInfraActionStateOngoing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterInfraActionStateSucceeded),
+			string(cluster.ClusterInfraActionStateCompleted),
+			string(cluster.ClusterInfraActionStateFailed),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to wait upgrade ami, action:%s req:%s errMsg:%s", resp.InfraActionId, req, err.Error())
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return fmt.Errorf("failed to wait upgrade ami, action:%s req:%s errMsg:%s", resp.InfraActionId, req, infraActionResp.ErrMsg)
+	}
+
+	return nil
 }
 
 func setWarehouseAutoScalingPolicy(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, policyJson string) error {
@@ -1785,6 +1893,20 @@ func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		}
 	}
 	return diags
+}
+
+func IsAllRunning(c *cluster.Cluster) bool {
+	if c.ClusterState != cluster.ClusterStateRunning {
+		return false
+	}
+
+	for _, wh := range c.Warehouses {
+		if wh.State != cluster.ClusterStateRunning {
+			return false
+		}
+	}
+
+	return true
 }
 
 var InternalTagKeys = map[string]bool{
