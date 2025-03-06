@@ -143,6 +143,8 @@ func (c *CelerdataClient) Do(ctx context.Context, method, path string,
 		return errors.New(string(body))
 	}
 
+	log.Printf("[DEBUG] request[%s] finished, orgin resp:%+v", path, resp)
+
 	if resp.Code != 0 && resp.Code != 20000 {
 		if resp.Code == 40004 {
 			return status.Error(codes.NotFound, resp.Message)
@@ -155,7 +157,6 @@ func (c *CelerdataClient) Do(ctx context.Context, method, path string,
 		return nil
 	}
 
-	log.Printf("[DEBUG] request finished, orgin resp:%+v", resp)
 	return mapstructure.Decode(resp.Data, response)
 }
 
