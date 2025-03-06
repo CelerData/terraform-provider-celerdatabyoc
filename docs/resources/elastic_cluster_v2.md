@@ -126,6 +126,12 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     
     // auto_scaling_policy         = celerdatabyoc_auto_scaling_policy.policy_1.policy_json
    }
+
+   custom_ami {
+    ami = "<ami_id>"
+    // ami = "ami-09245d5773578a1d6"
+    os = "al2023"
+  }
   
   default_admin_password = "<SQL_user_initial_password>"
   expected_cluster_state = "{Suspended | Running}"
@@ -363,6 +369,10 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
       ~> To enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
     - `specify_az`: (Optional) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
+
+- `custom_ami`: (Optional) The Amazon Machine Image (AMI) used to deploy the cluster. You can use custom AMI for deployment. You can only specify this parameter when creating the cluster. If this argument is not specified, the default AMI is used.
+  - `ami`: The ID of the custom AMI.
+  - `os`: The operating system (OS) of the AMI. Currently only `al2023` (Amazon Linux 2023) is supported. The value of this field must be consistent with the actual OS of the AMI. Otherwise, the deployment will fail.
 
 - `default_admin_password`: (Not allowed to modify) The initial password of the cluster `admin` user.
 
