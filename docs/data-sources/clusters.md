@@ -21,3 +21,5 @@ This data source exports the following attributes:
 - `clusters`: (List of Object) The list of account clusters. The attributes of an cluster include:
   - `cluster_id`: The ID of the cluster.
   - `cluster_name`: The name of the cluster.
+  - `cluster_version`: The version of the cluster.
+  - `cluster_type`: The type of the cluster (Elastic | Classic).
