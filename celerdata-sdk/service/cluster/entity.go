@@ -469,8 +469,10 @@ type ModifyClusterVolumeResp struct {
 }
 
 type ClusterInfo struct {
-	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
-	ClusterName string `json:"cluster_name" mapstructure:"cluster_name"`
+	ClusterId      string `json:"cluster_id" mapstructure:"cluster_id"`
+	ClusterName    string `json:"cluster_name" mapstructure:"cluster_name"`
+	ClusterVersion string `json:"cluster_version" mapstructure:"cluster_version"`
+	ClusterType    string `json:"cluster_type" mapstructure:"cluster_type"`
 }
 
 type ListClusterResp struct {
