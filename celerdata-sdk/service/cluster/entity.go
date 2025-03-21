@@ -223,6 +223,7 @@ type Cluster struct {
 	Warehouses          []*Warehouse      `json:"warehouses" mapstructure:"warehouses"`
 	IsMultiWarehouse    bool              `json:"is_multi_warehouse" mapstructure:"is_multi_warehouse"`
 	Tags                map[string]string `json:"tags" mapstructure:"tags"`
+	CustomAmi           *CustomAmi        `json:"custom_ami"`
 }
 
 type ScaleInReq struct {
