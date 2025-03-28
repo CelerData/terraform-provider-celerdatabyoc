@@ -272,9 +272,11 @@ type IncrStorageSizeResp struct {
 }
 
 type EndpointsInfo struct {
-	NetworkMethod string `json:"network_method" mapstructure:"network_method"`
-	Host          string `json:"host" mapstructure:"host"`
-	Port          int64  `json:"port" mapstructure:"port"`
+	NetworkMethod   string `json:"network_method" mapstructure:"network_method"`
+	Host            string `json:"host" mapstructure:"host"`
+	Port            int64  `json:"port" mapstructure:"port"`
+	NLBEndpoint     string `json:"nlb_endpoint" mapstructure:"nlb_endpoint"`
+	NlbEndpointType string `json:"nlb_endpoint_type" mapstructure:"nlb_endpoint_type"`
 }
 
 type GetClusterEndpointsReq struct {
