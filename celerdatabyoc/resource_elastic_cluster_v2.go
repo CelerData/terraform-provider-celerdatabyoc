@@ -825,6 +825,14 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
 	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
+	if resp.Cluster.CustomAmi != nil {
+		d.Set("custom_ami", []interface{}{
+			map[string]interface{}{
+				"ami": resp.Cluster.CustomAmi.AmiID,
+				"os":  resp.Cluster.CustomAmi.OS,
+			},
+		})
+	}
 	tags := make(map[string]string)
 	for k, v := range resp.Cluster.Tags {
 		if !InternalTagKeys[k] {
@@ -1005,7 +1013,7 @@ func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
 }
 
 func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "compute_node_ebs_disk_number", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port", "custom_ami"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "compute_node_ebs_disk_number", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
@@ -1279,7 +1287,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 func upgradeAMI(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.UpgradeAMIReq) error {
 	resp, err := clusterAPI.UpgradeAMI(ctx, req)
 	if err != nil {
-		return fmt.Errorf("failed to update custom ami, req:%s errMsg:%s", req, err.Error())
+		return fmt.Errorf("failed to update custom ami, %s. %s", err.Error(), req)
 	}
 
 	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
@@ -1298,11 +1306,11 @@ func upgradeAMI(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluste
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to wait upgrade ami, action:%s req:%s errMsg:%s", resp.InfraActionId, req, err.Error())
+		return fmt.Errorf("failed to wait upgrade ami, %s. action:%s,%s", err.Error(), resp.InfraActionId, req)
 	}
 
 	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
-		return fmt.Errorf("failed to wait upgrade ami, action:%s req:%s errMsg:%s", resp.InfraActionId, req, infraActionResp.ErrMsg)
+		return fmt.Errorf("failed to wait upgrade ami, %s. action:%s,%s", infraActionResp.ErrMsg, resp.InfraActionId, req)
 	}
 
 	return nil
