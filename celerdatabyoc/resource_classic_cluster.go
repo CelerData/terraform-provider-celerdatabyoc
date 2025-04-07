@@ -501,11 +501,6 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		return diags
 	}
 
-	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		d.SetId("")
-		return diag.FromErr(errors.New(stateResp.AbnormalReason))
-	}
-
 	log.Printf("[DEBUG] get cluster, cluster[%s]", clusterID)
 	resp, err := clusterAPI.Get(ctx, &cluster.GetReq{ClusterID: clusterID})
 	if err != nil {
@@ -603,7 +598,8 @@ func resourceClusterDelete(ctx context.Context, d *schema.ResourceData, m interf
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		return diag.FromErr(errors.New(stateResp.AbnormalReason))
+		d.SetId("")
+		return diag.FromErr(fmt.Errorf("release cluster failed: %s, we have successfully released your cluster, but cloud resources may not be released. Please release cloud resources manually according to the email", stateResp.AbnormalReason))
 	}
 
 	// d.SetId("") is automatically called assuming delete returns no errors, but
@@ -654,6 +650,38 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	clusterID := d.Id()
 	clusterAPI := cluster.NewClustersAPI(c)
 	log.Printf("[DEBUG] resourceClusterUpdate cluster id:%s", clusterID)
+	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  clusterID,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterStateDeploying),
+			string(cluster.ClusterStateScaling),
+			string(cluster.ClusterStateResuming),
+			string(cluster.ClusterStateSuspending),
+			string(cluster.ClusterStateReleasing),
+			string(cluster.ClusterStateUpdating),
+		},
+		targetStates: []string{
+			string(cluster.ClusterStateRunning),
+			string(cluster.ClusterStateSuspended),
+			string(cluster.ClusterStateAbnormal),
+			string(cluster.ClusterStateReleased),
+		},
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) change complete: %s", d.Id(), err))
+	}
+
+	if stateResp.ClusterState == string(cluster.ClusterStateReleased) {
+		log.Printf("[WARN] cluster (%s) not found", clusterID)
+		d.SetId("")
+		return diag.FromErr(fmt.Errorf("cluster (%s) not found", clusterID))
+	}
+
+	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+		return diag.FromErr(errors.New(stateResp.AbnormalReason))
+	}
 
 	if d.HasChange("idle_suspend_interval") && !d.IsNewResource() {
 		o, n := d.GetChange("idle_suspend_interval")
