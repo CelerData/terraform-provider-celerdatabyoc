@@ -94,6 +94,13 @@ type Script struct {
 	LogsDir    string `json:"logs_dir"`
 }
 
+type UpdateDeploymentScriptsReq struct {
+	ClusterId string    `json:"cluster_id"`
+	Scripts   []*Script `json:"scripts"`
+	Parallel  bool      `json:"parallel"`
+	Timeout   int32     `json:"timeout"`
+}
+
 type CustomAmi struct {
 	AmiID string `json:"amiId"`
 	OS    string `json:"os"`
