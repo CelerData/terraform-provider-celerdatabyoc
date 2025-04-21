@@ -60,6 +60,31 @@ func resourceClassicCluster() *schema.Resource {
 				Default:      1,
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
+			"fe_volume_config": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"vol_size": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+							Default:      150,
+						},
+						"iops": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+						"throughput": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+					},
+				},
+			},
 			"be_instance_type": {
 				Type:         schema.TypeString,
 				Required:     true,
@@ -71,47 +96,66 @@ func resourceClassicCluster() *schema.Resource {
 				Default:      3,
 				ValidateFunc: validation.IntAtLeast(1),
 			},
-			"be_disk_per_size": {
-				Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Default:     100,
-				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-					v, ok := i.(int)
-					if !ok {
-						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-						return warnings, errors
-					}
+			"be_volume_config": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"vol_number": {
+							Description: "Specifies the number of disk. The default value is 2.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+							Default:     2,
+							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+								v, ok := i.(int)
+								if !ok {
+									errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+									return warnings, errors
+								}
 
-					m := 16 * 1000
-					if v <= 0 {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
-					} else if v > m {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
-					}
+								if v <= 0 {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
+								} else if v > 24 {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+								}
 
-					return warnings, errors
-				},
-			},
-			"be_disk_number": {
-				Description: "Specifies the number of disk. The default value is 2.",
-				Type:        schema.TypeInt,
-				Optional:    true,
-				Default:     2,
-				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-					v, ok := i.(int)
-					if !ok {
-						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-						return warnings, errors
-					}
+								return warnings, errors
+							},
+						},
+						"vol_size": {
+							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+							Default:     100,
+							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+								v, ok := i.(int)
+								if !ok {
+									errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+									return warnings, errors
+								}
 
-					if v <= 0 {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
-					} else if v > 24 {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
-					}
+								m := 16 * 1000
+								if v <= 0 {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
+								} else if v > m {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
+								}
 
-					return warnings, errors
+								return warnings, errors
+							},
+						},
+						"iops": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+						"throughput": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+					},
 				},
 			},
 			"resource_tags": {
@@ -240,6 +284,21 @@ func resourceClassicCluster() *schema.Resource {
 				Default:      3600,
 				ValidateFunc: validation.IntAtMost(int(common.DeployOrScaleClusterTimeout.Seconds())),
 			},
+			"fe_configs": {
+				Type:     schema.TypeMap,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
+			"be_configs": {
+				Type:     schema.TypeMap,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
+			"ranger_certs_dir_path": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringIsNotWhiteSpace,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -296,6 +355,21 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 	}
 	if beVmInfoResp.VmInfo == nil {
 		return fmt.Errorf("instance type not exists, csp:%s region:%s instance type:%s", csp, region, beInstanceType)
+	}
+
+	if d.HasChange("be_volume_config") {
+		if d.HasChange("be_volume_config.0.vol_number") {
+			return fmt.Errorf("the `vol_number` field is not allowed to be modified")
+		}
+
+		if d.Get("csp").(string) == cluster.CSP_AWS {
+			o1, n1 := d.GetChange("be_volume_config.0.vol_number")
+			o2, n2 := d.GetChange("be_volume_config.0.vol_size")
+
+			if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
+				return fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int))
+			}
+		}
 	}
 
 	if len(d.Get("network_id").(string)) > 0 {
@@ -365,25 +439,60 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		clusterConf.Scripts = scripts
 	}
 
-	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
-		Type:          cluster.ClusterModuleTypeFE,
-		Name:          "FE",
-		Num:           uint32(d.Get("fe_node_count").(int)),
-		StorageSizeGB: 100,
-		InstanceType:  d.Get("fe_instance_type").(string),
-	})
+	feItem := &cluster.ClusterItem{
+		Type:         cluster.ClusterModuleTypeFE,
+		Name:         "FE",
+		Num:          uint32(d.Get("fe_node_count").(int)),
+		InstanceType: d.Get("fe_instance_type").(string),
+		DiskInfo: &cluster.DiskInfo{
+			Number:  1,
+			PerSize: 150,
+		},
+	}
 
-	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
+	if v, ok := d.GetOk("fe_volume_config"); ok {
+		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
+		diskInfo := feItem.DiskInfo
+		if v, ok := volumeConfig["vol_size"]; ok {
+			diskInfo.PerSize = v.(uint64)
+		}
+		if v, ok := volumeConfig["iops"]; ok {
+			diskInfo.Iops = v.(uint64)
+		}
+		if v, ok := volumeConfig["throughput"]; ok {
+			diskInfo.Throughput = v.(uint64)
+		}
+	}
+
+	beItem := &cluster.ClusterItem{
 		Type:         cluster.ClusterModuleTypeBE,
 		Name:         "BE",
 		Num:          uint32(d.Get("be_node_count").(int)),
 		InstanceType: d.Get("be_instance_type").(string),
-		// StorageSizeGB: uint64(d.Get("be_storage_size_gb").(int)),
 		DiskInfo: &cluster.DiskInfo{
-			Number:  uint32(d.Get("be_disk_number").(int)),
-			PerSize: uint64(d.Get("be_disk_per_size").(int)),
+			Number:  uint32(2),
+			PerSize: uint64(100),
 		},
-	})
+	}
+
+	if v, ok := d.GetOk("be_volume_config"); ok {
+		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
+		diskInfo := beItem.DiskInfo
+		if v, ok := volumeConfig["vol_number"]; ok {
+			diskInfo.Number = v.(uint32)
+		}
+		if v, ok := volumeConfig["vol_size"]; ok {
+			diskInfo.PerSize = v.(uint64)
+		}
+		if v, ok := volumeConfig["iops"]; ok {
+			diskInfo.Iops = v.(uint64)
+		}
+		if v, ok := volumeConfig["throughput"]; ok {
+			diskInfo.Throughput = v.(uint64)
+		}
+	}
+
+	clusterConf.ClusterItems = append(clusterConf.ClusterItems, feItem, beItem)
 
 	resp, err := clusterAPI.Deploy(ctx, &cluster.DeployReq{
 		RequestId:   uuid.NewString(),
@@ -423,6 +532,32 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
+	if v, ok := d.GetOk("fe_configs"); ok && len(d.Get("fe_configs").(map[string]interface{})) > 0 {
+		configMap := v.(map[string]interface{})
+		configs := make(map[string]string, 0)
+		for k, v := range configMap {
+			configs[k] = v.(string)
+		}
+		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+			ClusterID:  resp.ClusterID,
+			ConfigType: cluster.CustomConfigTypeFE,
+			Configs:    configs,
+		})
+	}
+
+	if v, ok := d.GetOk("be_configs"); ok && len(d.Get("be_configs").(map[string]interface{})) > 0 {
+		configMap := v.(map[string]interface{})
+		configs := make(map[string]string, 0)
+		for k, v := range configMap {
+			configs[k] = v.(string)
+		}
+		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+			ClusterID:  resp.ClusterID,
+			ConfigType: cluster.CustomConfigTypeBE,
+			Configs:    configs,
+		})
+	}
+
 	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
 
 		arr := v.(*schema.Set).List()
@@ -438,6 +573,11 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 				return warningDiag
 			}
 		}
+	}
+
+	if v, ok := d.GetOk("ranger_certs_dir_path"); ok {
+		rangerCertsDirPath := v.(string)
+		UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, false)
 	}
 
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
@@ -512,6 +652,24 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		return diag.FromErr(err)
 	}
 
+	feConfigsResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
+		ClusterID:  clusterID,
+		ConfigType: cluster.CustomConfigTypeFE,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query cluster fe config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
+	beConfigsResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
+		ClusterID:  clusterID,
+		ConfigType: cluster.CustomConfigTypeBE,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query cluster be config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
 	log.Printf("[DEBUG] get cluster, resp:%+v", resp.Cluster)
 	d.Set("cluster_state", resp.Cluster.ClusterState)
 	d.Set("expected_cluster_state", resp.Cluster.ClusterState)
@@ -538,6 +696,33 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	if len(resp.Cluster.LdapSslCerts) > 0 {
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
+	if len(resp.Cluster.RangerCertsDirPath) > 0 {
+		d.Set("ranger_certs_dir_path", resp.Cluster.RangerCertsDirPath)
+	}
+
+	if len(feConfigsResp.Configs) > 0 {
+		d.Set("fe_configs", feConfigsResp.Configs)
+	}
+
+	if len(beConfigsResp.Configs) > 0 {
+		d.Set("be_configs", beConfigsResp.Configs)
+	}
+
+	feModule := resp.Cluster.BeModule
+	feVolumeConfig := make(map[string]interface{}, 0)
+	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
+	feVolumeConfig["iops"] = feModule.Iops
+	feVolumeConfig["throughput"] = feModule.Throughput
+	d.Set("fe_volume_config", feVolumeConfig)
+
+	beModule := resp.Cluster.BeModule
+	beVolumeConfig := make(map[string]interface{}, 0)
+	beVolumeConfig["vol_number"] = beModule.VmVolNum
+	beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
+	beVolumeConfig["iops"] = beModule.Iops
+	beVolumeConfig["throughput"] = beModule.Throughput
+	d.Set("be_volume_config", beVolumeConfig)
+
 	return diags
 }
 
@@ -637,7 +822,7 @@ func needSuspend(d *schema.ResourceData) bool {
 }
 
 func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "be_disk_number", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
@@ -723,6 +908,11 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
+	if d.HasChange("ranger_certs_dir_path") && !d.IsNewResource() {
+		rangerCertsDirPath := d.Get("ranger_certs_dir_path").(string)
+		UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, true)
+	}
+
 	if needUnlock(d) {
 		err := clusterAPI.UnlockFreeTier(ctx, clusterID)
 		if err != nil {
@@ -805,6 +995,88 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
+	if d.HasChange("fe_volume_config") {
+		o, n := d.GetChange("fe_volume_config")
+		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
+		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+
+		nodeType := cluster.ClusterModuleTypeFE
+		req := &cluster.ModifyClusterVolumeReq{
+			ClusterId: clusterID,
+			Type:      nodeType,
+		}
+
+		if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
+			req.VmVolSize = int64(v.(int))
+		}
+		if v, ok := newVolumeConfig["iops"]; ok && v != oldVolumeConfig["iops"] {
+			req.Iops = int64(v.(int))
+		}
+		if v, ok := newVolumeConfig["throughput"]; ok && v != oldVolumeConfig["throughput"] {
+			req.Throughput = int64(v.(int))
+		}
+
+		log.Printf("[DEBUG] modify cluster volume detail, req:%+v", req)
+		resp, err := clusterAPI.ModifyClusterVolume(ctx, req)
+		if err != nil {
+			log.Printf("[ERROR] modify cluster volume detail failed, err:%+v", err)
+			return diag.FromErr(err)
+		}
+
+		infraActionId := resp.ActionID
+		if len(infraActionId) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterID,
+				actionID:   infraActionId,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+
+			summary := fmt.Sprintf("Modify %s node volume detail of the cluster[%s] failed", nodeType, clusterID)
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   err.Error(),
+					},
+				}
+			}
+
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   infraActionResp.ErrMsg,
+					},
+				}
+			}
+		}
+	}
+
+	if d.HasChange("fe_configs") {
+		configMap := d.Get("fe_configs").(map[string]interface{})
+		configs := make(map[string]string, 0)
+		for k, v := range configMap {
+			configs[k] = v.(string)
+		}
+		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+			ClusterID:  clusterID,
+			ConfigType: cluster.CustomConfigTypeFE,
+			Configs:    configs,
+		})
+	}
+
 	if d.HasChange("be_instance_type") && !d.IsNewResource() {
 		_, n := d.GetChange("be_instance_type")
 		resp, err := clusterAPI.ScaleUp(ctx, &cluster.ScaleUpReq{
@@ -880,43 +1152,86 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
-	if (d.HasChange("be_disk_number") || d.HasChange("be_disk_per_size")) && !d.IsNewResource() {
-		o1, n1 := d.GetChange("be_disk_number")
-		o2, n2 := d.GetChange("be_disk_per_size")
+	if d.HasChange("be_volume_config") {
+		o, n := d.GetChange("be_volume_config")
+		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
+		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
 
-		if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-			return diag.FromErr(fmt.Errorf("total be storage size: %dGB => %dGB, be storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
+		nodeType := cluster.ClusterModuleTypeBE
+		req := &cluster.ModifyClusterVolumeReq{
+			ClusterId: clusterID,
+			Type:      nodeType,
 		}
 
-		resp, err := clusterAPI.IncrStorageSize(ctx, &cluster.IncrStorageSizeReq{
-			RequestId:  uuid.NewString(),
-			ClusterId:  clusterID,
-			ModuleType: cluster.ClusterModuleTypeBE,
-			// StorageSizeGB: int64(n.(int)),
-			DiskInfo: &cluster.DiskInfo{
-				Number:  uint32(n1.(int)),
-				PerSize: uint64(n2.(int)),
-			},
-		})
+		if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
+			req.VmVolSize = int64(v.(int))
+		}
+		if v, ok := newVolumeConfig["iops"]; ok && v != oldVolumeConfig["iops"] {
+			req.Iops = int64(v.(int))
+		}
+		if v, ok := newVolumeConfig["throughput"]; ok && v != oldVolumeConfig["throughput"] {
+			req.Throughput = int64(v.(int))
+		}
+
+		log.Printf("[DEBUG] modify cluster volume detail, req:%+v", req)
+		resp, err := clusterAPI.ModifyClusterVolume(ctx, req)
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to increase be storage size: %s", d.Id(), err))
+			log.Printf("[ERROR] modify cluster volume detail failed, err:%+v", err)
+			return diag.FromErr(err)
 		}
 
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      resp.ActionId,
-			clusterID:     clusterID,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+		infraActionId := resp.ActionID
+		if len(infraActionId) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterID,
+				actionID:   infraActionId,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+
+			summary := fmt.Sprintf("Modify %s node volume detail of the cluster[%s] failed", nodeType, clusterID)
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   err.Error(),
+					},
+				}
+			}
+
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   infraActionResp.ErrMsg,
+					},
+				}
+			}
+		}
+	}
+
+	if d.HasChange("be_configs") {
+		configMap := d.Get("be_configs").(map[string]interface{})
+		configs := make(map[string]string, 0)
+		for k, v := range configMap {
+			configs[k] = v.(string)
+		}
+		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+			ClusterID:  clusterID,
+			ConfigType: cluster.CustomConfigTypeBE,
+			Configs:    configs,
 		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
-		}
-
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
-		}
 	}
 
 	if needSuspend(d) {
@@ -1240,6 +1555,271 @@ func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 	resp, err := clusterAPI.UpsertClusterLdapSSLCert(ctx, &cluster.UpsertLDAPSSLCertsReq{
 		ClusterId: clusterId,
 		S3Objects: sslCerts,
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  clusterId,
+		actionID:   resp.InfraActionId,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterInfraActionStatePending),
+			string(cluster.ClusterInfraActionStateOngoing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterInfraActionStateSucceeded),
+			string(cluster.ClusterInfraActionStateCompleted),
+			string(cluster.ClusterInfraActionStateFailed),
+		},
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   infraActionResp.ErrMsg,
+			},
+		}
+	}
+
+	return nil
+}
+
+func UpsertClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.UpsertClusterConfigReq) diag.Diagnostics {
+
+	log.Printf("[DEBUG] UpsertClusterConfig, req:%v", req)
+
+	var err diag.Diagnostics
+	if len(req.Configs) == 0 {
+		err = removeClusterConfig(ctx, clusterAPI, &cluster.RemoveClusterConfigReq{
+			ClusterID:   req.ClusterID,
+			ConfigType:  req.ConfigType,
+			WarehouseID: req.WarehouseID,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(req.Configs) > 0 {
+		err = configClusterConfig(ctx, clusterAPI, req)
+	}
+
+	log.Printf("[DEBUG] UpsertClusterConfig, err:%v", err)
+
+	return err
+}
+
+func removeClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.RemoveClusterConfigReq) diag.Diagnostics {
+
+	summary := "Failed to remove cluster configs."
+	resp, err := clusterAPI.RemoveClusterConfig(ctx, req)
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if len(resp.InfraActionId) > 0 {
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  req.ClusterID,
+			actionID:   resp.InfraActionId,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   infraActionResp.ErrMsg,
+				},
+			}
+		}
+	}
+	return nil
+}
+
+func configClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.UpsertClusterConfigReq) diag.Diagnostics {
+
+	summary := "Failed to config cluster configs."
+	resp, err := clusterAPI.UpsertClusterConfig(ctx, req)
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	log.Printf("[DEBUG] configClusterConfig, req:%v resp:%+v", req, resp)
+
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  req.ClusterID,
+		actionID:   resp.InfraActionId,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterInfraActionStatePending),
+			string(cluster.ClusterInfraActionStateOngoing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterInfraActionStateSucceeded),
+			string(cluster.ClusterInfraActionStateCompleted),
+			string(cluster.ClusterInfraActionStateFailed),
+		},
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   infraActionResp.ErrMsg,
+			},
+		}
+	}
+
+	return nil
+}
+
+func UpsertClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, rangerCertsDir string, removeOld bool) diag.Diagnostics {
+
+	var err diag.Diagnostics
+	if removeOld {
+		err = removeClusterRangerCert(ctx, clusterAPI, clusterID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(rangerCertsDir) > 0 {
+		err = configClusterRangerCert(ctx, clusterAPI, clusterID, rangerCertsDir)
+	}
+	return err
+}
+
+func removeClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+
+	summary := "Failed to remove old ranger ssl certs."
+	resp, err := clusterAPI.RemoveClusterRangerCert(ctx, &cluster.RemoveRangerCertsReq{
+		ClusterId: clusterId,
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if len(resp.InfraActionId) > 0 {
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterId,
+			actionID:   resp.InfraActionId,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   infraActionResp.ErrMsg,
+				},
+			}
+		}
+	}
+	return nil
+}
+
+func configClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, rangerCertsDir string) diag.Diagnostics {
+
+	summary := "Failed to config ranger ssl certs."
+	resp, err := clusterAPI.UpsertClusterRangerCert(ctx, &cluster.UpsertRangerCertsReq{
+		ClusterId: clusterId,
+		DirPath:   rangerCertsDir,
 	})
 
 	if err != nil {

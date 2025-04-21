@@ -39,6 +39,10 @@ type IClusterAPI interface {
 	ApplyCustomConfig(ctx context.Context, req *ApplyCustomConfigReq) (*ApplyCustomConfigResp, error)
 	UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error)
 	CleanCustomConfig(ctx context.Context, req *CleanCustomConfigReq) (*CleanCustomConfigResp, error)
+	UpsertClusterConfig(ctx context.Context, req *UpsertClusterConfigReq) (*UpsertClusterConfigResp, error)
+	RemoveClusterConfig(ctx context.Context, req *RemoveClusterConfigReq) (*RemoveClusterConfigResp, error)
+	UpsertClusterRangerCert(ctx context.Context, req *UpsertRangerCertsReq) (*UpsertRangerCertsResp, error)
+	RemoveClusterRangerCert(ctx context.Context, req *RemoveRangerCertsReq) (*RemoveRangerCertsResp, error)
 
 	GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error)
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
@@ -466,6 +470,46 @@ func (c *clusterAPI) UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLD
 func (c *clusterAPI) CleanCustomConfig(ctx context.Context, req *CleanCustomConfigReq) (*CleanCustomConfigResp, error) {
 	resp := &CleanCustomConfigResp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/clean-custom-config", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) UpsertClusterConfig(ctx context.Context, req *UpsertClusterConfigReq) (*UpsertClusterConfigResp, error) {
+
+	resp := &UpsertClusterConfigResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/configs", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) RemoveClusterConfig(ctx context.Context, req *RemoveClusterConfigReq) (*RemoveClusterConfigResp, error) {
+
+	resp := &RemoveClusterConfigResp{}
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/clusters/%s/configs", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) UpsertClusterRangerCert(ctx context.Context, req *UpsertRangerCertsReq) (*UpsertRangerCertsResp, error) {
+
+	resp := &UpsertRangerCertsResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) RemoveClusterRangerCert(ctx context.Context, req *RemoveRangerCertsReq) (*RemoveRangerCertsResp, error) {
+
+	resp := &RemoveRangerCertsResp{}
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs", c.apiVersion, req.ClusterId), nil, resp)
 	if err != nil {
 		return nil, err
 	}

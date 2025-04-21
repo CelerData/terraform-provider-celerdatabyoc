@@ -60,6 +60,31 @@ func resourceElasticCluster() *schema.Resource {
 				Default:      1,
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
+			"coordinator_node_volume_config": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"vol_size": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+							Default:      150,
+						},
+						"iops": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+						"throughput": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+					},
+				},
+			},
 			"compute_node_size": {
 				Type:         schema.TypeString,
 				Required:     true,
@@ -75,42 +100,61 @@ func resourceElasticCluster() *schema.Resource {
 				Type:     schema.TypeBool,
 				Computed: true,
 			},
-			"compute_node_ebs_disk_per_size": {
-				Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
-				Type:        schema.TypeInt,
-				Optional:    true,
-				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-					v, ok := i.(int)
-					if !ok {
-						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-						return warnings, errors
-					}
+			"compute_node_volume_config": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"vol_number": {
+							Description: "Specifies the number of disk. The default value is 2.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+								v, ok := i.(int)
+								if !ok {
+									errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+									return warnings, errors
+								}
 
-					m := 16 * 1000
-					if v <= 0 {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
-					} else if v > m {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
-					}
+								if v < 1 || v > 24 {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+								}
+								return warnings, errors
+							},
+						},
+						"vol_size": {
+							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+							Type:        schema.TypeInt,
+							Optional:    true,
+							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+								v, ok := i.(int)
+								if !ok {
+									errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
+									return warnings, errors
+								}
 
-					return warnings, errors
-				},
-			},
-			"compute_node_ebs_disk_number": {
-				Description: "Specifies the number of disk. The default value is 2.",
-				Type:        schema.TypeInt,
-				Optional:    true,
-				ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-					v, ok := i.(int)
-					if !ok {
-						errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-						return warnings, errors
-					}
+								m := 16 * 1000
+								if v <= 0 {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
+								} else if v > m {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
+								}
 
-					if v < 1 || v > 24 {
-						errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
-					}
-					return warnings, errors
+								return warnings, errors
+							},
+						},
+						"iops": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+						"throughput": {
+							Type:         schema.TypeInt,
+							Optional:     true,
+							ValidateFunc: validation.IntAtLeast(1),
+						},
+					},
 				},
 			},
 			"resource_tags": {
@@ -238,6 +282,21 @@ func resourceElasticCluster() *schema.Resource {
 				Default:      3600,
 				ValidateFunc: validation.IntAtMost(int(common.DeployOrScaleClusterTimeout.Seconds())),
 			},
+			"coordinator_node_configs": {
+				Type:     schema.TypeMap,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
+			"compute_node_configs": {
+				Type:     schema.TypeMap,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
+			"ranger_certs_dir_path": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringIsNotWhiteSpace,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -340,6 +399,26 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 			}
 		}
 	}
+
+	if d.HasChange("compute_node_volume_config") {
+		if d.Get("compute_node_is_instance_store").(bool) {
+			return errors.New("local storage model does not support ebs disk")
+		}
+
+		if d.HasChange("compute_node_volume_config.0.vol_number") {
+			return fmt.Errorf("the `vol_number` field is not allowed to be modified")
+		}
+
+		if d.Get("csp").(string) == cluster.CSP_AWS {
+			o1, n1 := d.GetChange("compute_node_volume_config.0.vol_number")
+			o2, n2 := d.GetChange("compute_node_volume_config.0.vol_size")
+
+			if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
+				return fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int))
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -397,33 +476,59 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		clusterConf.Scripts = scripts
 	}
 
-	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
-		Type:          cluster.ClusterModuleTypeFE,
-		Name:          "FE",
-		Num:           uint32(d.Get("coordinator_node_count").(int)),
-		StorageSizeGB: 100,
-		InstanceType:  d.Get("coordinator_node_size").(string),
-	})
-
-	diskNumber := 2
-	perDiskSize := 100
-	if v, ok := d.GetOk("compute_node_ebs_disk_number"); ok {
-		diskNumber = v.(int)
+	coordinatorItem := &cluster.ClusterItem{
+		Type:         cluster.ClusterModuleTypeFE,
+		Name:         "FE",
+		Num:          uint32(d.Get("coordinator_node_count").(int)),
+		InstanceType: d.Get("coordinator_node_size").(string),
+		DiskInfo: &cluster.DiskInfo{
+			Number:  1,
+			PerSize: 150,
+		},
 	}
-	if v, ok := d.GetOk("compute_node_ebs_disk_per_size"); ok {
-		perDiskSize = v.(int)
+	if v, ok := d.GetOk("coordinator_node_volume_config"); ok {
+		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
+		diskInfo := coordinatorItem.DiskInfo
+		if v, ok := volumeConfig["vol_size"]; ok {
+			diskInfo.PerSize = v.(uint64)
+		}
+		if v, ok := volumeConfig["iops"]; ok {
+			diskInfo.Iops = v.(uint64)
+		}
+		if v, ok := volumeConfig["throughput"]; ok {
+			diskInfo.Throughput = v.(uint64)
+		}
 	}
 
-	clusterConf.ClusterItems = append(clusterConf.ClusterItems, &cluster.ClusterItem{
+	computeItem := &cluster.ClusterItem{
 		Type:         cluster.ClusterModuleTypeBE,
 		Name:         "BE",
 		Num:          uint32(d.Get("compute_node_count").(int)),
 		InstanceType: d.Get("compute_node_size").(string),
 		DiskInfo: &cluster.DiskInfo{
-			Number:  uint32(diskNumber),
-			PerSize: uint64(perDiskSize),
+			Number:  uint32(2),
+			PerSize: uint64(100),
 		},
-	})
+	}
+
+	if v, ok := d.GetOk("compute_node_volume_config"); ok {
+		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
+		diskInfo := computeItem.DiskInfo
+		if v, ok := volumeConfig["vol_number"]; ok {
+			diskInfo.Number = v.(uint32)
+		}
+		if v, ok := volumeConfig["vol_size"]; ok {
+			diskInfo.PerSize = v.(uint64)
+		}
+		if v, ok := volumeConfig["iops"]; ok {
+			diskInfo.Iops = v.(uint64)
+		}
+		if v, ok := volumeConfig["throughput"]; ok {
+			diskInfo.Throughput = v.(uint64)
+		}
+	}
+
+	clusterConf.ClusterItems = append(clusterConf.ClusterItems, coordinatorItem, computeItem)
 
 	resp, err := clusterAPI.Deploy(ctx, &cluster.DeployReq{
 		RequestId:   uuid.NewString(),
@@ -463,6 +568,32 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	d.SetId(resp.ClusterID)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
 
+	if v, ok := d.GetOk("coordinator_node_configs"); ok && len(d.Get("coordinator_node_configs").(map[string]interface{})) > 0 {
+		configMap := v.(map[string]interface{})
+		configs := make(map[string]string, 0)
+		for k, v := range configMap {
+			configs[k] = v.(string)
+		}
+		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+			ClusterID:  resp.ClusterID,
+			ConfigType: cluster.CustomConfigTypeFE,
+			Configs:    configs,
+		})
+	}
+
+	if v, ok := d.GetOk("compute_node_configs"); ok && len(d.Get("compute_node_configs").(map[string]interface{})) > 0 {
+		configMap := v.(map[string]interface{})
+		configs := make(map[string]string, 0)
+		for k, v := range configMap {
+			configs[k] = v.(string)
+		}
+		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+			ClusterID:  resp.ClusterID,
+			ConfigType: cluster.CustomConfigTypeBE,
+			Configs:    configs,
+		})
+	}
+
 	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
 
 		arr := v.(*schema.Set).List()
@@ -478,6 +609,11 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 				return warningDiag
 			}
 		}
+	}
+
+	if v, ok := d.GetOk("ranger_certs_dir_path"); ok {
+		rangerCertsDirPath := v.(string)
+		UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, false)
 	}
 
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
@@ -547,6 +683,24 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 
+	coordinatorNodeConfigsResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
+		ClusterID:  clusterID,
+		ConfigType: cluster.CustomConfigTypeFE,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query cluster coordinator node config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
+	computeNodeConfigsResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
+		ClusterID:  clusterID,
+		ConfigType: cluster.CustomConfigTypeBE,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query cluster comput node config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
 	log.Printf("[DEBUG] get cluster, resp:%+v", resp.Cluster)
 	d.Set("cluster_state", string(resp.Cluster.ClusterState))
 	d.Set("expected_cluster_state", string(resp.Cluster.ClusterState))
@@ -571,12 +725,34 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	if len(resp.Cluster.LdapSslCerts) > 0 {
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
+	if len(resp.Cluster.RangerCertsDirPath) > 0 {
+		d.Set("ranger_certs_dir_path", resp.Cluster.RangerCertsDirPath)
+	}
+
+	if len(coordinatorNodeConfigsResp.Configs) > 0 {
+		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
+	}
+
+	if len(computeNodeConfigsResp.Configs) > 0 {
+		d.Set("compute_node_configs", computeNodeConfigsResp.Configs)
+	}
+
+	feModule := resp.Cluster.BeModule
+	feVolumeConfig := make(map[string]interface{}, 0)
+	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
+	feVolumeConfig["iops"] = feModule.Iops
+	feVolumeConfig["throughput"] = feModule.Throughput
+	d.Set("coordinator_node_volume_config", feVolumeConfig)
 
 	d.Set("compute_node_is_instance_store", resp.Cluster.BeModule.IsInstanceStore)
-	if !resp.Cluster.BeModule.IsInstanceStore {
-		d.Set("compute_node_ebs_disk_number", int(resp.Cluster.BeModule.VmVolNum))
-		d.Set("compute_node_ebs_disk_per_size", int(resp.Cluster.BeModule.VmVolSizeGB))
-	}
+	beModule := resp.Cluster.BeModule
+	beVolumeConfig := make(map[string]interface{}, 0)
+	beVolumeConfig["vol_number"] = beModule.VmVolNum
+	beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
+	beVolumeConfig["iops"] = beModule.Iops
+	beVolumeConfig["throughput"] = beModule.Throughput
+	d.Set("compute_node_volume_config", beVolumeConfig)
+
 	return diags
 }
 
@@ -747,6 +923,11 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	if d.HasChange("ranger_certs_dir_path") && !d.IsNewResource() {
+		rangerCertsDirPath := d.Get("ranger_certs_dir_path").(string)
+		UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, true)
+	}
+
 	if elasticClusterNeedUnlock(d) {
 		err := clusterAPI.UnlockFreeTier(ctx, clusterID)
 		if err != nil {
@@ -829,6 +1010,88 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	if d.HasChange("coordinator_node_volume_config") {
+		o, n := d.GetChange("coordinator_node_volume_config")
+		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
+		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+
+		nodeType := cluster.ClusterModuleTypeFE
+		req := &cluster.ModifyClusterVolumeReq{
+			ClusterId: clusterID,
+			Type:      nodeType,
+		}
+
+		if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
+			req.VmVolSize = int64(v.(int))
+		}
+		if v, ok := newVolumeConfig["iops"]; ok && v != oldVolumeConfig["iops"] {
+			req.Iops = int64(v.(int))
+		}
+		if v, ok := newVolumeConfig["throughput"]; ok && v != oldVolumeConfig["throughput"] {
+			req.Throughput = int64(v.(int))
+		}
+
+		log.Printf("[DEBUG] modify cluster volume detail, req:%+v", req)
+		resp, err := clusterAPI.ModifyClusterVolume(ctx, req)
+		if err != nil {
+			log.Printf("[ERROR] modify cluster volume detail failed, err:%+v", err)
+			return diag.FromErr(err)
+		}
+
+		infraActionId := resp.ActionID
+		if len(infraActionId) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterID,
+				actionID:   infraActionId,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+
+			summary := fmt.Sprintf("Modify %s node volume detail of the cluster[%s] failed", nodeType, clusterID)
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   err.Error(),
+					},
+				}
+			}
+
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   infraActionResp.ErrMsg,
+					},
+				}
+			}
+		}
+	}
+
+	if d.HasChange("coordinator_node_configs") {
+		configMap := d.Get("coordinator_node_configs").(map[string]interface{})
+		configs := make(map[string]string, 0)
+		for k, v := range configMap {
+			configs[k] = v.(string)
+		}
+		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+			ClusterID:  clusterID,
+			ConfigType: cluster.CustomConfigTypeFE,
+			Configs:    configs,
+		})
+	}
+
 	if d.HasChange("compute_node_size") && !d.IsNewResource() {
 		_, n := d.GetChange("compute_node_size")
 		resp, err := clusterAPI.ScaleUp(ctx, &cluster.ScaleUpReq{
@@ -904,46 +1167,86 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
-	if IsInstanceStore(d) && (d.HasChange("compute_node_ebs_disk_number") || d.HasChange("compute_node_ebs_disk_per_size")) && !d.IsNewResource() {
-		return diag.FromErr(errors.New("local storage model does not support ebs disk"))
+	if d.HasChange("compute_node_volume_config") {
+		o, n := d.GetChange("compute_node_volume_config")
+		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
+		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+
+		nodeType := cluster.ClusterModuleTypeBE
+		req := &cluster.ModifyClusterVolumeReq{
+			ClusterId: clusterID,
+			Type:      nodeType,
+		}
+
+		if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
+			req.VmVolSize = int64(v.(int))
+		}
+		if v, ok := newVolumeConfig["iops"]; ok && v != oldVolumeConfig["iops"] {
+			req.Iops = int64(v.(int))
+		}
+		if v, ok := newVolumeConfig["throughput"]; ok && v != oldVolumeConfig["throughput"] {
+			req.Throughput = int64(v.(int))
+		}
+
+		log.Printf("[DEBUG] modify cluster volume detail, req:%+v", req)
+		resp, err := clusterAPI.ModifyClusterVolume(ctx, req)
+		if err != nil {
+			log.Printf("[ERROR] modify cluster volume detail failed, err:%+v", err)
+			return diag.FromErr(err)
+		}
+
+		infraActionId := resp.ActionID
+		if len(infraActionId) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterID,
+				actionID:   infraActionId,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+
+			summary := fmt.Sprintf("Modify %s node volume detail of the cluster[%s] failed", nodeType, clusterID)
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   err.Error(),
+					},
+				}
+			}
+
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Error,
+						Summary:  summary,
+						Detail:   infraActionResp.ErrMsg,
+					},
+				}
+			}
+		}
 	}
 
-	if !IsInstanceStore(d) && (d.HasChange("compute_node_ebs_disk_number") || d.HasChange("compute_node_ebs_disk_per_size")) && !d.IsNewResource() {
-		o1, n1 := d.GetChange("compute_node_ebs_disk_number")
-		o2, n2 := d.GetChange("compute_node_ebs_disk_per_size")
-
-		if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-			return diag.FromErr(fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
+	if d.HasChange("compute_node_configs") {
+		configMap := d.Get("compute_node_configs").(map[string]interface{})
+		configs := make(map[string]string, 0)
+		for k, v := range configMap {
+			configs[k] = v.(string)
 		}
-
-		resp, err := clusterAPI.IncrStorageSize(ctx, &cluster.IncrStorageSizeReq{
-			RequestId:  uuid.NewString(),
-			ClusterId:  clusterID,
-			ModuleType: cluster.ClusterModuleTypeBE,
-			DiskInfo: &cluster.DiskInfo{
-				Number:  uint32(n1.(int)),
-				PerSize: uint64(n2.(int)),
-			},
+		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+			ClusterID:  clusterID,
+			ConfigType: cluster.CustomConfigTypeBE,
+			Configs:    configs,
 		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to increase be storage size: %s", d.Id(), err))
-		}
-
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      resp.ActionId,
-			clusterID:     clusterID,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
-		}
-
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
-		}
 	}
 
 	if needSuspend(d) {

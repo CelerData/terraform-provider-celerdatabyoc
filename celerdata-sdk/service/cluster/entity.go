@@ -23,6 +23,10 @@ var (
 )
 
 const (
+	CSP_AWS    = "aws"
+	CSP_AZURE  = "azure"
+	CSP_GOOGLE = "google"
+
 	ClusterTypeClassic         = ClusterType("CLASSIC")
 	ClusterTypeElasic          = ClusterType("ELASTIC")
 	ClusterModuleTypeUnknown   = ClusterModuleType("Unknown")
@@ -55,7 +59,7 @@ const (
 	CustomConfigTypeBE          CustomConfigType = 1
 	CustomConfigTypeRanger      CustomConfigType = 2
 	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
-	CustomConfigTypeFe          CustomConfigType = 4
+	CustomConfigTypeFE          CustomConfigType = 4
 
 	RANGER_CONFIG_KEY = "s3_path"
 
@@ -74,8 +78,10 @@ type Kv struct {
 }
 
 type DiskInfo struct {
-	Number  uint32 `json:"number"`
-	PerSize uint64 `json:"per_size"` // unit:GB
+	Number     uint32 `json:"number"`
+	PerSize    uint64 `json:"per_size"` // unit:GB
+	Iops       uint64 `json:"iops"`
+	Throughput uint64 `json:"throughput"`
 }
 
 type ClusterItem struct {
@@ -181,6 +187,10 @@ type Module struct {
 	VmVolSizeGB     int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
 	VmVolNum        int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+	Iops            int64  `json:"iops" mapstructure:"iops"`
+	Throughput      int64  `json:"throughput" mapstructure:"throughput"`
+	Arch            string `json:"arch" mapstructure:"arch"`
+	Os              string `json:"os" mapstructure:"os"`
 }
 
 type Warehouse struct {
@@ -220,6 +230,7 @@ type Cluster struct {
 	QueryPort           int32             `json:"query_port" mapstructure:"query_port"`
 	IdleSuspendInterval int32             `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
 	LdapSslCerts        []string          `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
+	RangerCertsDirPath  string            `json:"ranger_certs_dir_path" mapstructure:"ranger_certs_dir_path"`
 	Warehouses          []*Warehouse      `json:"warehouses" mapstructure:"warehouses"`
 	IsMultiWarehouse    bool              `json:"is_multi_warehouse" mapstructure:"is_multi_warehouse"`
 	Tags                map[string]string `json:"tags" mapstructure:"tags"`
@@ -431,6 +442,23 @@ type UpsertLDAPSSLCertsResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
+type UpsertRangerCertsReq struct {
+	ClusterId string `json:"cluster_id"`
+	DirPath   string `json:"dir_path"`
+}
+
+type UpsertRangerCertsResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type RemoveRangerCertsReq struct {
+	ClusterId string `json:"cluster_id"`
+}
+
+type RemoveRangerCertsResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
 type CleanCustomConfigReq struct {
 	ClusterID   string           `json:"cluster_id" mapstructure:"cluster_id"`
 	ConfigType  CustomConfigType `json:"config_type" mapstructure:"config_type"`
@@ -515,6 +543,8 @@ type CreateWarehouseReq struct {
 	VolumeNum          int32  `json:"volume_num" mapstructure:"volume_num"`
 	DistributionPolicy string `json:"distribution_policy" mapstructure:"distribution_policy"`
 	SpecifyAZ          string `json:"specify_az" mapstructure:"specify_az"`
+	Iops               int64  `json:"iops" mapstructure:"iops"`
+	Throughput         int64  `json:"throughput" mapstructure:"throughput"`
 }
 
 type CreateWarehouseResp struct {
@@ -684,7 +714,7 @@ func ConvertStrToCustomConfigType(val string) CustomConfigType {
 	var customConfigType CustomConfigType
 	switch val {
 	case "FE":
-		customConfigType = CustomConfigTypeFe
+		customConfigType = CustomConfigTypeFE
 	case "BE":
 		customConfigType = CustomConfigTypeBE
 	case "RANGER":
@@ -697,7 +727,7 @@ func ConvertIntToCustomConfigType(val int) CustomConfigType {
 	customConfigType := CustomConfigTypeUnknown
 	switch val {
 	case 4:
-		customConfigType = CustomConfigTypeFe
+		customConfigType = CustomConfigTypeFE
 	case 1:
 		customConfigType = CustomConfigTypeBE
 	case 2:
@@ -717,4 +747,37 @@ func ConvertStrToClusterModuleType(val string) ClusterModuleType {
 		nodeType = ClusterModuleTypeWarehouse
 	}
 	return nodeType
+}
+
+type UpsertClusterConfigReq struct {
+	ClusterID   string            `json:"cluster_id" mapstructure:"cluster_id"`
+	ConfigType  CustomConfigType  `json:"config_type" mapstructure:"config_type"`
+	WarehouseID string            `json:"warehouse_id" mapstructure:"warehouse_id"`
+	Configs     map[string]string `json:"configs" mapstructure:"configs"`
+}
+
+type UpsertClusterConfigResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type RemoveClusterConfigReq struct {
+	ClusterID   string           `json:"cluster_id" mapstructure:"cluster_id"`
+	ConfigType  CustomConfigType `json:"config_type" mapstructure:"config_type"`
+	WarehouseID string           `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type RemoveClusterConfigResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+func MapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if bv, ok := b[k]; !ok || bv != v {
+			return false
+		}
+	}
+	return true
 }
