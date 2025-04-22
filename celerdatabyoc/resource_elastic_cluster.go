@@ -317,6 +317,7 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 	clusterId := d.Id()
 	csp := d.Get("csp").(string)
 	region := d.Get("region").(string)
+	isNewResource := d.Id() == ""
 
 	n := d.Get("coordinator_node_size")
 	newVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
@@ -368,6 +369,26 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		}
 	}
 
+	if d.HasChange("coordinator_node_volume_config") && !isNewResource {
+		o, n := d.GetChange("coordinator_node_volume_config")
+
+		oldVolumeConfig := cluster.DefaultFeVolumeMap()
+		newVolumeConfig := cluster.DefaultFeVolumeMap()
+
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		}
+
+		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
+
+		if newVolumeSize < oldVolumeSize {
+			return fmt.Errorf("coordinator node `vol_size` does not support decrease")
+		}
+	}
+
 	if d.HasChange("compute_node_size") {
 		cn := d.Get("compute_node_size")
 		cnVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
@@ -400,22 +421,28 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		}
 	}
 
-	if d.HasChange("compute_node_volume_config") {
-		if d.Get("compute_node_is_instance_store").(bool) {
-			return errors.New("local storage model does not support ebs disk")
+	if d.HasChange("compute_node_volume_config") && !isNewResource {
+		o, n := d.GetChange("compute_node_volume_config")
+
+		oldVolumeConfig := cluster.DefaultFeVolumeMap()
+		newVolumeConfig := cluster.DefaultFeVolumeMap()
+
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
 		}
 
-		if d.HasChange("compute_node_volume_config.0.vol_number") {
-			return fmt.Errorf("the `vol_number` field is not allowed to be modified")
+		oldVolumeNumber, newVolumeNumber := oldVolumeConfig["vol_number"].(int), newVolumeConfig["vol_number"].(int)
+		if newVolumeNumber != oldVolumeNumber {
+			return fmt.Errorf("compute node `vol_number` field is not allowed to be modified")
 		}
 
-		if d.Get("csp").(string) == cluster.CSP_AWS {
-			o1, n1 := d.GetChange("compute_node_volume_config.0.vol_number")
-			o2, n2 := d.GetChange("compute_node_volume_config.0.vol_size")
+		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
 
-			if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-				return fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int))
-			}
+		if newVolumeSize < oldVolumeSize {
+			return fmt.Errorf("compute node `vol_size` does not support decrease")
 		}
 	}
 
@@ -490,13 +517,13 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
 		diskInfo := coordinatorItem.DiskInfo
 		if v, ok := volumeConfig["vol_size"]; ok {
-			diskInfo.PerSize = v.(uint64)
+			diskInfo.PerSize = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["iops"]; ok {
-			diskInfo.Iops = v.(uint64)
+			diskInfo.Iops = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["throughput"]; ok {
-			diskInfo.Throughput = v.(uint64)
+			diskInfo.Throughput = uint64(v.(int))
 		}
 	}
 
@@ -515,16 +542,16 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
 		diskInfo := computeItem.DiskInfo
 		if v, ok := volumeConfig["vol_number"]; ok {
-			diskInfo.Number = v.(uint32)
+			diskInfo.Number = uint32(v.(int))
 		}
 		if v, ok := volumeConfig["vol_size"]; ok {
-			diskInfo.PerSize = v.(uint64)
+			diskInfo.PerSize = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["iops"]; ok {
-			diskInfo.Iops = v.(uint64)
+			diskInfo.Iops = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["throughput"]; ok {
-			diskInfo.Throughput = v.(uint64)
+			diskInfo.Throughput = uint64(v.(int))
 		}
 	}
 
@@ -742,7 +769,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
 	feVolumeConfig["iops"] = feModule.Iops
 	feVolumeConfig["throughput"] = feModule.Throughput
-	d.Set("coordinator_node_volume_config", feVolumeConfig)
+	d.Set("coordinator_node_volume_config", []map[string]interface{}{feVolumeConfig})
 
 	d.Set("compute_node_is_instance_store", resp.Cluster.BeModule.IsInstanceStore)
 	beModule := resp.Cluster.BeModule
@@ -751,7 +778,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
 	beVolumeConfig["iops"] = beModule.Iops
 	beVolumeConfig["throughput"] = beModule.Throughput
-	d.Set("compute_node_volume_config", beVolumeConfig)
+	d.Set("compute_node_volume_config", []map[string]interface{}{beVolumeConfig})
 
 	return diags
 }
@@ -837,7 +864,7 @@ func IsInstanceStore(d *schema.ResourceData) bool {
 }
 
 func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "compute_node_ebs_disk_number", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "init_scripts", "query_port"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))

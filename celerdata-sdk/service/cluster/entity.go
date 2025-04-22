@@ -3,6 +3,8 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 type ClusterModuleType string
@@ -770,14 +772,19 @@ type RemoveClusterConfigResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
-func MapsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if bv, ok := b[k]; !ok || bv != v {
-			return false
-		}
-	}
-	return true
+func Equal(a, b interface{}) bool {
+	return cmp.Equal(a, b)
+}
+
+func DefaultFeVolumeMap() map[string]interface{} {
+	volumeConfig := make(map[string]interface{}, 0)
+	volumeConfig["vol_size"] = int(100)
+	return volumeConfig
+}
+
+func DefaultBeVolumeMap() map[string]interface{} {
+	volumeConfig := make(map[string]interface{}, 0)
+	volumeConfig["vol_number"] = int(2)
+	volumeConfig["vol_size"] = int(100)
+	return volumeConfig
 }

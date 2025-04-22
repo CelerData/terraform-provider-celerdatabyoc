@@ -168,6 +168,7 @@ func resourceClassicCluster() *schema.Resource {
 				Required:         true,
 				Sensitive:        true,
 				ValidateDiagFunc: common.ValidatePassword(),
+				ForceNew:         true,
 			},
 			"data_credential_id": {
 				Type:     schema.TypeString,
@@ -318,6 +319,7 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 
 	csp := d.Get("csp").(string)
 	region := d.Get("region").(string)
+	isNewResource := d.Id() == ""
 
 	feInstanceType := d.Get("fe_instance_type").(string)
 	if d.HasChange("fe_instance_type") {
@@ -336,6 +338,26 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 	}
 	if feVmInfoResp.VmInfo == nil {
 		return fmt.Errorf("instance type not exists, csp:%s region:%s instance type:%s", csp, region, feInstanceType)
+	}
+
+	if d.HasChange("fe_volume_config") && !isNewResource {
+		o, n := d.GetChange("fe_volume_config")
+
+		oldVolumeConfig := cluster.DefaultFeVolumeMap()
+		newVolumeConfig := cluster.DefaultFeVolumeMap()
+
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		}
+
+		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
+
+		if newVolumeSize < oldVolumeSize {
+			return fmt.Errorf("fe `vol_size` does not support decrease")
+		}
 	}
 
 	beInstanceType := d.Get("be_instance_type").(string)
@@ -357,18 +379,32 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		return fmt.Errorf("instance type not exists, csp:%s region:%s instance type:%s", csp, region, beInstanceType)
 	}
 
-	if d.HasChange("be_volume_config") {
-		if d.HasChange("be_volume_config.0.vol_number") {
-			return fmt.Errorf("the `vol_number` field is not allowed to be modified")
+	if d.HasChange("be_volume_config") && !isNewResource {
+
+		oldVolumeNum, oldVolumeSize := 2, 100
+		newVolumeNum, newVolumeSize := 2, 100
+
+		o, n := d.GetChange("be_volume_config")
+
+		oldVolumeConfig := cluster.DefaultBeVolumeMap()
+		newVolumeConfig := cluster.DefaultBeVolumeMap()
+
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
 		}
 
-		if d.Get("csp").(string) == cluster.CSP_AWS {
-			o1, n1 := d.GetChange("be_volume_config.0.vol_number")
-			o2, n2 := d.GetChange("be_volume_config.0.vol_size")
+		oldVolumeNum, oldVolumeSize = oldVolumeConfig["vol_number"].(int), oldVolumeConfig["vol_size"].(int)
+		newVolumeNum, newVolumeSize = newVolumeConfig["vol_number"].(int), newVolumeConfig["vol_size"].(int)
 
-			if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-				return fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int))
-			}
+		if oldVolumeNum != newVolumeNum {
+			return fmt.Errorf("the be `vol_number` field is not allowed to be modified")
+		}
+
+		if newVolumeSize < oldVolumeSize {
+			return fmt.Errorf("be `vol_size` does not support decrease")
 		}
 	}
 
@@ -454,13 +490,13 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
 		diskInfo := feItem.DiskInfo
 		if v, ok := volumeConfig["vol_size"]; ok {
-			diskInfo.PerSize = v.(uint64)
+			diskInfo.PerSize = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["iops"]; ok {
-			diskInfo.Iops = v.(uint64)
+			diskInfo.Iops = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["throughput"]; ok {
-			diskInfo.Throughput = v.(uint64)
+			diskInfo.Throughput = uint64(v.(int))
 		}
 	}
 
@@ -479,16 +515,16 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
 		diskInfo := beItem.DiskInfo
 		if v, ok := volumeConfig["vol_number"]; ok {
-			diskInfo.Number = v.(uint32)
+			diskInfo.Number = uint32(v.(int))
 		}
 		if v, ok := volumeConfig["vol_size"]; ok {
-			diskInfo.PerSize = v.(uint64)
+			diskInfo.PerSize = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["iops"]; ok {
-			diskInfo.Iops = v.(uint64)
+			diskInfo.Iops = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["throughput"]; ok {
-			diskInfo.Throughput = v.(uint64)
+			diskInfo.Throughput = uint64(v.(int))
 		}
 	}
 
@@ -679,8 +715,6 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("deployment_credential_id", resp.Cluster.DeployCredID)
 	d.Set("be_instance_type", resp.Cluster.BeModule.InstanceType)
 	d.Set("be_node_count", int(resp.Cluster.BeModule.Num))
-	d.Set("be_disk_number", int(resp.Cluster.BeModule.VmVolNum))
-	d.Set("be_disk_per_size", int(resp.Cluster.BeModule.VmVolSizeGB))
 	d.Set("fe_instance_type", resp.Cluster.FeModule.InstanceType)
 	d.Set("fe_node_count", int(resp.Cluster.FeModule.Num))
 	d.Set("free_tier", resp.Cluster.FreeTier)
@@ -713,7 +747,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
 	feVolumeConfig["iops"] = feModule.Iops
 	feVolumeConfig["throughput"] = feModule.Throughput
-	d.Set("fe_volume_config", feVolumeConfig)
+	d.Set("fe_volume_config", []map[string]interface{}{feVolumeConfig})
 
 	beModule := resp.Cluster.BeModule
 	beVolumeConfig := make(map[string]interface{}, 0)
@@ -721,7 +755,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
 	beVolumeConfig["iops"] = beModule.Iops
 	beVolumeConfig["throughput"] = beModule.Throughput
-	d.Set("be_volume_config", beVolumeConfig)
+	d.Set("be_volume_config", []map[string]interface{}{beVolumeConfig})
 
 	return diags
 }
@@ -997,8 +1031,16 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 
 	if d.HasChange("fe_volume_config") {
 		o, n := d.GetChange("fe_volume_config")
-		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
-		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+
+		oldVolumeConfig := cluster.DefaultFeVolumeMap()
+		newVolumeConfig := cluster.DefaultFeVolumeMap()
+
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		}
 
 		nodeType := cluster.ClusterModuleTypeFE
 		req := &cluster.ModifyClusterVolumeReq{
@@ -1154,8 +1196,15 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 
 	if d.HasChange("be_volume_config") {
 		o, n := d.GetChange("be_volume_config")
-		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
-		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+
+		oldVolumeConfig, newVolumeConfig := cluster.DefaultBeVolumeMap(), cluster.DefaultBeVolumeMap()
+
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		}
 
 		nodeType := cluster.ClusterModuleTypeBE
 		req := &cluster.ModifyClusterVolumeReq{

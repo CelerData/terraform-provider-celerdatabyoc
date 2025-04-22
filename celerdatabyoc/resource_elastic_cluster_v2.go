@@ -535,6 +535,7 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 	clusterId := d.Id()
 	csp := d.Get("csp").(string)
 	region := d.Get("region").(string)
+	isNewResource := d.Id() == ""
 
 	n := d.Get("coordinator_node_size")
 	newVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
@@ -580,25 +581,43 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 
 	feArch := newVmInfoResp.VmInfo.Arch
 
-	if d.HasChange("coordinator_node_size") {
-		if len(clusterId) > 0 {
-			o, _ := d.GetChange("coordinator_node_size")
-			oldVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
-				Csp:         csp,
-				Region:      region,
-				ProcessType: string(cluster.ClusterModuleTypeFE),
-				VmCate:      o.(string),
-			})
-			if err != nil {
-				log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, o.(string), err)
-				return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, o.(string), err.Error())
-			}
-			if oldVmInfoResp.VmInfo == nil {
-				return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, o.(string))
-			}
-			if feArch != oldVmInfoResp.VmInfo.Arch {
-				return fmt.Errorf("the vm instance architecture can not be changed, csp:%s region:%s oldVmCate:%s  newVmCate:%s", csp, region, o.(string), n.(string))
-			}
+	if d.HasChange("coordinator_node_size") && !isNewResource {
+		o, n := d.GetChange("coordinator_node_size")
+		newVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+			Csp:         csp,
+			Region:      region,
+			ProcessType: string(cluster.ClusterModuleTypeFE),
+			VmCate:      n.(string),
+		})
+		if err != nil {
+			log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, n.(string), err)
+			return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, n.(string), err.Error())
+		}
+		if newVmInfoResp.VmInfo == nil {
+			return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, n.(string))
+		}
+		if feArch != newVmInfoResp.VmInfo.Arch {
+			return fmt.Errorf("the vm instance architecture can not be changed, csp:%s region:%s oldVmCate:%s  newVmCate:%s", csp, region, o.(string), n.(string))
+		}
+	}
+
+	if d.HasChange("coordinator_node_volume_config") && !isNewResource {
+		o, n := d.GetChange("coordinator_node_volume_config")
+
+		oldVolumeConfig := cluster.DefaultFeVolumeMap()
+		newVolumeConfig := cluster.DefaultFeVolumeMap()
+
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		}
+
+		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
+
+		if newVolumeSize < oldVolumeSize {
+			return fmt.Errorf("coordinator node `vol_size` does not support decrease")
 		}
 	}
 
@@ -630,22 +649,11 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 
 			if vmCateInfoResp.VmInfo.IsInstanceStore {
 				attrs := make([]string, 0)
-				if v, ok := m["compute_node_volume_config"]; ok && v.(int) > 0 {
+				if v, ok := m["compute_node_volume_config"]; ok && len(v.(*schema.Set).List()) > 0 {
 					attrs = append(attrs, "compute_node_volume_config")
 				}
 				if len(attrs) > 0 {
 					return fmt.Errorf("the vm instance type[%s] of the warehouse[%s] does not support specifying the volume config of disks, field: %+v is not supported", vmCateName, whName, strings.Join(attrs, ","))
-				}
-			} else {
-				if d.HasChange("default_warehouse.0.compute_node_volume_config.0.vol_number") {
-					return fmt.Errorf("the `vol_number` field is not allowed to be modified")
-				}
-				if csp == cluster.CSP_AWS {
-					o1, n1 := d.GetChange("default_warehouse.0.compute_node_volume_config.0.vol_number")
-					o2, n2 := d.GetChange("default_warehouse.0.compute_node_volume_config.0.vol_size")
-					if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-						return fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int))
-					}
 				}
 			}
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
@@ -718,7 +726,7 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 
 			if vmCateInfoResp.VmInfo.IsInstanceStore {
 				attrs := make([]string, 0)
-				if v, ok := m["compute_node_volume_config"]; ok && v.(int) > 0 {
+				if v, ok := m["compute_node_volume_config"]; ok && len(v.(*schema.Set).List()) > 0 {
 					attrs = append(attrs, "compute_node_volume_config")
 				}
 				if len(attrs) > 0 {
@@ -829,13 +837,13 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
 		diskInfo := coordinatorItem.DiskInfo
 		if v, ok := volumeConfig["vol_size"]; ok {
-			diskInfo.PerSize = v.(uint64)
+			diskInfo.PerSize = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["iops"]; ok {
-			diskInfo.Iops = v.(uint64)
+			diskInfo.Iops = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["throughput"]; ok {
-			diskInfo.Throughput = v.(uint64)
+			diskInfo.Throughput = uint64(v.(int))
 		}
 	}
 
@@ -868,16 +876,16 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		diskInfo := defaultWarehouseItem.DiskInfo
 		volumeConfig := defaultWhMap["compute_node_volume_config"].(*schema.Set).List()[0].(map[string]interface{})
 		if v, ok := volumeConfig["vol_number"]; ok {
-			diskInfo.Number = v.(uint32)
+			diskInfo.Number = uint32(v.(int))
 		}
 		if v, ok := volumeConfig["vol_size"]; ok {
-			diskInfo.PerSize = v.(uint64)
+			diskInfo.PerSize = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["iops"]; ok {
-			diskInfo.Iops = v.(uint64)
+			diskInfo.Iops = uint64(v.(int))
 		}
 		if v, ok := volumeConfig["throughput"]; ok {
-			diskInfo.Throughput = v.(uint64)
+			diskInfo.Throughput = uint64(v.(int))
 		}
 	}
 
@@ -1153,7 +1161,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		computeNodeVolumeConfig["vol_size"] = whModule.VmVolSizeGB
 		computeNodeVolumeConfig["iops"] = whModule.Iops
 		computeNodeVolumeConfig["throughput"] = whModule.Throughput
-		whMap["compute_node_volume_config"] = computeNodeVolumeConfig
+		whMap["compute_node_volume_config"] = []map[string]interface{}{computeNodeVolumeConfig}
 
 		idleConfigResp, err := clusterAPI.GetWarehouseIdleConfig(ctx, &cluster.GetWarehouseIdleConfigReq{
 			WarehouseId: warehouseId,
@@ -1235,7 +1243,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
 	feVolumeConfig["iops"] = feModule.Iops
 	feVolumeConfig["throughput"] = feModule.Throughput
-	d.Set("coordinator_node_volume_config", feVolumeConfig)
+	d.Set("coordinator_node_volume_config", []map[string]interface{}{feVolumeConfig})
 
 	if len(coordinatorNodeConfigsResp.Configs) > 0 {
 		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
@@ -1509,8 +1517,15 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 	if d.HasChange("coordinator_node_volume_config") {
 		o, n := d.GetChange("coordinator_node_volume_config")
-		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
-		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+
+		oldVolumeConfig, newVolumeConfig := cluster.DefaultFeVolumeMap(), cluster.DefaultFeVolumeMap()
+
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		}
 
 		nodeType := cluster.ClusterModuleTypeFE
 		req := &cluster.ModifyClusterVolumeReq{
@@ -1990,7 +2005,6 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 
 func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnostics {
 	d := req.d
-	csp := d.Get("csp").(string)
 	clusterAPI := req.clusterAPI
 	clusterId := req.clusterId
 	oldParamMap, newParamMap := req.oldParamMap, req.newParamMap
@@ -2108,23 +2122,33 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 	}
 
 	// Moidify warehouse volume config
-	if !computeNodeIsInstanceStore && d.HasChange("compute_node_volume_config") {
+	oldVolumeConfig, newVolumeConfig := cluster.DefaultBeVolumeMap(), cluster.DefaultBeVolumeMap()
+	if len(oldParamMap["compute_node_volume_config"].(*schema.Set).List()) > 0 {
+		oldVolumeConfig = oldParamMap["compute_node_volume_config"].(*schema.Set).List()[0].(map[string]interface{})
+	}
+	if len(newParamMap["compute_node_volume_config"].(*schema.Set).List()) > 0 {
+		newVolumeConfig = newParamMap["compute_node_volume_config"].(*schema.Set).List()[0].(map[string]interface{})
+	}
+	VolumeConfigChanged := cluster.Equal(oldVolumeConfig, newVolumeConfig)
+
+	if !computeNodeIsInstanceStore && VolumeConfigChanged {
 
 		o, n := d.GetChange("compute_node_volume_config")
-		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
-		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+		oldVolumeConfig, newVolumeConfig := cluster.DefaultBeVolumeMap(), cluster.DefaultBeVolumeMap()
 
-		if d.HasChange("compute_node_volume_config.0.vol_number") {
+		if len(o.(*schema.Set).List()) > 0 {
+			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		}
+		if len(n.(*schema.Set).List()) > 0 {
+			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		}
+
+		if oldVolumeConfig["vol_number"].(int) != newVolumeConfig["vol_number"].(int) {
 			return diag.FromErr(fmt.Errorf("the `vol_number` field is not allowed to be modified"))
 		}
 
-		if csp == cluster.CSP_AWS {
-			o1, n1 := d.GetChange("compute_node_volume_config.0.vol_number")
-			o2, n2 := d.GetChange("compute_node_volume_config.0.vol_size")
-
-			if (n1.(int) * n2.(int)) < (o1.(int) * o2.(int)) {
-				return diag.FromErr(fmt.Errorf("total compute node storage size: %dGB => %dGB, compute node storage size does not support decrease", o1.(int)*o2.(int), n1.(int)*n2.(int)))
-			}
+		if oldVolumeConfig["vol_size"].(int) > newVolumeConfig["vol_size"].(int) {
+			return diag.FromErr(fmt.Errorf("storage size does not support decrease"))
 		}
 
 		req := &cluster.ModifyClusterVolumeReq{
@@ -2223,7 +2247,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 	for k, v := range newSrConfigMap {
 		newConfigs[k] = v.(string)
 	}
-	srConfigChanged := !cluster.MapsEqual(oldConfigs, newConfigs)
+	srConfigChanged := !cluster.Equal(oldConfigs, newConfigs)
 
 	if expectedStateChanged && !isDefaultWarehouse {
 		if expectedState == string(cluster.ClusterStateRunning) {
