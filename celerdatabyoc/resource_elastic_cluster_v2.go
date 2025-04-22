@@ -225,7 +225,7 @@ func resourceElasticClusterV2() *schema.Resource {
 					},
 				},
 			},
-			"normal_warehouse": {
+			"warehouse": {
 				Type:     schema.TypeSet,
 				Optional: true,
 				Elem: &schema.Resource{
@@ -570,7 +570,7 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 
 	warehouses := make([]interface{}, 0)
 	warehouses = append(warehouses, d.Get("default_warehouse").(*schema.Set).List()[0])
-	warehouses = append(warehouses, d.Get("normal_warehouse").(*schema.Set).List()...)
+	warehouses = append(warehouses, d.Get("warehouse").(*schema.Set).List()...)
 
 	for _, v := range warehouses {
 		vMap := v.(map[string]interface{})
@@ -679,9 +679,9 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		}
 	}
 
-	if d.HasChange("normal_warehouse") {
+	if d.HasChange("warehouse") {
 
-		_, n := d.GetChange("normal_warehouse")
+		_, n := d.GetChange("warehouse")
 		// 1. pre check, warehosue name must be unique
 		countMap := make(map[string]int, 0)
 		for _, item := range n.(*schema.Set).List() {
@@ -853,7 +853,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	defaultWhMap["name"] = DEFAULT_WAREHOUSE_NAME
 
 	normalWhMaps := make([]map[string]interface{}, 0)
-	for _, wh := range d.Get("normal_warehouse").(*schema.Set).List() {
+	for _, wh := range d.Get("warehouse").(*schema.Set).List() {
 		whMap := wh.(map[string]interface{})
 		whMap["name"] = strings.TrimSpace(whMap["name"].(string))
 		normalWhMaps = append(normalWhMaps, whMap)
@@ -1231,7 +1231,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		warehouseExternalInfo[warehouseName] = string(whInfoBytes)
 	}
 	d.Set("default_warehouse", default_warehouses)
-	d.Set("normal_warehouse", normal_warehouses)
+	d.Set("warehouse", normal_warehouses)
 	d.Set("warehouse_external_info", warehouseExternalInfo)
 
 	if len(coordinatorNodeConfigsResp.Configs) > 0 {
@@ -1627,8 +1627,8 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if d.HasChange("normal_warehouse") {
-		o, n := d.GetChange("normal_warehouse")
+	if d.HasChange("warehouse") {
+		o, n := d.GetChange("warehouse")
 		old := o.(*schema.Set).List()
 		new := n.(*schema.Set).List()
 		whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
