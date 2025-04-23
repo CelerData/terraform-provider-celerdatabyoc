@@ -639,7 +639,10 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 
 	if v, ok := d.GetOk("ranger_certs_dir_path"); ok {
 		rangerCertsDirPath := v.(string)
-		UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, false)
+		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, false)
+		if warningDiag != nil {
+			return warningDiag
+		}
 	}
 
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
@@ -951,7 +954,10 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 
 	if d.HasChange("ranger_certs_dir_path") && !d.IsNewResource() {
 		rangerCertsDirPath := d.Get("ranger_certs_dir_path").(string)
-		UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, true)
+		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, true)
+		if warningDiag != nil {
+			return warningDiag
+		}
 	}
 
 	if elasticClusterNeedUnlock(d) {

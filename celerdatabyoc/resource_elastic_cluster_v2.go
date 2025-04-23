@@ -978,7 +978,10 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 
 	if v, ok := d.GetOk("ranger_certs_dir_path"); ok {
 		rangerCertsDirPath := v.(string)
-		UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, false)
+		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, false)
+		if warningDiag != nil {
+			return warningDiag
+		}
 	}
 
 	if d.Get("idle_suspend_interval").(int) > 0 {
@@ -1426,7 +1429,10 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 	if d.HasChange("ranger_certs_dir_path") && !d.IsNewResource() {
 		rangerCertsDirPath := d.Get("ranger_certs_dir_path").(string)
-		UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, true)
+		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, true)
+		if warningDiag != nil {
+			return warningDiag
+		}
 	}
 
 	if elasticClusterV2NeedUnlock(d) {
