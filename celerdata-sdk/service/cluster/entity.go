@@ -778,7 +778,7 @@ func Equal(a, b interface{}) bool {
 
 func DefaultFeVolumeMap() map[string]interface{} {
 	volumeConfig := make(map[string]interface{}, 0)
-	volumeConfig["vol_size"] = int(100)
+	volumeConfig["vol_size"] = int(150)
 	return volumeConfig
 }
 

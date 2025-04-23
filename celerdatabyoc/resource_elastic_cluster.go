@@ -61,25 +61,24 @@ func resourceElasticCluster() *schema.Resource {
 				ValidateFunc: validation.IntInSlice([]int{1, 3, 5}),
 			},
 			"coordinator_node_volume_config": {
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Optional: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"vol_size": {
 							Type:         schema.TypeInt,
-							Optional:     true,
+							Required:     true,
 							ValidateFunc: validation.IntAtLeast(1),
-							Default:      150,
 						},
 						"iops": {
 							Type:         schema.TypeInt,
-							Optional:     true,
+							Required:     true,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
-							Optional:     true,
+							Required:     true,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
 					},
@@ -101,7 +100,7 @@ func resourceElasticCluster() *schema.Resource {
 				Computed: true,
 			},
 			"compute_node_volume_config": {
-				Type:     schema.TypeSet,
+				Type:     schema.TypeList,
 				Optional: true,
 				MaxItems: 1,
 				Elem: &schema.Resource{
@@ -126,7 +125,7 @@ func resourceElasticCluster() *schema.Resource {
 						"vol_size": {
 							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 							Type:        schema.TypeInt,
-							Optional:    true,
+							Required:    true,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
 								if !ok {
@@ -146,12 +145,12 @@ func resourceElasticCluster() *schema.Resource {
 						},
 						"iops": {
 							Type:         schema.TypeInt,
-							Optional:     true,
+							Required:     true,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
-							Optional:     true,
+							Required:     true,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
 					},
@@ -375,11 +374,11 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		oldVolumeConfig := cluster.DefaultFeVolumeMap()
 		newVolumeConfig := cluster.DefaultFeVolumeMap()
 
-		if len(o.(*schema.Set).List()) > 0 {
-			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		if len(o.([]interface{})) > 0 {
+			oldVolumeConfig = o.([]interface{})[0].(map[string]interface{})
 		}
-		if len(n.(*schema.Set).List()) > 0 {
-			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		if len(n.([]interface{})) > 0 {
+			newVolumeConfig = n.([]interface{})[0].(map[string]interface{})
 		}
 
 		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
@@ -427,11 +426,11 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		oldVolumeConfig := cluster.DefaultFeVolumeMap()
 		newVolumeConfig := cluster.DefaultFeVolumeMap()
 
-		if len(o.(*schema.Set).List()) > 0 {
-			oldVolumeConfig = o.(*schema.Set).List()[0].(map[string]interface{})
+		if len(o.([]interface{})) > 0 {
+			oldVolumeConfig = o.([]interface{})[0].(map[string]interface{})
 		}
-		if len(n.(*schema.Set).List()) > 0 {
-			newVolumeConfig = n.(*schema.Set).List()[0].(map[string]interface{})
+		if len(n.([]interface{})) > 0 {
+			newVolumeConfig = n.([]interface{})[0].(map[string]interface{})
 		}
 
 		oldVolumeNumber, newVolumeNumber := oldVolumeConfig["vol_number"].(int), newVolumeConfig["vol_number"].(int)
@@ -514,7 +513,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		},
 	}
 	if v, ok := d.GetOk("coordinator_node_volume_config"); ok {
-		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
+		volumeConfig := v.([]interface{})[0].(map[string]interface{})
 		diskInfo := coordinatorItem.DiskInfo
 		if v, ok := volumeConfig["vol_size"]; ok {
 			diskInfo.PerSize = uint64(v.(int))
@@ -539,7 +538,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	if v, ok := d.GetOk("compute_node_volume_config"); ok {
-		volumeConfig := v.(*schema.Set).List()[0].(map[string]interface{})
+		volumeConfig := v.([]interface{})[0].(map[string]interface{})
 		diskInfo := computeItem.DiskInfo
 		if v, ok := volumeConfig["vol_number"]; ok {
 			diskInfo.Number = uint32(v.(int))
@@ -764,12 +763,12 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		d.Set("compute_node_configs", computeNodeConfigsResp.Configs)
 	}
 
-	feModule := resp.Cluster.BeModule
+	feModule := resp.Cluster.FeModule
 	feVolumeConfig := make(map[string]interface{}, 0)
 	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
 	feVolumeConfig["iops"] = feModule.Iops
 	feVolumeConfig["throughput"] = feModule.Throughput
-	d.Set("coordinator_node_volume_config", []map[string]interface{}{feVolumeConfig})
+	d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
 
 	d.Set("compute_node_is_instance_store", resp.Cluster.BeModule.IsInstanceStore)
 	beModule := resp.Cluster.BeModule
@@ -778,7 +777,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
 	beVolumeConfig["iops"] = beModule.Iops
 	beVolumeConfig["throughput"] = beModule.Throughput
-	d.Set("compute_node_volume_config", []map[string]interface{}{beVolumeConfig})
+	d.Set("compute_node_volume_config", []interface{}{beVolumeConfig})
 
 	return diags
 }
@@ -1039,8 +1038,8 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 
 	if d.HasChange("coordinator_node_volume_config") {
 		o, n := d.GetChange("coordinator_node_volume_config")
-		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
-		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+		oldVolumeConfig := o.([]interface{})[0].(map[string]interface{})
+		newVolumeConfig := n.([]interface{})[0].(map[string]interface{})
 
 		nodeType := cluster.ClusterModuleTypeFE
 		req := &cluster.ModifyClusterVolumeReq{
@@ -1196,8 +1195,8 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 
 	if d.HasChange("compute_node_volume_config") {
 		o, n := d.GetChange("compute_node_volume_config")
-		oldVolumeConfig := o.(*schema.Set).List()[0].(map[string]interface{})
-		newVolumeConfig := n.(*schema.Set).List()[0].(map[string]interface{})
+		oldVolumeConfig := o.([]interface{})[0].(map[string]interface{})
+		newVolumeConfig := n.([]interface{})[0].(map[string]interface{})
 
 		nodeType := cluster.ClusterModuleTypeBE
 		req := &cluster.ModifyClusterVolumeReq{
