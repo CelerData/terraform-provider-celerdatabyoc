@@ -89,7 +89,7 @@ func (c *clusterAPI) GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmIn
 }
 
 func (c *clusterAPI) UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error {
-	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deployment-scripts", c.apiVersion, req.ClusterId), nil, nil)
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deployment-scripts", c.apiVersion, req.ClusterId), req, nil)
 }
 
 func (c *clusterAPI) DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error {
