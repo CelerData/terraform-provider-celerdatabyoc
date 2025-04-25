@@ -41,6 +41,8 @@ type IClusterAPI interface {
 	CleanCustomConfig(ctx context.Context, req *CleanCustomConfigReq) (*CleanCustomConfigResp, error)
 	UpsertClusterConfig(ctx context.Context, req *UpsertClusterConfigReq) (*UpsertClusterConfigResp, error)
 	RemoveClusterConfig(ctx context.Context, req *RemoveClusterConfigReq) (*RemoveClusterConfigResp, error)
+
+	CheckRangerCert(ctx context.Context, req *CheckRangerCertsReq) error
 	UpsertClusterRangerCert(ctx context.Context, req *UpsertRangerCertsReq) (*UpsertRangerCertsResp, error)
 	RemoveClusterRangerCert(ctx context.Context, req *RemoveRangerCertsReq) (*RemoveRangerCertsResp, error)
 
@@ -494,6 +496,10 @@ func (c *clusterAPI) RemoveClusterConfig(ctx context.Context, req *RemoveCluster
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) CheckRangerCert(ctx context.Context, req *CheckRangerCertsReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs/check", c.apiVersion, req.ClusterId), req, nil)
 }
 
 func (c *clusterAPI) UpsertClusterRangerCert(ctx context.Context, req *UpsertRangerCertsReq) (*UpsertRangerCertsResp, error) {

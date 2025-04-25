@@ -444,6 +444,11 @@ type UpsertLDAPSSLCertsResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
+type CheckRangerCertsReq struct {
+	ClusterId string `json:"cluster_id"`
+	DirPath   string `json:"dir_path"`
+}
+
 type UpsertRangerCertsReq struct {
 	ClusterId string `json:"cluster_id"`
 	DirPath   string `json:"dir_path"`

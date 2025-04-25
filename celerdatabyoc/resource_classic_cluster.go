@@ -1870,6 +1870,21 @@ func removeClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 func configClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, rangerCertsDir string) diag.Diagnostics {
 
 	summary := "Failed to config ranger ssl certs."
+	err := clusterAPI.CheckRangerCert(ctx, &cluster.CheckRangerCertsReq{
+		ClusterId: clusterId,
+		DirPath:   rangerCertsDir,
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
 	resp, err := clusterAPI.UpsertClusterRangerCert(ctx, &cluster.UpsertRangerCertsReq{
 		ClusterId: clusterId,
 		DirPath:   rangerCertsDir,
