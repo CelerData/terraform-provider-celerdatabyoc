@@ -507,7 +507,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
-			"ranger_certs_dir_path": {
+			"ranger_certs_dir": {
 				Type:         schema.TypeString,
 				Optional:     true,
 				ValidateFunc: validation.StringIsNotWhiteSpace,
@@ -976,7 +976,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if v, ok := d.GetOk("ranger_certs_dir_path"); ok {
+	if v, ok := d.GetOk("ranger_certs_dir"); ok {
 		rangerCertsDirPath := v.(string)
 		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, false)
 		if warningDiag != nil {
@@ -1129,7 +1129,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
 	if len(resp.Cluster.RangerCertsDirPath) > 0 {
-		d.Set("ranger_certs_dir_path", resp.Cluster.RangerCertsDirPath)
+		d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
 	}
 
 	default_warehouses := make([]map[string]interface{}, 0)
@@ -1427,8 +1427,8 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if d.HasChange("ranger_certs_dir_path") && !d.IsNewResource() {
-		rangerCertsDirPath := d.Get("ranger_certs_dir_path").(string)
+	if d.HasChange("ranger_certs_dir") && !d.IsNewResource() {
+		rangerCertsDirPath := d.Get("ranger_certs_dir").(string)
 		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, true)
 		if warningDiag != nil {
 			return warningDiag
