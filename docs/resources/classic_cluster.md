@@ -24,21 +24,40 @@ For information about the instance types supported by CelerData, see [Supported 
 ```terraform
 resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   cluster_name = "<cluster_name>"
-  fe_instance_type = "<fe_node_instance_type>"
-  fe_node_count = 1
   deployment_credential_id = <deployment_credential_resource_ID>
   data_credential_id = <data_credential_resource_ID>
   network_id = <network_configuration_resource_ID>
+  
+  fe_instance_type = "<fe_node_instance_type>"
+  fe_node_count = 1
+  fe_volume_config {
+    vol_size = 150
+    iops = 5000
+    throughput = 150
+  }
+  fe_configs = {
+    <key> = <value>
+  }
+
   be_instance_type = "<be_node_instance_type>"
   be_node_count = 1
-  be_disk_number = 2
-  be_disk_per_size = 100
+  be_volume_config {
+    vol_number = 3
+    vol_size = 140
+    iops = 5000
+    throughput = 150
+  }
+  be_configs = {
+    <key> = <value>
+  }
+
   default_admin_password = "<SQL_user_initial_password>"
 
   expected_cluster_state = "{Suspended | Running}"
   ldap_ssl_certs = [
     "<ssl_cert_s3_path>"
   ]
+  ranger_certs_dir_path = "s3://your-bucket/ranger_config_dir"
   resource_tags = {
     celerdata = "<tag_name>"
   }
@@ -84,15 +103,24 @@ This resource contains the following required arguments and optional arguments:
 **Optional:**
 
 - `fe_node_count`: The number of FE nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
+- `fe_volume_config`: The FE nodes volume configuration.
+  - `vol_size`: The size per disk for each FE. Unit: GB. Default value: `150`. You can only increase the value of this parameter.
+  - `iops`: Disk iops.
+  - `throughput`: Disk throughput.
+- `fe_configs`: The FE static configuration.
 - `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
-- `be_disk_number`: (Not allowed to modify) The number of disks for each BE. Valid values: [1,24]. Default value: `2`.
-- `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
-
-~> You can use the `be_disk_number` and `be_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a cluster is equal to `be_disk_number` * `be_disk_per_size`.
+- `be_volume_config`: The BE nodes volume configuration.
+  - `vol_number`: (Not allowed to modify) The number of disks for each BE. Valid values: [1,24]. Default value: `2`.
+  - `vol_size`: The size per disk for each BE. Unit: GB. Default value: `100`. You can only increase the value of this parameter.
+  - `iops`: Disk iops.
+  - `throughput`: Disk throughput.
+~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a cluster BE is equal to `vol_number` * `vol_size`.
+- `be_configs`: The BE static configuration.
 
 - `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+- `ranger_certs_dir`: The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
-~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
+~> You can only upload or delete LDAP or Ranger SSL certificates  while the cluster's `expected_cluster_state` is set to `Running`.
 
 - `resource_tags`: The tags to be attached to the cluster.
 - `init_scripts`: (Not allowed to modify) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).

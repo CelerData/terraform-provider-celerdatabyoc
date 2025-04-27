@@ -330,7 +330,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 - `network_id`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_network.network.id`.
 
-- `warehouse`: (List of Object) The list of warehouses. The attributes of a warehouse include:
+- `default_warehouse`: (List of Object) The default warehouse. The attributes of a default warehouse include:
     - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance
       type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
       `r6id.4xlarge`.
@@ -339,28 +339,14 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
       integer.
       Default value: `3`.
 
-    - ~> When using an EBS-backed instance type, you can use the `compute_node_ebs_disk_number` and
-      `compute_node_ebs_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a
-      cluster is equal to `compute_node_ebs_disk_number` * `compute_node_ebs_disk_per_size`.
+    - `compute_node_volume_config`: The compute nodes volume configuration.
+        - `vol_number`: (Not allowed to modify) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`.
+        - `vol_size`: The size per disk for each compute node. Unit: GB. Default value: `100`. You can only increase the value of this parameter.
+        - `iops`: Disk iops.
+        - `throughput`: Disk throughput.
+          ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a compute node is equal to `vol_number` * `vol_size`.
+    - `compute_node_configs`: The compute node static configuration.ÅÅ
 
-    - `compute_node_ebs_disk_number`: (Unchangeable) The number of disks for each compute node. Valid values: [1,24].
-      This parameter only takes effect when using EBS-backed instance type.
-
-    - `compute_node_ebs_disk_per_size`: The size per disk for each compute node. Unit: GB. Maximum value: `16000`. You
-      can only increase the value of this parameter, and the time interval between two value changes must be greater
-      than 6 hours. This parameter only takes effect when using EBS-backed instance type.
-
-    - `expected_state`: (Optional) When creating non-default warehouse, you can declare the status of the warehouse
-      you are creating. Warehouse states are categorized as `Suspended` and `Running`. If you want the warehouse to
-      start after provisioning, set
-      this argument to `Running`. If you set this argument to `Suspended`, the warehouse will be suspended after
-      provisioning.
-
-    - `idle_suspend_interval`: (Optional) The amount of time (in minutes) during which the warehouse can stay idle.
-      After the specified time period elapses, the warehouse will be automatically suspended. The Auto Suspend feature
-      is disabled by default and unable for `default_warehouse`. To enable the Auto Suspend feature, set this argument
-      to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform
-      configuration.
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of Compute nodes (CN), based
       on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
       `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
@@ -390,12 +376,56 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, and `5`. Default
   value: `1`. If you want to enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
+- `coordinator_node_volume_config`: The coordinator nodes volume configuration.
+    - `vol_size`: The size per disk for each coordinator node. Unit: GB. Default value: `150`. You can only increase the value of this parameter.
+    - `iops`: Disk iops.
+    - `throughput`: Disk throughput.
+- `coordinator_node_configs`: The coordinator node static configuration.
+
+- `warehouse`: (List of Object) The list of warehouses. The attributes of a warehouse include:
+    - `name`: (Required) The warehouse name must be unique within the cluster and cannot be named "default_warehouse".
+    - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance
+      type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
+      `r6id.4xlarge`.
+
+    - `compute_node_count`: (Optional) The number of compute nodes in the cluster. Valid values: any non-zero positive
+      integer.
+      Default value: `3`.
+
+    - `compute_node_volume_config`: The compute nodes volume configuration.
+        - `vol_number`: (Not allowed to modify) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`.
+        - `vol_size`: The size per disk for each compute node. Unit: GB. Default value: `100`. You can only increase the value of this parameter.
+        - `iops`: Disk iops.
+        - `throughput`: Disk throughput.
+          ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a compute node is equal to `vol_number` * `vol_size`.
+    - `compute_node_configs`: The compute node static configuration.ÅÅ
+
+    - `expected_state`: (Optional) When creating non-default warehouse, you can declare the status of the warehouse
+      you are creating. Warehouse states are categorized as `Suspended` and `Running`. If you want the warehouse to
+      start after provisioning, set
+      this argument to `Running`. If you set this argument to `Suspended`, the warehouse will be suspended after
+      provisioning.
+
+    - `idle_suspend_interval`: (Optional) The amount of time (in minutes) during which the warehouse can stay idle.
+      After the specified time period elapses, the warehouse will be automatically suspended. To enable the Auto Suspend feature, set this argument
+      to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform
+      configuration.
+    - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of Compute nodes (CN), based
+      on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
+      `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+    - `distribution_policy`: (Optional) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
+
+      ~> To enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
+
+    - `specify_az`: (Optional) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
+
 - `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be
   separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To
   allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to
   CelerData. To delete the certificates uploaded, you only need to remove this argument.
+- `ranger_certs_dir`: The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
-~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
+~> You can only upload or delete LDAP or Ranger SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
 - `resource_tags`: The tags to be attached to the cluster.
 
