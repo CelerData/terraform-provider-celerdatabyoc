@@ -1095,6 +1095,45 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if d.HasChange("resource_tags") && !d.IsNewResource() {
+		_, n := d.GetChange("resource_tags")
+
+		nTags := n.(map[string]interface{})
+		tags := make(map[string]string, len(nTags))
+		for k, v := range nTags {
+			tags[k] = v.(string)
+		}
+		err := clusterAPI.UpdateResourceTags(ctx, &cluster.UpdateResourceTagsReq{
+			ClusterId: clusterId,
+			Tags:      tags,
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update resource tags: %s", d.Id(), err.Error()))
+		}
+	}
+
+	if d.HasChange("init_scripts") && !d.IsNewResource() {
+		_, n := d.GetChange("init_scripts")
+		vL := n.(*schema.Set).List()
+		scripts := make([]*cluster.Script, 0, len(vL))
+		for _, v := range vL {
+			s := v.(map[string]interface{})
+			scripts = append(scripts, &cluster.Script{
+				ScriptPath: s["script_path"].(string),
+				LogsDir:    s["logs_dir"].(string),
+			})
+		}
+		err := clusterAPI.UpdateDeploymentScripts(ctx, &cluster.UpdateDeploymentScriptsReq{
+			ClusterId: clusterId,
+			Scripts:   scripts,
+			Parallel:  d.Get("run_scripts_parallel").(bool),
+			Timeout:   int32(d.Get("run_scripts_timeout").(int)),
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("failed to update cluster(%s) init-scripts: %s", d.Id(), err.Error()))
+		}
+	}
+
 	if elasticClusterV2NeedUnlock(d) {
 		err := clusterAPI.UnlockFreeTier(ctx, clusterId)
 		if err != nil {
@@ -1289,45 +1328,6 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 			if err != nil {
 				return diag.FromErr(err)
 			}
-		}
-	}
-
-	if d.HasChange("resource_tags") && !d.IsNewResource() {
-		_, n := d.GetChange("resource_tags")
-
-		nTags := n.(map[string]interface{})
-		tags := make(map[string]string, len(nTags))
-		for k, v := range nTags {
-			tags[k] = v.(string)
-		}
-		err := clusterAPI.UpdateResourceTags(ctx, &cluster.UpdateResourceTagsReq{
-			ClusterId: clusterId,
-			Tags:      tags,
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update resource tags: %s", d.Id(), err.Error()))
-		}
-	}
-
-	if d.HasChange("init_scripts") && !d.IsNewResource() {
-		_, n := d.GetChange("init_scripts")
-		vL := n.(*schema.Set).List()
-		scripts := make([]*cluster.Script, 0, len(vL))
-		for _, v := range vL {
-			s := v.(map[string]interface{})
-			scripts = append(scripts, &cluster.Script{
-				ScriptPath: s["script_path"].(string),
-				LogsDir:    s["logs_dir"].(string),
-			})
-		}
-		err := clusterAPI.UpdateDeploymentScripts(ctx, &cluster.UpdateDeploymentScriptsReq{
-			ClusterId: clusterId,
-			Scripts:   scripts,
-			Parallel:  d.Get("run_scripts_parallel").(bool),
-			Timeout:   int32(d.Get("run_scripts_timeout").(int)),
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to update cluster(%s) init-scripts: %s", d.Id(), err.Error()))
 		}
 	}
 
