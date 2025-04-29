@@ -67,6 +67,7 @@ type IClusterAPI interface {
 	ChangeWarehouseDistribution(ctx context.Context, req *ChangeWarehouseDistributionReq) (*ChangeWarehouseDistributionResp, error)
 
 	GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error)
+	UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -91,6 +92,10 @@ func (c *clusterAPI) GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmIn
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deployment-scripts", c.apiVersion, req.ClusterId), req, nil)
 }
 
 func (c *clusterAPI) DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error {
