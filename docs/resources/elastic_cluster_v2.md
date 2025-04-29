@@ -399,15 +399,15 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 - `resource_tags`: The tags to be attached to the cluster.
 
-- `init_scripts`: (Not allowed to modify) The configuration block to specify the paths to which scripts and script
+- `init_scripts`: The configuration block to specify the paths to which scripts and script
   execution results are stored. The maximum number of executable scripts is 20. For information about the formats
   supported by these arguments, see `scripts.logs_dir` and `scripts.script_path`
   in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
 
-    - `logs_dir`: (Not allowed to modify) The path in the AWS S3 bucket to which script execution results are stored. This
+    - `logs_dir`: The path in the AWS S3 bucket to which script execution results are stored. This
       S3 bucket can be the same as or different from the S3 bucket you specify in the
       `celerdatabyoc_aws_data_credential` resource.
-    - `script_path`: (Not allowed to modify) The path in the AWS S3 bucket that stores the scripts to run via Terraform.
+    - `script_path`: The path in the AWS S3 bucket that stores the scripts to run via Terraform.
       This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value:
