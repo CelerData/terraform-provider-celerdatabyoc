@@ -76,17 +76,20 @@ func resourceElasticClusterV2() *schema.Resource {
 					Schema: map[string]*schema.Schema{
 						"vol_size": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      150,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
 						"iops": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      5000,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      400,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 					},
@@ -175,7 +178,8 @@ func resourceElasticClusterV2() *schema.Resource {
 									"vol_size": {
 										Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 										Type:        schema.TypeInt,
-										Required:    true,
+										Optional:    true,
+										Default:     100,
 										ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 											v, ok := i.(int)
 											if !ok {
@@ -193,12 +197,14 @@ func resourceElasticClusterV2() *schema.Resource {
 									},
 									"iops": {
 										Type:         schema.TypeInt,
-										Required:     true,
+										Optional:     true,
+										Default:      5000,
 										ValidateFunc: validation.IntAtLeast(0),
 									},
 									"throughput": {
 										Type:         schema.TypeInt,
-										Required:     true,
+										Optional:     true,
+										Default:      400,
 										ValidateFunc: validation.IntAtLeast(0),
 									},
 								},
@@ -295,7 +301,7 @@ func resourceElasticClusterV2() *schema.Resource {
 									"vol_size": {
 										Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 										Type:        schema.TypeInt,
-										Required:    true,
+										Optional:    true,
 										ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 											v, ok := i.(int)
 											if !ok {
@@ -313,12 +319,12 @@ func resourceElasticClusterV2() *schema.Resource {
 									},
 									"iops": {
 										Type:         schema.TypeInt,
-										Required:     true,
+										Optional:     true,
 										ValidateFunc: validation.IntAtLeast(0),
 									},
 									"throughput": {
 										Type:         schema.TypeInt,
-										Required:     true,
+										Optional:     true,
 										ValidateFunc: validation.IntAtLeast(0),
 									},
 								},
@@ -357,9 +363,9 @@ func resourceElasticClusterV2() *schema.Resource {
 							},
 						},
 						"expected_state": {
-							Type:     schema.TypeString,
-							Optional: true,
-							//Default:      string(cluster.ClusterStateRunning),
+							Type:         schema.TypeString,
+							Optional:     true,
+							Default:      string(cluster.ClusterStateRunning),
 							ValidateFunc: validation.StringInSlice([]string{string(cluster.ClusterStateSuspended), string(cluster.ClusterStateRunning)}, false),
 						},
 						"compute_node_configs": {
@@ -535,7 +541,7 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 	isNewResource := d.Id() == ""
 
 	n := d.Get("coordinator_node_size")
-	newVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+	newCoordinatorVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
 		Csp:         csp,
 		Region:      region,
 		ProcessType: string(cluster.ClusterModuleTypeFE),
@@ -545,7 +551,7 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, n.(string), err)
 		return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, n.(string), err.Error())
 	}
-	if newVmInfoResp.VmInfo == nil {
+	if newCoordinatorVmInfoResp.VmInfo == nil {
 		return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, n.(string))
 	}
 
@@ -576,24 +582,24 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		}
 	}
 
-	feArch := newVmInfoResp.VmInfo.Arch
+	feArch := newCoordinatorVmInfoResp.VmInfo.Arch
 
 	if d.HasChange("coordinator_node_size") && !isNewResource {
-		o, n := d.GetChange("coordinator_node_size")
-		newVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+		o, _ := d.GetChange("coordinator_node_size")
+		oldVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
 			Csp:         csp,
 			Region:      region,
 			ProcessType: string(cluster.ClusterModuleTypeFE),
-			VmCate:      n.(string),
+			VmCate:      o.(string),
 		})
 		if err != nil {
-			log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, n.(string), err)
-			return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, n.(string), err.Error())
+			log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, o.(string), err)
+			return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, o.(string), err.Error())
 		}
-		if newVmInfoResp.VmInfo == nil {
-			return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, n.(string))
+		if oldVmInfoResp.VmInfo == nil {
+			return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, o.(string))
 		}
-		if feArch != newVmInfoResp.VmInfo.Arch {
+		if feArch != oldVmInfoResp.VmInfo.Arch {
 			return fmt.Errorf("the vm instance architecture can not be changed, csp:%s region:%s oldVmCate:%s  newVmCate:%s", csp, region, o.(string), n.(string))
 		}
 	}
@@ -615,6 +621,23 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 
 		if newVolumeSize < oldVolumeSize {
 			return fmt.Errorf("coordinator node `vol_size` does not support decrease")
+		}
+	}
+
+	if !newCoordinatorVmInfoResp.VmInfo.IsInstanceStore {
+		if v, ok := d.GetOk("coordinator_node_volume_config"); ok {
+			nodeType := "Coordinator node"
+			volumeCate := newCoordinatorVmInfoResp.VmInfo.VmVolumeInfos[0].VolumeCate
+			volumeConfig := v.([]interface{})[0].(map[string]interface{})
+			err = VolumeParamVerify(ctx, &VolumeParamVerifyReq{
+				ClusterAPI:   clusterAPI,
+				VolumeCate:   volumeCate,
+				VolumeConfig: volumeConfig,
+			})
+			if err != nil {
+				log.Printf("[ERROR] verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+				return fmt.Errorf("verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+			}
 		}
 	}
 
@@ -651,6 +674,21 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 				}
 				if len(attrs) > 0 {
 					return fmt.Errorf("the vm instance type[%s] of the warehouse[%s] does not support specifying the volume config of disks, field: %+v is not supported", vmCateName, whName, strings.Join(attrs, ","))
+				}
+			} else {
+				if v, ok := m["compute_node_volume_config"]; ok && len(v.([]interface{})) > 0 {
+					nodeType := "Compute node"
+					volumeCate := vmCateInfoResp.VmInfo.VmVolumeInfos[0].VolumeCate
+					volumeConfig := v.([]interface{})[0].(map[string]interface{})
+					err = VolumeParamVerify(ctx, &VolumeParamVerifyReq{
+						ClusterAPI:   clusterAPI,
+						VolumeCate:   volumeCate,
+						VolumeConfig: volumeConfig,
+					})
+					if err != nil {
+						log.Printf("[ERROR] verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+						return fmt.Errorf("verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+					}
 				}
 			}
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
@@ -728,6 +766,21 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 				}
 				if len(attrs) > 0 {
 					return fmt.Errorf("the vm instance type[%s] of the warehouse[%s] does not support specifying the volume config of disks, field: %+v is not supported", vmCateName, whName, strings.Join(attrs, ","))
+				}
+			} else {
+				if v, ok := m["compute_node_volume_config"]; ok && len(v.([]interface{})) > 0 {
+					nodeType := "Compute node"
+					volumeCate := vmCateInfoResp.VmInfo.VmVolumeInfos[0].VolumeCate
+					volumeConfig := v.([]interface{})[0].(map[string]interface{})
+					err = VolumeParamVerify(ctx, &VolumeParamVerifyReq{
+						ClusterAPI:   clusterAPI,
+						VolumeCate:   volumeCate,
+						VolumeConfig: volumeConfig,
+					})
+					if err != nil {
+						log.Printf("[ERROR] verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+						return fmt.Errorf("verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+					}
 				}
 			}
 
@@ -1156,12 +1209,14 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 
 		whModule := v.Module
-		computeNodeVolumeConfig := make(map[string]interface{}, 0)
-		computeNodeVolumeConfig["vol_number"] = whModule.VmVolNum
-		computeNodeVolumeConfig["vol_size"] = whModule.VmVolSizeGB
-		computeNodeVolumeConfig["iops"] = whModule.Iops
-		computeNodeVolumeConfig["throughput"] = whModule.Throughput
-		whMap["compute_node_volume_config"] = []interface{}{computeNodeVolumeConfig}
+		if !whModule.IsInstanceStore {
+			computeNodeVolumeConfig := make(map[string]interface{}, 0)
+			computeNodeVolumeConfig["vol_number"] = whModule.VmVolNum
+			computeNodeVolumeConfig["vol_size"] = whModule.VmVolSizeGB
+			computeNodeVolumeConfig["iops"] = whModule.Iops
+			computeNodeVolumeConfig["throughput"] = whModule.Throughput
+			whMap["compute_node_volume_config"] = []interface{}{computeNodeVolumeConfig}
+		}
 
 		idleConfigResp, err := clusterAPI.GetWarehouseIdleConfig(ctx, &cluster.GetWarehouseIdleConfigReq{
 			WarehouseId: warehouseId,
@@ -1230,6 +1285,28 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whInfoBytes, _ := json.Marshal(whInfo)
 		warehouseExternalInfo[warehouseName] = string(whInfoBytes)
 	}
+
+	configuredWH := d.Get("default_warehouse").([]interface{})[0].(map[string]interface{})
+	if rawVol, ok := configuredWH["compute_node_volume_config"]; !ok || rawVol == nil {
+		default_warehouses[0]["compute_node_volume_config"] = nil
+	}
+
+	if len(normal_warehouses) > 0 {
+		configuredWHs := d.Get("warehouse").([]interface{})
+		configuredWHsMap := make(map[string]bool, 0)
+
+		for _, c := range configuredWHs {
+			cwh := c.(map[string]interface{})
+			configuredWHsMap[cwh["name"].(string)] = cwh["compute_node_volume_config"] != nil
+		}
+		for _, wh := range normal_warehouses {
+			whName := wh["name"].(string)
+			if v, ok := configuredWHsMap[whName]; !ok || !v {
+				wh["compute_node_volume_config"] = nil
+			}
+		}
+	}
+
 	d.Set("default_warehouse", default_warehouses)
 	d.Set("warehouse", normal_warehouses)
 	d.Set("warehouse_external_info", warehouseExternalInfo)
@@ -1239,11 +1316,15 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	feModule := resp.Cluster.FeModule
-	feVolumeConfig := make(map[string]interface{}, 0)
-	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
-	feVolumeConfig["iops"] = feModule.Iops
-	feVolumeConfig["throughput"] = feModule.Throughput
-	d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
+	if !feModule.IsInstanceStore {
+		feVolumeConfig := make(map[string]interface{}, 0)
+		feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
+		feVolumeConfig["iops"] = feModule.Iops
+		feVolumeConfig["throughput"] = feModule.Throughput
+		if v, ok := d.GetOk("coordinator_node_volume_config"); ok && v != nil {
+			d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
+		}
+	}
 
 	if len(coordinatorNodeConfigsResp.Configs) > 0 {
 		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)

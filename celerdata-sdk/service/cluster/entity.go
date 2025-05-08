@@ -687,11 +687,24 @@ type GetVmInfoReq struct {
 	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
 }
 
+type VmVolumeInfo struct {
+	BizId              string `json:"biz_id" mapstructure:"biz_id"`
+	VolumeCateId       string `json:"volume_cate_id" mapstructure:"volume_cate_id"`
+	SizeGb             int64  `json:"size_gb" mapstructure:"size_gb"`
+	IsInstanceStore    bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+	InstanceStoreCount int32  `json:"instance_store_count" mapstructure:"instance_store_count"`
+	Available          bool   `json:"available" mapstructure:"available"`
+	VmCate             string `json:"vm_cate" mapstructure:"vm_cate"`
+	VolumeCate         string `json:"volume_cate" mapstructure:"volume_cate"`
+	Arch               string `json:"arch" mapstructure:"arch"`
+}
+
 type VMInfo struct {
-	ProcessType     string `json:"process_type" mapstructure:"process_type"` // FE/BE
-	VmCate          string `json:"vm_cate" mapstructure:"vm_cate"`
-	Arch            string `json:"arch" mapstructure:"arch"`
-	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+	ProcessType     string          `json:"process_type" mapstructure:"process_type"` // FE/BE
+	VmCate          string          `json:"vm_cate" mapstructure:"vm_cate"`
+	Arch            string          `json:"arch" mapstructure:"arch"`
+	IsInstanceStore bool            `json:"is_instance_store" mapstructure:"is_instance_store"`
+	VmVolumeInfos   []*VmVolumeInfo `json:"vm_volume_infos" mapstructure:"vm_volume_infos"`
 }
 
 type GetVmInfoResp struct {

@@ -68,17 +68,20 @@ func resourceElasticCluster() *schema.Resource {
 					Schema: map[string]*schema.Schema{
 						"vol_size": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      150,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
 						"iops": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      5000,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      400,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 					},
@@ -125,7 +128,8 @@ func resourceElasticCluster() *schema.Resource {
 						"vol_size": {
 							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 							Type:        schema.TypeInt,
-							Required:    true,
+							Optional:    true,
+							Default:     100,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
 								if !ok {
@@ -145,12 +149,14 @@ func resourceElasticCluster() *schema.Resource {
 						},
 						"iops": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      5000,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      400,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 					},
@@ -319,7 +325,7 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 	isNewResource := d.Id() == ""
 
 	n := d.Get("coordinator_node_size")
-	newVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+	newCoordinatorVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
 		Csp:         csp,
 		Region:      region,
 		ProcessType: string(cluster.ClusterModuleTypeFE),
@@ -329,11 +335,11 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, n.(string), err)
 		return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, n.(string), err.Error())
 	}
-	if newVmInfoResp.VmInfo == nil {
+	if newCoordinatorVmInfoResp.VmInfo == nil {
 		return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, n.(string))
 	}
 
-	feArch := newVmInfoResp.VmInfo.Arch
+	feArch := newCoordinatorVmInfoResp.VmInfo.Arch
 
 	if len(d.Get("network_id").(string)) > 0 {
 		netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
@@ -388,24 +394,41 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		}
 	}
 
-	if d.HasChange("compute_node_size") {
-		cn := d.Get("compute_node_size")
-		cnVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
-			Csp:         csp,
-			Region:      region,
-			ProcessType: string(cluster.ClusterModuleTypeBE),
-			VmCate:      cn.(string),
-		})
-		if err != nil {
-			log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, cn.(string), err)
-			return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, cn.(string), err.Error())
+	if !newCoordinatorVmInfoResp.VmInfo.IsInstanceStore {
+		if v, ok := d.GetOk("coordinator_node_volume_config"); ok {
+			nodeType := "Coordinator node"
+			volumeCate := newCoordinatorVmInfoResp.VmInfo.VmVolumeInfos[0].VolumeCate
+			volumeConfig := v.([]interface{})[0].(map[string]interface{})
+			err = VolumeParamVerify(ctx, &VolumeParamVerifyReq{
+				ClusterAPI:   clusterAPI,
+				VolumeCate:   volumeCate,
+				VolumeConfig: volumeConfig,
+			})
+			if err != nil {
+				log.Printf("[ERROR] verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+				return fmt.Errorf("verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+			}
 		}
-		if cnVmInfoResp.VmInfo == nil {
-			return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, cn.(string))
-		}
+	}
 
-		if feArch != cnVmInfoResp.VmInfo.Arch {
-			return fmt.Errorf("compute node architecture should be same with coordinator node, expect:%s but found:%s", feArch, cnVmInfoResp.VmInfo.Arch)
+	newCn := d.Get("compute_node_size")
+	newCnVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+		Csp:         csp,
+		Region:      region,
+		ProcessType: string(cluster.ClusterModuleTypeFE),
+		VmCate:      newCn.(string),
+	})
+	if err != nil {
+		log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, newCn.(string), err)
+		return fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, newCn.(string), err.Error())
+	}
+	if newCnVmInfoResp.VmInfo == nil {
+		return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, newCn.(string))
+	}
+
+	if d.HasChange("compute_node_size") {
+		if feArch != newCnVmInfoResp.VmInfo.Arch {
+			return fmt.Errorf("compute node architecture should be same with coordinator node, expect:%s but found:%s", feArch, newCnVmInfoResp.VmInfo.Arch)
 		}
 
 		if len(clusterId) > 0 {
@@ -414,7 +437,7 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 			if !isInstanceStore {
 				expectStr = "nonlocal disk vm instance type"
 			}
-			if cnVmInfoResp.VmInfo.IsInstanceStore != isInstanceStore {
+			if newCnVmInfoResp.VmInfo.IsInstanceStore != isInstanceStore {
 				return fmt.Errorf("the disk type of the compute node must be the same as the previous disk type, expect:%s", expectStr)
 			}
 		}
@@ -442,6 +465,23 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 
 		if newVolumeSize < oldVolumeSize {
 			return fmt.Errorf("compute node `vol_size` does not support decrease")
+		}
+	}
+
+	if !newCnVmInfoResp.VmInfo.IsInstanceStore {
+		if v, ok := d.GetOk("compute_node_volume_config"); ok {
+			nodeType := "Compute node"
+			volumeCate := newCnVmInfoResp.VmInfo.VmVolumeInfos[0].VolumeCate
+			volumeConfig := v.([]interface{})[0].(map[string]interface{})
+			err = VolumeParamVerify(ctx, &VolumeParamVerifyReq{
+				ClusterAPI:   clusterAPI,
+				VolumeCate:   volumeCate,
+				VolumeConfig: volumeConfig,
+			})
+			if err != nil {
+				log.Printf("[ERROR] verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+				return fmt.Errorf("verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+			}
 		}
 	}
 
@@ -767,20 +807,28 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	}
 
 	feModule := resp.Cluster.FeModule
-	feVolumeConfig := make(map[string]interface{}, 0)
-	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
-	feVolumeConfig["iops"] = feModule.Iops
-	feVolumeConfig["throughput"] = feModule.Throughput
-	d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
+	if !feModule.IsInstanceStore {
+		feVolumeConfig := make(map[string]interface{}, 0)
+		feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
+		feVolumeConfig["iops"] = feModule.Iops
+		feVolumeConfig["throughput"] = feModule.Throughput
+		if v, ok := d.GetOk("coordinator_node_volume_config"); ok && v != nil {
+			d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
+		}
+	}
 
 	d.Set("compute_node_is_instance_store", resp.Cluster.BeModule.IsInstanceStore)
 	beModule := resp.Cluster.BeModule
-	beVolumeConfig := make(map[string]interface{}, 0)
-	beVolumeConfig["vol_number"] = beModule.VmVolNum
-	beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
-	beVolumeConfig["iops"] = beModule.Iops
-	beVolumeConfig["throughput"] = beModule.Throughput
-	d.Set("compute_node_volume_config", []interface{}{beVolumeConfig})
+	if !beModule.IsInstanceStore {
+		beVolumeConfig := make(map[string]interface{}, 0)
+		beVolumeConfig["vol_number"] = beModule.VmVolNum
+		beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
+		beVolumeConfig["iops"] = beModule.Iops
+		beVolumeConfig["throughput"] = beModule.Throughput
+		if v, ok := d.GetOk("compute_node_volume_config"); ok && v != nil {
+			d.Set("compute_node_volume_config", []interface{}{beVolumeConfig})
+		}
+	}
 
 	return diags
 }

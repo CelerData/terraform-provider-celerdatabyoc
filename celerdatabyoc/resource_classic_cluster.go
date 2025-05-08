@@ -68,17 +68,20 @@ func resourceClassicCluster() *schema.Resource {
 					Schema: map[string]*schema.Schema{
 						"vol_size": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      150,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
 						"iops": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      5000,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      400,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 					},
@@ -125,7 +128,8 @@ func resourceClassicCluster() *schema.Resource {
 						"vol_size": {
 							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
 							Type:        schema.TypeInt,
-							Required:    true,
+							Optional:    true,
+							Default:     100,
 							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 								v, ok := i.(int)
 								if !ok {
@@ -145,12 +149,14 @@ func resourceClassicCluster() *schema.Resource {
 						},
 						"iops": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      5000,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
-							Required:     true,
+							Optional:     true,
+							Default:      400,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 					},
@@ -357,6 +363,22 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 			return fmt.Errorf("fe `vol_size` does not support decrease, oldVolumeSize:%d, newVolumeSize:%d", oldVolumeSize, newVolumeSize)
 		}
 	}
+	if !feVmInfoResp.VmInfo.IsInstanceStore {
+		if v, ok := d.GetOk("fe_volume_config"); ok {
+			nodeType := cluster.ClusterModuleTypeFE
+			volumeCate := feVmInfoResp.VmInfo.VmVolumeInfos[0].VolumeCate
+			volumeConfig := v.([]interface{})[0].(map[string]interface{})
+			err = VolumeParamVerify(ctx, &VolumeParamVerifyReq{
+				ClusterAPI:   clusterAPI,
+				VolumeCate:   volumeCate,
+				VolumeConfig: volumeConfig,
+			})
+			if err != nil {
+				log.Printf("[ERROR] verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+				return fmt.Errorf("verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+			}
+		}
+	}
 
 	beInstanceType := d.Get("be_instance_type").(string)
 	if d.HasChange("be_instance_type") {
@@ -403,6 +425,23 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 
 		if newVolumeSize < oldVolumeSize {
 			return fmt.Errorf("be `vol_size` does not support decrease")
+		}
+	}
+
+	if !beVmInfoResp.VmInfo.IsInstanceStore {
+		if v, ok := d.GetOk("be_volume_config"); ok {
+			nodeType := cluster.ClusterModuleTypeBE
+			volumeCate := feVmInfoResp.VmInfo.VmVolumeInfos[0].VolumeCate
+			volumeConfig := v.([]interface{})[0].(map[string]interface{})
+			err = VolumeParamVerify(ctx, &VolumeParamVerifyReq{
+				ClusterAPI:   clusterAPI,
+				VolumeCate:   volumeCate,
+				VolumeConfig: volumeConfig,
+			})
+			if err != nil {
+				log.Printf("[ERROR] verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+				return fmt.Errorf("verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
+			}
 		}
 	}
 
@@ -744,19 +783,27 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	}
 
 	feModule := resp.Cluster.FeModule
-	feVolumeConfig := make(map[string]interface{}, 0)
-	feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
-	feVolumeConfig["iops"] = feModule.Iops
-	feVolumeConfig["throughput"] = feModule.Throughput
-	d.Set("fe_volume_config", []interface{}{feVolumeConfig})
+	if !feModule.IsInstanceStore {
+		feVolumeConfig := make(map[string]interface{}, 0)
+		feVolumeConfig["vol_size"] = feModule.VmVolSizeGB
+		feVolumeConfig["iops"] = feModule.Iops
+		feVolumeConfig["throughput"] = feModule.Throughput
+		if v, ok := d.GetOk("fe_volume_config"); ok && v != nil {
+			d.Set("fe_volume_config", []interface{}{feVolumeConfig})
+		}
+	}
 
 	beModule := resp.Cluster.BeModule
-	beVolumeConfig := make(map[string]interface{}, 0)
-	beVolumeConfig["vol_number"] = beModule.VmVolNum
-	beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
-	beVolumeConfig["iops"] = beModule.Iops
-	beVolumeConfig["throughput"] = beModule.Throughput
-	d.Set("be_volume_config", []interface{}{beVolumeConfig})
+	if !beModule.IsInstanceStore {
+		beVolumeConfig := make(map[string]interface{}, 0)
+		beVolumeConfig["vol_number"] = beModule.VmVolNum
+		beVolumeConfig["vol_size"] = beModule.VmVolSizeGB
+		beVolumeConfig["iops"] = beModule.Iops
+		beVolumeConfig["throughput"] = beModule.Throughput
+		if v, ok := d.GetOk("be_volume_config"); ok && v != nil {
+			d.Set("be_volume_config", []interface{}{beVolumeConfig})
+		}
+	}
 
 	return diags
 }
@@ -1959,4 +2006,28 @@ func configClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 	}
 
 	return nil
+}
+
+type VolumeParamVerifyReq struct {
+	ClusterAPI   cluster.IClusterAPI
+	VolumeCate   string
+	VolumeConfig map[string]interface{}
+}
+
+func VolumeParamVerify(ctx context.Context, req *VolumeParamVerifyReq) error {
+	clusterAPI := req.ClusterAPI
+	volumeCate := req.VolumeCate
+	volumeConfig := req.VolumeConfig
+	volumeSize := int64(volumeConfig["vol_size"].(int))
+	volumeNum := int32(1)
+	iops := int64(volumeConfig["iops"].(int))
+	throughput := int64(volumeConfig["throughput"].(int))
+	err := clusterAPI.VolumeParamVerification(ctx, &cluster.ModifyClusterVolumeReq{
+		VmVolCate:  volumeCate,
+		VmVolSize:  volumeSize,
+		VmVolNum:   volumeNum,
+		Iops:       iops,
+		Throughput: throughput,
+	})
+	return err
 }

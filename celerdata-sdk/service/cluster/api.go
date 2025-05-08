@@ -48,6 +48,7 @@ type IClusterAPI interface {
 
 	GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error)
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
+	VolumeParamVerification(ctx context.Context, req *ModifyClusterVolumeReq) error
 	UpdateResourceTags(ctx context.Context, req *UpdateResourceTagsReq) error
 
 	ListCluster(ctx context.Context) (*ListClusterResp, error)
@@ -544,4 +545,12 @@ func (c *clusterAPI) ModifyClusterVolume(ctx context.Context, req *ModifyCluster
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) VolumeParamVerification(ctx context.Context, req *ModifyClusterVolumeReq) error {
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/volume/param-verification", c.apiVersion), req, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }
