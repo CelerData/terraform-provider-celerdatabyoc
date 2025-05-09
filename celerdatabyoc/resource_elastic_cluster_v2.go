@@ -83,13 +83,11 @@ func resourceElasticClusterV2() *schema.Resource {
 						"iops": {
 							Type:         schema.TypeInt,
 							Optional:     true,
-							Default:      5000,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
 							Optional:     true,
-							Default:      400,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 					},
@@ -198,13 +196,11 @@ func resourceElasticClusterV2() *schema.Resource {
 									"iops": {
 										Type:         schema.TypeInt,
 										Optional:     true,
-										Default:      5000,
 										ValidateFunc: validation.IntAtLeast(0),
 									},
 									"throughput": {
 										Type:         schema.TypeInt,
 										Optional:     true,
-										Default:      400,
 										ValidateFunc: validation.IntAtLeast(0),
 									},
 								},
@@ -1289,20 +1285,35 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	configuredWH := d.Get("default_warehouse").([]interface{})[0].(map[string]interface{})
 	if rawVol, ok := configuredWH["compute_node_volume_config"]; !ok || rawVol == nil {
 		default_warehouses[0]["compute_node_volume_config"] = nil
+	} else {
+		rawMap := rawVol.([]interface{})[0].(map[string]interface{})
+		if rawMap["iops"] == nil {
+			default_warehouses[0]["compute_node_volume_config"].(map[string]interface{})["iops"] = nil
+		}
+		if rawMap["throughput"] == nil {
+			default_warehouses[0]["compute_node_volume_config"].(map[string]interface{})["throughput"] = nil
+		}
 	}
 
 	if len(normal_warehouses) > 0 {
 		configuredWHs := d.Get("warehouse").([]interface{})
-		configuredWHsMap := make(map[string]bool, 0)
+		configuredWHsMap := make(map[string]map[string]interface{}, 0)
 
 		for _, c := range configuredWHs {
 			cwh := c.(map[string]interface{})
-			configuredWHsMap[cwh["name"].(string)] = cwh["compute_node_volume_config"] != nil
+			configuredWHsMap[cwh["name"].(string)] = cwh["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})
 		}
 		for _, wh := range normal_warehouses {
 			whName := wh["name"].(string)
-			if v, ok := configuredWHsMap[whName]; !ok || !v {
+			if v, ok := configuredWHsMap[whName]; !ok || v == nil {
 				wh["compute_node_volume_config"] = nil
+			} else {
+				if v["iops"] == nil {
+					wh["compute_node_volume_config"].(map[string]interface{})["iops"] = nil
+				}
+				if v["throughput"] == nil {
+					wh["compute_node_volume_config"].(map[string]interface{})["throughput"] = nil
+				}
 			}
 		}
 	}
@@ -1322,6 +1333,12 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		feVolumeConfig["iops"] = feModule.Iops
 		feVolumeConfig["throughput"] = feModule.Throughput
 		if v, ok := d.GetOk("coordinator_node_volume_config"); ok && v != nil {
+			if v.([]interface{})[0].(map[string]interface{})["iops"] == nil {
+				feVolumeConfig["iops"] = nil
+			}
+			if v.([]interface{})[0].(map[string]interface{})["throughput"] == nil {
+				feVolumeConfig["throughput"] = nil
+			}
 			d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
 		}
 	}

@@ -75,13 +75,11 @@ func resourceClassicCluster() *schema.Resource {
 						"iops": {
 							Type:         schema.TypeInt,
 							Optional:     true,
-							Default:      5000,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
 							Optional:     true,
-							Default:      400,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 					},
@@ -150,13 +148,11 @@ func resourceClassicCluster() *schema.Resource {
 						"iops": {
 							Type:         schema.TypeInt,
 							Optional:     true,
-							Default:      5000,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
 							Optional:     true,
-							Default:      400,
 							ValidateFunc: validation.IntAtLeast(0),
 						},
 					},
@@ -789,6 +785,12 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		feVolumeConfig["iops"] = feModule.Iops
 		feVolumeConfig["throughput"] = feModule.Throughput
 		if v, ok := d.GetOk("fe_volume_config"); ok && v != nil {
+			if v.([]interface{})[0].(map[string]interface{})["iops"] == nil {
+				feVolumeConfig["iops"] = nil
+			}
+			if v.([]interface{})[0].(map[string]interface{})["throughput"] == nil {
+				feVolumeConfig["throughput"] = nil
+			}
 			d.Set("fe_volume_config", []interface{}{feVolumeConfig})
 		}
 	}
@@ -801,6 +803,12 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		beVolumeConfig["iops"] = beModule.Iops
 		beVolumeConfig["throughput"] = beModule.Throughput
 		if v, ok := d.GetOk("be_volume_config"); ok && v != nil {
+			if v.([]interface{})[0].(map[string]interface{})["iops"] == nil {
+				beVolumeConfig["iops"] = nil
+			}
+			if v.([]interface{})[0].(map[string]interface{})["throughput"] == nil {
+				beVolumeConfig["throughput"] = nil
+			}
 			d.Set("be_volume_config", []interface{}{beVolumeConfig})
 		}
 	}
