@@ -1251,7 +1251,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	configuredWH := d.Get("default_warehouse").([]interface{})[0].(map[string]interface{})
-	if rawVol, ok := configuredWH["compute_node_volume_config"]; !ok || rawVol == nil {
+	if rawVol, ok := configuredWH["compute_node_volume_config"]; !ok || len(rawVol.([]interface{})) == 0 {
 		default_warehouses[0]["compute_node_volume_config"] = nil
 	} else {
 		rawMap := rawVol.([]interface{})[0].(map[string]interface{})
