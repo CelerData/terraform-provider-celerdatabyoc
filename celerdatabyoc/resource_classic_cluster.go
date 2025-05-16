@@ -67,10 +67,10 @@ func resourceClassicCluster() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"vol_size": {
-							Type:         schema.TypeInt,
-							Optional:     true,
-							Default:      150,
-							ValidateFunc: validation.IntAtLeast(1),
+							Type:             schema.TypeInt,
+							Optional:         true,
+							Default:          150,
+							ValidateDiagFunc: common.ValidateVolumeSize(),
 						},
 						"iops": {
 							Type:         schema.TypeInt,
@@ -124,26 +124,11 @@ func resourceClassicCluster() *schema.Resource {
 							},
 						},
 						"vol_size": {
-							Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
-							Type:        schema.TypeInt,
-							Optional:    true,
-							Default:     100,
-							ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-								v, ok := i.(int)
-								if !ok {
-									errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-									return warnings, errors
-								}
-
-								m := 16 * 1000
-								if v <= 0 {
-									errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
-								} else if v > m {
-									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
-								}
-
-								return warnings, errors
-							},
+							Description:      "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+							Type:             schema.TypeInt,
+							Optional:         true,
+							Default:          100,
+							ValidateDiagFunc: common.ValidateVolumeSize(),
 						},
 						"iops": {
 							Type:         schema.TypeInt,

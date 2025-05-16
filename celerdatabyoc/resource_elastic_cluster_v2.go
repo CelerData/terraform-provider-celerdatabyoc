@@ -75,10 +75,10 @@ func resourceElasticClusterV2() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"vol_size": {
-							Type:         schema.TypeInt,
-							Optional:     true,
-							Default:      150,
-							ValidateFunc: validation.IntAtLeast(1),
+							Type:             schema.TypeInt,
+							Optional:         true,
+							Default:          150,
+							ValidateDiagFunc: common.ValidateVolumeSize(),
 						},
 						"iops": {
 							Type:         schema.TypeInt,
@@ -174,24 +174,11 @@ func resourceElasticClusterV2() *schema.Resource {
 										},
 									},
 									"vol_size": {
-										Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
-										Type:        schema.TypeInt,
-										Optional:    true,
-										Default:     100,
-										ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-											v, ok := i.(int)
-											if !ok {
-												errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-												return warnings, errors
-											}
-
-											m := 16 * 1000
-											if v < 1 || v > m {
-												errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
-											}
-
-											return warnings, errors
-										},
+										Description:      "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+										Type:             schema.TypeInt,
+										Optional:         true,
+										Default:          100,
+										ValidateDiagFunc: common.ValidateVolumeSize(),
 									},
 									"iops": {
 										Type:         schema.TypeInt,
@@ -295,23 +282,10 @@ func resourceElasticClusterV2() *schema.Resource {
 										},
 									},
 									"vol_size": {
-										Description: "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
-										Type:        schema.TypeInt,
-										Optional:    true,
-										ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
-											v, ok := i.(int)
-											if !ok {
-												errors = append(errors, fmt.Errorf("expected type of %s to be int", k))
-												return warnings, errors
-											}
-
-											m := 16 * 1000
-											if v < 1 || v > m {
-												errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,%d]", k, m))
-											}
-
-											return warnings, errors
-										},
+										Description:      "Specifies the size of a single disk in GB. The default size for per disk is 100GB.",
+										Type:             schema.TypeInt,
+										Optional:         true,
+										ValidateDiagFunc: common.ValidateVolumeSize(),
 									},
 									"iops": {
 										Type:         schema.TypeInt,
@@ -1079,8 +1053,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			return warningDiag
 		}
 	}
-
-	return diags
+	return resourceElasticClusterV2Read(ctx, d, m)
 }
 
 func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -1152,8 +1125,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("data_credential_id", resp.Cluster.DataCredID)
 	d.Set("network_id", resp.Cluster.NetIfaceID)
 	d.Set("deployment_credential_id", resp.Cluster.DeployCredID)
-	d.Set("compute_node_size", resp.Cluster.BeModule.InstanceType)
-	d.Set("compute_node_count", int(resp.Cluster.BeModule.Num))
 	d.Set("coordinator_node_size", resp.Cluster.FeModule.InstanceType)
 	d.Set("coordinator_node_count", int(resp.Cluster.FeModule.Num))
 	d.Set("free_tier", resp.Cluster.FreeTier)
@@ -1200,9 +1171,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap["compute_node_count"] = v.Module.Num
 		whMap["distribution_policy"] = v.DistributionPolicyStr
 		whMap["specify_az"] = v.SpecifyAZ
-		if !isDefaultWarehouse {
-			whMap["expected_state"] = v.State
-		}
 
 		whModule := v.Module
 		if !whModule.IsInstanceStore {
@@ -1212,26 +1180,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 			computeNodeVolumeConfig["iops"] = whModule.Iops
 			computeNodeVolumeConfig["throughput"] = whModule.Throughput
 			whMap["compute_node_volume_config"] = []interface{}{computeNodeVolumeConfig}
-		}
-
-		idleConfigResp, err := clusterAPI.GetWarehouseIdleConfig(ctx, &cluster.GetWarehouseIdleConfigReq{
-			WarehouseId: warehouseId,
-		})
-		if err != nil {
-			log.Printf("[ERROR] Query warehouse idle suspend config failed, warehouseId:%s", warehouseId)
-			return diag.Diagnostics{
-				diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  fmt.Sprintf("Failed to get warehouse idle suspend config, warehouseId:[%s] ", warehouseId),
-					Detail:   err.Error(),
-				},
-			}
-		}
-		idleConfig := idleConfigResp.Config
-		if idleConfig != nil && idleConfig.State {
-			whMap["idle_suspend_interval"] = idleConfig.IntervalMs / 1000 / 60
-		} else {
-			whMap["idle_suspend_interval"] = 0
 		}
 
 		autoScalingConfigResp, err := clusterAPI.GetWarehouseAutoScalingConfig(ctx, &cluster.GetWarehouseAutoScalingConfigReq{
@@ -1268,6 +1216,26 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 
 		if !isDefaultWarehouse {
+			whMap["expected_state"] = v.State
+			idleConfigResp, err := clusterAPI.GetWarehouseIdleConfig(ctx, &cluster.GetWarehouseIdleConfigReq{
+				WarehouseId: warehouseId,
+			})
+			if err != nil {
+				log.Printf("[ERROR] Query warehouse idle suspend config failed, warehouseId:%s", warehouseId)
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  fmt.Sprintf("Failed to get warehouse idle suspend config, warehouseId:[%s] ", warehouseId),
+						Detail:   err.Error(),
+					},
+				}
+			}
+			idleConfig := idleConfigResp.Config
+			if idleConfig != nil && idleConfig.State {
+				whMap["idle_suspend_interval"] = idleConfig.IntervalMs / 1000 / 60
+			} else {
+				whMap["idle_suspend_interval"] = 0
+			}
 			normal_warehouses = append(normal_warehouses, whMap)
 		} else {
 			default_warehouses = append(default_warehouses, whMap)
@@ -1309,10 +1277,10 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 				wh["compute_node_volume_config"] = nil
 			} else {
 				if v["iops"] == nil {
-					wh["compute_node_volume_config"].(map[string]interface{})["iops"] = nil
+					wh["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})["iops"] = nil
 				}
 				if v["throughput"] == nil {
-					wh["compute_node_volume_config"].(map[string]interface{})["throughput"] = nil
+					wh["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})["throughput"] = nil
 				}
 			}
 		}
