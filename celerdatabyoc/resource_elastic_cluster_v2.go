@@ -947,6 +947,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			Summary:  "Operation state not complete",
 			Detail:   fmt.Sprintf("waiting for cluster (%s) change complete failed errMsg: %s", d.Id(), err.Error()),
 		})
+		return diags
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
@@ -1040,7 +1041,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			return diag.Diagnostics{
 				diag.Diagnostic{
 					Severity: diag.Warning,
-					Summary:  "Create warehouse",
+					Summary:  fmt.Sprintf("Create warehouse[%s] failed. %s", v["name"].(string), errDiag[0].Summary),
 					Detail:   errDiag[0].Detail,
 				},
 			}
@@ -1269,7 +1270,9 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 
 		for _, c := range configuredWHs {
 			cwh := c.(map[string]interface{})
-			configuredWHsMap[cwh["name"].(string)] = cwh["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})
+			if len(cwh["compute_node_volume_config"].([]interface{})) > 0 {
+				configuredWHsMap[cwh["name"].(string)] = cwh["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})
+			}
 		}
 		for _, wh := range normal_warehouses {
 			whName := wh["name"].(string)
@@ -2222,15 +2225,19 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 	}
 	VolumeConfigChanged := cluster.Equal(oldVolumeConfig, newVolumeConfig)
 
+	if VolumeConfigChanged {
+		log.Printf("[DEBUG] warehouse[%s] volume config changed, old:%+v, new:%+v", warehouseName, oldVolumeConfig, newVolumeConfig)
+	}
+
 	if !computeNodeIsInstanceStore && VolumeConfigChanged {
 
 		o, n := d.GetChange("compute_node_volume_config")
 		oldVolumeConfig, newVolumeConfig := cluster.DefaultBeVolumeMap(), cluster.DefaultBeVolumeMap()
 
-		if len(o.([]interface{})) > 0 {
+		if o != nil && len(o.([]interface{})) > 0 {
 			oldVolumeConfig = o.([]interface{})[0].(map[string]interface{})
 		}
-		if len(n.([]interface{})) > 0 {
+		if n != nil && len(n.([]interface{})) > 0 {
 			newVolumeConfig = n.([]interface{})[0].(map[string]interface{})
 		}
 
