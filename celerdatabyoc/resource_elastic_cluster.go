@@ -621,11 +621,14 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  resp.ClusterID,
 			ConfigType: cluster.CustomConfigTypeFE,
 			Configs:    configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if v, ok := d.GetOk("compute_node_configs"); ok && len(d.Get("compute_node_configs").(map[string]interface{})) > 0 {
@@ -634,11 +637,14 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  resp.ClusterID,
 			ConfigType: cluster.CustomConfigTypeBE,
 			Configs:    configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
@@ -1197,11 +1203,14 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  clusterID,
 			ConfigType: cluster.CustomConfigTypeFE,
 			Configs:    configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if d.HasChange("compute_node_size") && !d.IsNewResource() {
@@ -1354,11 +1363,14 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  clusterID,
 			ConfigType: cluster.CustomConfigTypeBE,
 			Configs:    configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if needSuspend(d) {

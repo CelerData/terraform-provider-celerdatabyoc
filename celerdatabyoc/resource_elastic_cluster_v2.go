@@ -962,11 +962,14 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  resp.ClusterID,
 			ConfigType: cluster.CustomConfigTypeFE,
 			Configs:    configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if v, ok := defaultWhMap["compute_node_configs"]; ok && len(defaultWhMap["compute_node_configs"].(map[string]interface{})) > 0 {
@@ -975,12 +978,15 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:   resp.ClusterID,
 			ConfigType:  cluster.CustomConfigTypeBE,
 			WarehouseID: defaultWarehouseId,
 			Configs:     configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
@@ -1708,11 +1714,14 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  clusterId,
 			ConfigType: cluster.CustomConfigTypeFE,
 			Configs:    configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if d.HasChange("default_warehouse") {
@@ -2010,12 +2019,15 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:   clusterId,
 			ConfigType:  cluster.CustomConfigTypeBE,
 			WarehouseID: warehouseId,
 			Configs:     configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	expectedState := whParamMap["expected_state"].(string)
@@ -2109,8 +2121,6 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 	computeNodeIsInstanceStore := whExternalInfo.IsInstanceStore
 
 	warehouseName := newParamMap["name"].(string)
-	expectedState := newParamMap["expected_state"].(string)
-	expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
 
 	computeNodeDistributionChanged := oldParamMap["distribution_policy"].(string) != newParamMap["distribution_policy"].(string) ||
 		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string))
@@ -2223,7 +2233,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 	if len(newParamMap["compute_node_volume_config"].([]interface{})) > 0 {
 		newVolumeConfig = newParamMap["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})
 	}
-	VolumeConfigChanged := cluster.Equal(oldVolumeConfig, newVolumeConfig)
+	VolumeConfigChanged := !cluster.Equal(oldVolumeConfig, newVolumeConfig)
 
 	if VolumeConfigChanged {
 		log.Printf("[DEBUG] warehouse[%s] volume config changed, old:%+v, new:%+v", warehouseName, oldVolumeConfig, newVolumeConfig)
@@ -2314,21 +2324,23 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 	}
 
 	// Modify idle suspend interval
-	idleSuspendIntervalChanged := oldParamMap["idle_suspend_interval"].(int) != newParamMap["idle_suspend_interval"].(int)
-	if idleSuspendIntervalChanged {
-		idleSuspendInterval := newParamMap["idle_suspend_interval"].(int)
-		err := clusterAPI.UpdateWarehouseIdleConfig(ctx, &cluster.UpdateWarehouseIdleConfigReq{
-			WarehouseId: warehouseId,
-			IntervalMs:  int64(idleSuspendInterval * 60 * 1000),
-			State:       idleSuspendInterval > 0,
-		})
-		if err != nil {
-			return diag.Diagnostics{
-				diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  "Config warehouse idle config failed",
-					Detail:   err.Error(),
-				},
+	if !isDefaultWarehouse {
+		idleSuspendIntervalChanged := oldParamMap["idle_suspend_interval"].(int) != newParamMap["idle_suspend_interval"].(int)
+		if idleSuspendIntervalChanged {
+			idleSuspendInterval := newParamMap["idle_suspend_interval"].(int)
+			err := clusterAPI.UpdateWarehouseIdleConfig(ctx, &cluster.UpdateWarehouseIdleConfigReq{
+				WarehouseId: warehouseId,
+				IntervalMs:  int64(idleSuspendInterval * 60 * 1000),
+				State:       idleSuspendInterval > 0,
+			})
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  "Config warehouse idle config failed",
+						Detail:   err.Error(),
+					},
+				}
 			}
 		}
 	}
@@ -2347,29 +2359,41 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 	}
 	srConfigChanged := !cluster.Equal(oldConfigs, newConfigs)
 
-	if expectedStateChanged && !isDefaultWarehouse {
-		if expectedState == string(cluster.ClusterStateRunning) {
-			resp := ResumeWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
-			if resp != nil {
-				return resp
+	if !isDefaultWarehouse {
+		expectedState := newParamMap["expected_state"].(string)
+		expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
+		if expectedStateChanged {
+			if expectedState == string(cluster.ClusterStateRunning) {
+				resp := ResumeWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
+				if resp != nil {
+					return resp
+				}
 			}
 		}
 	}
+
 	if srConfigChanged {
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:   clusterId,
 			ConfigType:  cluster.CustomConfigTypeBE,
 			WarehouseID: warehouseId,
 			Configs:     newConfigs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
-	// Modidy warehouse state
-	if expectedStateChanged && !isDefaultWarehouse {
-		if expectedState == string(cluster.ClusterStateSuspended) {
-			resp := SuspendWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
-			if resp != nil {
-				return resp
+	if !isDefaultWarehouse {
+		expectedState := newParamMap["expected_state"].(string)
+		expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
+		// Modidy warehouse state
+		if expectedStateChanged {
+			if expectedState == string(cluster.ClusterStateSuspended) {
+				resp := SuspendWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
+				if resp != nil {
+					return resp
+				}
 			}
 		}
 	}

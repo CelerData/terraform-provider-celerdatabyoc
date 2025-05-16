@@ -592,11 +592,14 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  resp.ClusterID,
 			ConfigType: cluster.CustomConfigTypeFE,
 			Configs:    configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if v, ok := d.GetOk("be_configs"); ok && len(d.Get("be_configs").(map[string]interface{})) > 0 {
@@ -605,11 +608,15 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  resp.ClusterID,
 			ConfigType: cluster.CustomConfigTypeBE,
 			Configs:    configs,
 		})
+
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
@@ -1195,11 +1202,16 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  clusterID,
 			ConfigType: cluster.CustomConfigTypeFE,
 			Configs:    configs,
 		})
+
+		if warnDiag != nil {
+			return warnDiag
+		}
+
 	}
 
 	if d.HasChange("be_instance_type") && !d.IsNewResource() {
@@ -1359,11 +1371,14 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		for k, v := range configMap {
 			configs[k] = v.(string)
 		}
-		UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:  clusterID,
 			ConfigType: cluster.CustomConfigTypeBE,
 			Configs:    configs,
 		})
+		if warnDiag != nil {
+			return warnDiag
+		}
 	}
 
 	if needSuspend(d) {
@@ -1741,8 +1756,9 @@ func UpsertClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, re
 		err = configClusterConfig(ctx, clusterAPI, req)
 	}
 
-	log.Printf("[DEBUG] UpsertClusterConfig, err:%v", err)
-
+	if err != nil {
+		log.Printf("[WARN] Update cluster config failed, req:%s err:%v", err)
+	}
 	return err
 }
 
