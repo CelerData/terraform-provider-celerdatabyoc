@@ -9,7 +9,7 @@ import (
 func TestAccElasticClusterV2_Basic(t *testing.T) {
 
 	resourceName := "celerdatabyoc_elastic_cluster_v2.multi_warehouse"
-	clusterName := "tf-test-multi-warehouse"
+	clusterName := "tf-test-multi-warehouse-02"
 
 	resource.Test(t, resource.TestCase{
 		PreCheck:          func() { PreCheck(t) },
@@ -27,7 +27,8 @@ func TestAccElasticClusterV2_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_size", "m5.xlarge"),
 					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_count", "1"),
 					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_volume_config.0.vol_size", "140"),
-					resource.TestCheckResourceAttr(resourceName, "warehouse_external_info.%", "2"),
+					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_volume_config.0.iops", "5000"),
+					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_volume_config.0.throughput", "400"),
 				),
 			},
 			{
@@ -36,6 +37,8 @@ func TestAccElasticClusterV2_Basic(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "coordinator_node_count", "1"),
 					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_count", "1"),
 					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_volume_config.0.vol_size", "140"),
+					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_volume_config.0.iops", "5000"),
+					resource.TestCheckResourceAttr(resourceName, "default_warehouse.0.compute_node_volume_config.0.throughput", "450"),
 				),
 			},
 			{

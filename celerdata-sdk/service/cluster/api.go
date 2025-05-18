@@ -497,7 +497,7 @@ func (c *clusterAPI) UpsertClusterConfig(ctx context.Context, req *UpsertCluster
 func (c *clusterAPI) RemoveClusterConfig(ctx context.Context, req *RemoveClusterConfigReq) (*RemoveClusterConfigResp, error) {
 
 	resp := &RemoveClusterConfigResp{}
-	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/configs", c.apiVersion, req.ClusterID), req, resp)
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/remove-configs", c.apiVersion, req.ClusterID), req, resp)
 	if err != nil {
 		return nil, err
 	}

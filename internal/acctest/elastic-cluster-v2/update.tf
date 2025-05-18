@@ -4,7 +4,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "multi_warehouse" {
   data_credential_id       = "f204494e-e2ca-4f8f-a8f0-fa22dffb0bf4"
   network_id               = "18bd841f-0324-466d-85fe-9fa8077bf7af"
 
-  cluster_name = "tf-test-multi-warehouse"
+  cluster_name = "tf-test-multi-warehouse-02"
   coordinator_node_size    = "m6i.xlarge"
   coordinator_node_count   = 1
 
@@ -19,27 +19,11 @@ resource "celerdatabyoc_elastic_cluster_v2" "multi_warehouse" {
       vol_number = 1
       vol_size = 140
       iops = 5000
-      throughput = 150
-    }
-    compute_node_configs = {
-       sys_log_level="WARN"
-    }
-  }
-
-  warehouse {
-    name = "wh02"
-    compute_node_size        = "m5.xlarge"
-    compute_node_count       = 1
-    compute_node_volume_config {
-      vol_number = 1
-      vol_size = 140
-      iops = 5000
-      throughput = 150
+      throughput = 450
     }
     compute_node_configs = {
        sys_log_level="INFO"
     }
-    idle_suspend_interval = 15
   }
 
   default_admin_password = "admin@123"

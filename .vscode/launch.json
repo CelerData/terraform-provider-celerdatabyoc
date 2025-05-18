@@ -16,7 +16,7 @@
               "CELERDATA_CLIENT_ID":"4b9dbd90-e0f0-49f6-87ee-2b2f04b241de",
               "CELERDATA_CLIENT_SECRET":"hnsM1S3jq4IFOfjQbSPV5rmnqJRq8MGwauk2vOlN",
               "TF_ACC": "1",
-              "TF_LOG": "INFO",
+              "TF_LOG": "DEBUG",
               "TF_ACC_NO_DESTROY": "1",
             },
             "args": [

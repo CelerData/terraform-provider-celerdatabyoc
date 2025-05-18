@@ -1400,16 +1400,8 @@ func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
 	result := !d.IsNewResource() && d.Get("free_tier").(bool) &&
 		(d.HasChange("coordinator_node_size") || d.HasChange("coordinator_node_count"))
 
-	if !result && d.HasChange("warehouse") {
-		o, n := d.GetChange("warehouse")
-		if len(n.([]interface{})) > 1 {
-			result = true
-		} else {
-			oldWhInfo := o.([]interface{})[0].(map[string]interface{})
-			newWhInfo := n.([]interface{})[0].(map[string]interface{})
-			changed := (newWhInfo["compute_node_size"].(string) != oldWhInfo["compute_node_size"].(string) || newWhInfo["compute_node_count"].(int) != oldWhInfo["compute_node_count"].(int))
-			result = result || changed
-		}
+	if !result && (d.HasChange("warehouse") || d.HasChange("default_warehouse")) {
+		result = true
 	}
 
 	return result
@@ -2110,7 +2102,6 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 }
 
 func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnostics {
-	d := req.d
 	clusterAPI := req.clusterAPI
 	clusterId := req.clusterId
 	oldParamMap, newParamMap := req.oldParamMap, req.newParamMap
@@ -2240,17 +2231,6 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 	}
 
 	if !computeNodeIsInstanceStore && VolumeConfigChanged {
-
-		o, n := d.GetChange("compute_node_volume_config")
-		oldVolumeConfig, newVolumeConfig := cluster.DefaultBeVolumeMap(), cluster.DefaultBeVolumeMap()
-
-		if o != nil && len(o.([]interface{})) > 0 {
-			oldVolumeConfig = o.([]interface{})[0].(map[string]interface{})
-		}
-		if n != nil && len(n.([]interface{})) > 0 {
-			newVolumeConfig = n.([]interface{})[0].(map[string]interface{})
-		}
-
 		if oldVolumeConfig["vol_number"].(int) != newVolumeConfig["vol_number"].(int) {
 			return diag.FromErr(fmt.Errorf("the `vol_number` field is not allowed to be modified"))
 		}
