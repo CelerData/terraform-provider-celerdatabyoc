@@ -396,7 +396,7 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 	newCnVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
 		Csp:         csp,
 		Region:      region,
-		ProcessType: string(cluster.ClusterModuleTypeFE),
+		ProcessType: string(cluster.ClusterModuleTypeBE),
 		VmCate:      newCn.(string),
 	})
 	if err != nil {
