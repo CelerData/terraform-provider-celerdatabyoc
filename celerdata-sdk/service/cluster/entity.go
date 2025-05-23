@@ -21,7 +21,7 @@ var (
 	SupportedConfigType                     = []string{"FE", "BE", "RANGER"}
 	ClusterNodeType                         = []string{"FE", "BE", "COORDINATOR"}
 	WarehouseAutoScalingPolicyType          = []string{"SCALE_OUT", "SCALE_IN"}
-	WarehouseAutoScalingPolicyConditionType = []string{"AVERAGE_CPU_UTILIZATION"}
+	WarehouseAutoScalingPolicyConditionType = []string{"AVERAGE_CPU_UTILIZATION", "QUERY_QUEUE_LENGTH", "EARLIEST_QUERY_PENDING_TIME", "WAREHOUSE_RESOURCE_UTILIZATION"}
 )
 
 const (
@@ -68,7 +68,10 @@ const (
 	WearhouseScalingType_SCALE_IN  WearhouseScalingType = 1
 	WearhouseScalingType_SCALE_OUT WearhouseScalingType = 2
 
-	WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION WearhouseScalingConditionType = 1
+	WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION        WearhouseScalingConditionType = 1
+	WearhouseScalingConditionType_QUERY_QUEUE_LENGTH             WearhouseScalingConditionType = 2
+	WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME    WearhouseScalingConditionType = 3
+	WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION WearhouseScalingConditionType = 4
 
 	DistributionPolicySpecifyAZ  DistributionPolicy = "specify_az"
 	DistributionPolicyCrossingAZ DistributionPolicy = "crossing_az"

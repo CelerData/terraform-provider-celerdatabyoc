@@ -19,7 +19,9 @@ import (
 func resourceAutoScalingPolicy() *schema.Resource {
 	resource := &schema.Resource{
 		ReadContext: func(ctx context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
-			autoScalingConfig := ToAutoScalingConfigStruct(rd)
+
+			policyItemsArr := rd.Get("policy_item").(*schema.Set).List()
+			autoScalingConfig := ToAutoScalingConfigStruct(policyItemsArr)
 			bytes, err := json.Marshal(autoScalingConfig)
 			if err != nil {
 				return diag.FromErr(fmt.Errorf("generate auto scaling config json failed, errMsg:%s", err.Error()))
@@ -28,7 +30,8 @@ func resourceAutoScalingPolicy() *schema.Resource {
 			return nil
 		},
 		CreateContext: func(ctx context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
-			autoScalingConfig := ToAutoScalingConfigStruct(rd)
+			policyItemsArr := rd.Get("policy_item").(*schema.Set).List()
+			autoScalingConfig := ToAutoScalingConfigStruct(policyItemsArr)
 			bytes, err := json.Marshal(autoScalingConfig)
 			if err != nil {
 				return diag.FromErr(fmt.Errorf("generate auto scaling config json failed, errMsg:%s", err.Error()))
@@ -62,7 +65,7 @@ func resourceAutoScalingPolicy() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 				MinItems: 2,
-				MaxItems: 2,
+				MaxItems: 5,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"type": {
@@ -92,9 +95,17 @@ func resourceAutoScalingPolicy() *schema.Resource {
 										ValidateFunc: validation.StringInSlice(cluster.WarehouseAutoScalingPolicyConditionType, false),
 									},
 									"duration_seconds": {
-										Type:         schema.TypeInt,
-										Required:     true,
-										ValidateFunc: validation.IntAtLeast(300),
+										Type:     schema.TypeInt,
+										Optional: true,
+										Default:  0,
+										ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
+											v := i.(int)
+											if v != 0 || v < 300 {
+												errors = append(errors, fmt.Errorf("expected %s to be 0 or at least %d, got %d", k, 300, v))
+												return warnings, errors
+											}
+											return warnings, errors
+										},
 									},
 									"value": {
 										Type:     schema.TypeFloat,
@@ -107,12 +118,12 @@ func resourceAutoScalingPolicy() *schema.Resource {
 											}
 
 											if v < float64(0) {
-												es = append(es, fmt.Errorf("expected %s to be at least (%f), got %f", k, float64(0), v))
+												es = append(es, fmt.Errorf("expected %s to be at least %f, got %f", k, float64(0), v))
 												return
 											}
 
 											if v > float64(100) {
-												es = append(es, fmt.Errorf("expected %s to be at most (%f), got %f", k, float64(100), v))
+												es = append(es, fmt.Errorf("expected %s to be at most %f, got %f", k, float64(100), v))
 												return
 											}
 											return
@@ -135,16 +146,30 @@ func resourceAutoScalingPolicy() *schema.Resource {
 			if min > max {
 				return fmt.Errorf("field `max_size` should be greater than or equal `min_size`")
 			}
+
+			policyItemsArr := rd.Get("policy_item").(*schema.Set).List()
+			autoScalingConfig := ToAutoScalingConfigStruct(policyItemsArr)
+			for _, item := range autoScalingConfig.PolicyItem {
+				for _, c := range item.Conditions {
+					ct := c.Type
+					ds := c.DurationSeconds
+					if ct == int32(cluster.WearhouseScalingConditionType_QUERY_QUEUE_LENGTH) || ct == int32(cluster.WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME) {
+						if ds > 0 {
+							return fmt.Errorf("for condition type [`QUERY_QUEUE_LENGTH`, `EARLIEST_QUERY_PENDING_TIME`] field `duration_seconds` value should be 0")
+						}
+					}
+				}
+			}
+
 			return nil
 		},
 	}
 	return resource
 }
 
-func ToAutoScalingConfigStruct(d *schema.ResourceData) *cluster.WarehouseAutoScalingConfig {
+func ToAutoScalingConfigStruct(policyItemsArr []interface{}) *cluster.WarehouseAutoScalingConfig {
 
 	policyItems := make([]*cluster.WearhouseScalingPolicyItem, 0)
-	policyItemsArr := d.Get("policy_item").(*schema.Set).List()
 	for _, v := range policyItemsArr {
 		policyItemMap := v.(map[string]interface{})
 		policyTypeStr := policyItemMap["type"].(string)
@@ -153,8 +178,22 @@ func ToAutoScalingConfigStruct(d *schema.ResourceData) *cluster.WarehouseAutoSca
 		conditons := make([]*cluster.WearhouseScalingCondition, 0)
 		policyConditionMap := policyItemMap["condition"].(*schema.Set).List()[0].(map[string]interface{})
 		value := math.Round(policyConditionMap["value"].(float64)*100) / 100
+		conditionTypeStr := policyConditionMap["type"].(string)
+
+		var conditionType cluster.WearhouseScalingConditionType
+		switch conditionTypeStr {
+		case "AVERAGE_CPU_UTILIZATION":
+			conditionType = cluster.WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION
+		case "QUERY_QUEUE_LENGTH":
+			conditionType = cluster.WearhouseScalingConditionType_QUERY_QUEUE_LENGTH
+		case "EARLIEST_QUERY_PENDING_TIME":
+			conditionType = cluster.WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME
+		case "WAREHOUSE_RESOURCE_UTILIZATION":
+			conditionType = cluster.WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION
+		}
+
 		conditons = append(conditons, &cluster.WearhouseScalingCondition{
-			Type:            int32(cluster.WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION),
+			Type:            int32(conditionType),
 			DurationSeconds: int64(policyConditionMap["duration_seconds"].(int)),
 			Value:           fmt.Sprintf("%.2f", value),
 		})
