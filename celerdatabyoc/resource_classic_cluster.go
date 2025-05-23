@@ -341,7 +341,7 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
 
 		if newVolumeSize < oldVolumeSize {
-			return fmt.Errorf("fe `vol_size` does not support decrease, oldVolumeSize:%d, newVolumeSize:%d", oldVolumeSize, newVolumeSize)
+			return fmt.Errorf("the fe `vol_size` does not support decrease")
 		}
 	}
 	if !feVmInfoResp.VmInfo.IsInstanceStore {
@@ -401,11 +401,11 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		newVolumeNum, newVolumeSize = newVolumeConfig["vol_number"].(int), newVolumeConfig["vol_size"].(int)
 
 		if oldVolumeNum != newVolumeNum {
-			return fmt.Errorf("the be `vol_number` field is not allowed to be modified")
+			return fmt.Errorf("the be `vol_number` is not allowed to be modified")
 		}
 
 		if newVolumeSize < oldVolumeSize {
-			return fmt.Errorf("be `vol_size` does not support decrease")
+			return fmt.Errorf("the be `vol_size` does not support decrease")
 		}
 	}
 

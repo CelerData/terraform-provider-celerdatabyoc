@@ -371,7 +371,7 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
 
 		if newVolumeSize < oldVolumeSize {
-			return fmt.Errorf("coordinator node `vol_size` does not support decrease")
+			return fmt.Errorf("the coordinator node `vol_size` does not support decrease")
 		}
 	}
 
@@ -439,13 +439,13 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 
 		oldVolumeNumber, newVolumeNumber := oldVolumeConfig["vol_number"].(int), newVolumeConfig["vol_number"].(int)
 		if newVolumeNumber != oldVolumeNumber {
-			return fmt.Errorf("compute node `vol_number` field is not allowed to be modified")
+			return fmt.Errorf("the compute node `vol_number` is not allowed to be modified")
 		}
 
 		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
 
 		if newVolumeSize < oldVolumeSize {
-			return fmt.Errorf("compute node `vol_size` does not support decrease")
+			return fmt.Errorf("the compute node `vol_size` does not support decrease")
 		}
 	}
 

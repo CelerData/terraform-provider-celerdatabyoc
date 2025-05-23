@@ -590,7 +590,7 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
 
 		if newVolumeSize < oldVolumeSize {
-			return fmt.Errorf("coordinator node `vol_size` does not support decrease")
+			return fmt.Errorf("the coordinator node `vol_size` does not support decrease")
 		}
 	}
 
@@ -2232,11 +2232,11 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 
 	if !computeNodeIsInstanceStore && VolumeConfigChanged {
 		if oldVolumeConfig["vol_number"].(int) != newVolumeConfig["vol_number"].(int) {
-			return diag.FromErr(fmt.Errorf("the `vol_number` field is not allowed to be modified"))
+			return diag.FromErr(fmt.Errorf("the compute node `vol_number` is not allowed to be modified"))
 		}
 
 		if oldVolumeConfig["vol_size"].(int) > newVolumeConfig["vol_size"].(int) {
-			return diag.FromErr(fmt.Errorf("storage size does not support decrease"))
+			return diag.FromErr(fmt.Errorf("the compute node `vol_size` does not support decrease"))
 		}
 
 		req := &cluster.ModifyClusterVolumeReq{
