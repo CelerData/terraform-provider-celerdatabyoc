@@ -98,20 +98,40 @@ resource "celerdatabyoc_aws_network" "network" {
 
 resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   cluster_name = "<cluster_name>"
-  coordinator_node_size = "<coordinator_node_instance_type>"
-  coordinator_node_count = <coordinator_node_number>
   deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
   data_credential_id = celerdatabyoc_aws_data_credential.data_credential.id
   network_id = celerdatabyoc_aws_network.network.id
+
+  coordinator_node_size = "<coordinator_node_instance_type>"
+  coordinator_node_count = <coordinator_node_number>
+  
+  // optional
+  coordinator_node_volume_config {
+    vol_size = <vol_size>
+    iops = <iops>
+    throughput = <throughput>
+  }
+  // optional
+  coordinator_node_configs = {
+     <key> = <value>
+  }
   
   // The configuration for “default_warehouse” is required.
-  warehouse {
-    name                           = "default_warehouse"
-    compute_node_size              = "<compute_node_instance_type>"
-    compute_node_count             = <compute_node_number>
-    // When using an EBS-backed instance type, specify the following two parameters. Otherwise, delete them.
-    compute_node_ebs_disk_number   = <compute_node_ebs_disk_number>
-    compute_node_ebs_disk_per_size = <compute_node_ebs_disk_per_size>
+  default_warehouse {
+    compute_node_size        = "<compute_node_instance_type>"
+    compute_node_count       = <compute_node_number>
+   
+    // optional
+    compute_node_volume_config {
+      vol_number = <vol_number>
+      vol_size = <vol_size>
+      iops = <iops>
+      throughput = <throughput>
+    }
+    // optional
+    compute_node_configs = {
+        <key> = <value>
+    }
   }
 
    warehouse {
@@ -122,9 +142,22 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     compute_node_ebs_disk_number   = <compute_node_ebs_disk_number>
     compute_node_ebs_disk_per_size = <compute_node_ebs_disk_per_size>
     distribution_policy            = "{specify_az | crossing_az}"
-    // specify_az                  = "us-west-2b"
     
+    // specify_az                  = "us-west-2b"
+    // expected_state="Suspended"
     // auto_scaling_policy         = celerdatabyoc_auto_scaling_policy.policy_1.policy_json
+    
+    // optional
+    compute_node_volume_config {
+      vol_number = <vol_number>
+      vol_size = <vol_size>
+      iops = <iops>
+      throughput = <throughput>
+    }
+    // optional
+    compute_node_configs = {
+        <key> = <value>
+    }
    }
 
    custom_ami {

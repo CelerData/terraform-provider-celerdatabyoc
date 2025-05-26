@@ -30,23 +30,29 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   
   fe_instance_type = "<fe_node_instance_type>"
   fe_node_count = 1
+  
+  // optional
   fe_volume_config {
-    vol_size = 150
-    iops = 5000
-    throughput = 150
+    vol_size = <vol_size>
+    iops = <iops>
+    throughput = <throughput>
   }
+  // optional
   fe_configs = {
     <key> = <value>
   }
 
   be_instance_type = "<be_node_instance_type>"
   be_node_count = 1
+  
+  // optional
   be_volume_config {
-    vol_number = 3
-    vol_size = 140
-    iops = 5000
-    throughput = 150
+    vol_number = <vol_number>
+    vol_size = <vol_size>
+    iops = <iops>
+    throughput = <throughput>
   }
+  // optional
   be_configs = {
     <key> = <value>
   }

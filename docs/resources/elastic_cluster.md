@@ -96,13 +96,39 @@ resource "celerdatabyoc_aws_network" "network" {
 
 resource "celerdatabyoc_elastic_cluster" "elastic_cluster_1" {
   cluster_name = "<cluster_name>"
-  coordinator_node_size = "<coordinator_node_instance_type>"
-  coordinator_node_count = <coordinator_node_number>
   deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
   data_credential_id = celerdatabyoc_aws_data_credential.data_credential.id
   network_id = celerdatabyoc_aws_network.network.id
+
+  coordinator_node_size = "<coordinator_node_instance_type>"
+  coordinator_node_count = <coordinator_node_number>
+  
+  // optional
+  coordinator_node_volume_config {
+    vol_size = <vol_size>
+    iops = <iops>
+    throughput = <throughput>
+  }
+  // optional
+  coordinator_node_configs = {
+    <key> = <value>
+  }
+
   compute_node_size = "<compute_node_instance_type>"
   compute_node_count = <compute_node_number>
+  
+  // optional
+  compute_node_volume_config {
+    vol_number = <vol_number>
+    vol_size = <vol_size>
+    iops = <iops>
+    throughput = <throughput>
+  }
+  // optional
+  compute_node_configs = {
+    <key> = <value>
+  }
+
   default_admin_password = "<SQL_user_initial_password>"
 
   expected_cluster_state = "{Suspended | Running}"
