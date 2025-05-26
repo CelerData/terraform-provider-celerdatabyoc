@@ -275,18 +275,26 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 
 - `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
 
+- `coordinator_node_volume_config`: The coordinator nodes volume configuration.
+  - `vol_size`: The size per disk for each coordinator node. Unit: GB. Default value: `150`. You can only increase the value of this parameter.
+  - `iops`: Disk iops.
+  - `throughput`: Disk throughput.
+- `coordinator_node_configs`: The coordinator node static configuration.
+
 - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
 
-- `compute_node_ebs_disk_number`: (Not allowed to modify) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`. This parameter only takes effect when using EBS-backed instance type.
-
-- `compute_node_ebs_disk_per_size`: The size per disk for each compute node. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours. This parameter only takes effect when using EBS-backed instance type.
-
-~> When using an EBS-backed instance type, you can use the `compute_node_ebs_disk_number` and `compute_node_ebs_disk_per_size` arguments to specify the disk space. The total disk space provisioned to a cluster is equal to `compute_node_ebs_disk_number` * `compute_node_ebs_disk_per_size`.
-
+- `compute_node_volume_config`: The compute nodes volume configuration.
+  - `vol_number`: (Not allowed to modify) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`.
+  - `vol_size`: The size per disk for each compute node. Unit: GB. Default value: `100`. You can only increase the value of this parameter.
+  - `iops`: Disk iops.
+  - `throughput`: Disk throughput.
+    ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a compute node is equal to `vol_number` * `vol_size`.
+- `compute_node_configs`: The compute node static configuration.
 
 - `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+- `ranger_certs_dir`: The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
-~> You can only upload or delete LDAP SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
+~> You can only upload or delete LDAP or Ranger SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
 - `resource_tags`: The tags to be attached to the cluster.
 

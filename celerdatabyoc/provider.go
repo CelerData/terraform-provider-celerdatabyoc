@@ -20,9 +20,9 @@ func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"host": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "https://cloud-api.celerdata.com",
+				Type:     schema.TypeString,
+				Optional: true,
+				// Default:     "https://cloud-api.celerdata.com",
 				DefaultFunc: schema.EnvDefaultFunc("CELERDATA_HOST", DEFAULT_CELERDATA_HOST),
 				ValidateFunc: func(i interface{}, k string) (_ []string, errors []error) {
 					v, ok := i.(string)

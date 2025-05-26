@@ -39,9 +39,16 @@ type IClusterAPI interface {
 	ApplyCustomConfig(ctx context.Context, req *ApplyCustomConfigReq) (*ApplyCustomConfigResp, error)
 	UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error)
 	CleanCustomConfig(ctx context.Context, req *CleanCustomConfigReq) (*CleanCustomConfigResp, error)
+	UpsertClusterConfig(ctx context.Context, req *UpsertClusterConfigReq) (*UpsertClusterConfigResp, error)
+	RemoveClusterConfig(ctx context.Context, req *RemoveClusterConfigReq) (*RemoveClusterConfigResp, error)
+
+	CheckRangerCert(ctx context.Context, req *CheckRangerCertsReq) error
+	UpsertClusterRangerCert(ctx context.Context, req *UpsertRangerCertsReq) (*UpsertRangerCertsResp, error)
+	RemoveClusterRangerCert(ctx context.Context, req *RemoveRangerCertsReq) (*RemoveRangerCertsResp, error)
 
 	GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error)
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
+	VolumeParamVerification(ctx context.Context, req *ModifyClusterVolumeReq) error
 	UpdateResourceTags(ctx context.Context, req *UpdateResourceTagsReq) error
 
 	ListCluster(ctx context.Context) (*ListClusterResp, error)
@@ -477,6 +484,50 @@ func (c *clusterAPI) CleanCustomConfig(ctx context.Context, req *CleanCustomConf
 	return resp, nil
 }
 
+func (c *clusterAPI) UpsertClusterConfig(ctx context.Context, req *UpsertClusterConfigReq) (*UpsertClusterConfigResp, error) {
+
+	resp := &UpsertClusterConfigResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/configs", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) RemoveClusterConfig(ctx context.Context, req *RemoveClusterConfigReq) (*RemoveClusterConfigResp, error) {
+
+	resp := &RemoveClusterConfigResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/remove-configs", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CheckRangerCert(ctx context.Context, req *CheckRangerCertsReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs/check", c.apiVersion, req.ClusterId), req, nil)
+}
+
+func (c *clusterAPI) UpsertClusterRangerCert(ctx context.Context, req *UpsertRangerCertsReq) (*UpsertRangerCertsResp, error) {
+
+	resp := &UpsertRangerCertsResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) RemoveClusterRangerCert(ctx context.Context, req *RemoveRangerCertsReq) (*RemoveRangerCertsResp, error) {
+
+	resp := &RemoveRangerCertsResp{}
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (c *clusterAPI) GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error) {
 
 	resp := &GetClusterVolumeDetailResp{}
@@ -494,4 +545,12 @@ func (c *clusterAPI) ModifyClusterVolume(ctx context.Context, req *ModifyCluster
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) VolumeParamVerification(ctx context.Context, req *ModifyClusterVolumeReq) error {
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/volume/param-verification", c.apiVersion), req, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }

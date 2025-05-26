@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Terraform Provider Test",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${workspaceFolder}/internal/acctest",
+            "console": "integratedTerminal",
+            "env": {
+              "CELERDATA_HOST":"https://cloud-api-stage.celerdata.com",
+              "CELERDATA_CLIENT_ID":"4b9dbd90-e0f0-49f6-87ee-2b2f04b241de",
+              "CELERDATA_CLIENT_SECRET":"hnsM1S3jq4IFOfjQbSPV5rmnqJRq8MGwauk2vOlN",
+              "TF_ACC": "1",
+              "TF_LOG": "DEBUG",
+              "TF_ACC_NO_DESTROY": "1",
+            },
+            "args": [
+              "-test.v",
+              "-test.run",
+              "TestAccElasticClusterV2_Basic"
+            ]
+          }
+    ]
+}
