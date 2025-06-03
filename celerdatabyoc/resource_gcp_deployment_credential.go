@@ -12,12 +12,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
 
-func azureResourceDeploymentCredential() *schema.Resource {
+func gcpResourceDeploymentCredential() *schema.Resource {
 	return &schema.Resource{
-		CreateContext: azureResourceDeploymentCredentialCreate,
-		UpdateContext: azureResourceDeploymentCredentialUpdate,
-		ReadContext:   azureResourceDeploymentCredentialRead,
-		DeleteContext: azureResourceDeploymentCredentialDelete,
+		CreateContext: gcpResourceDeploymentCredentialCreate,
+		UpdateContext: gcpResourceDeploymentCredentialUpdate,
+		ReadContext:   gcpResourceDeploymentCredentialRead,
+		DeleteContext: gcpResourceDeploymentCredentialDelete,
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:     schema.TypeString,
@@ -29,29 +29,16 @@ func azureResourceDeploymentCredential() *schema.Resource {
 				ForceNew:     true,
 				ValidateFunc: validation.StringMatch(regexp.MustCompile(`^[0-9a-zA-Z_-]{1,128}$`), "The name is restricted to a maximum length of 128 characters and can only consist of alphanumeric characters (a-z, A-Z, 0-9), hyphens (-), and underscores (_)."),
 			},
-			"application_id": {
-				Type:        schema.TypeString,
-				Description: "The Application (client) ID of your App registration.",
-				Required:    true,
-				ForceNew:    true,
+			"service_account": {
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
+				Default:  "",
 			},
-			"directory_id": {
-				Type:        schema.TypeString,
-				Description: "The Directory (tenant) ID of your App registration.",
-				Required:    true,
-				ForceNew:    true,
-			},
-			"client_secret_value": {
-				Type:        schema.TypeString,
-				Description: "The client secret value of the App registration. Client secret values cannot be viewed, except for immediately after creation. Be sure to save the secret when created before leaving the Azure console.",
-				Required:    true,
-				Sensitive:   true,
-			},
-			"ssh_key_resource_id": {
-				Type:        schema.TypeString,
-				Description: "The resource ID of the SSH key pair.",
-				ForceNew:    true,
-				Required:    true,
+			"project_id": {
+				Type:     schema.TypeString,
+				Required: true,
+				ForceNew: true,
 			},
 		},
 		Importer: &schema.ResourceImporter{
@@ -64,13 +51,10 @@ func gcpResourceDeploymentCredentialCreate(ctx context.Context, d *schema.Resour
 	c := m.(*client.CelerdataClient)
 
 	credCli := credential.NewCredentialAPI(c)
-	req := &credential.CreateDeployAkSkCredReq{
-		Csp:               "azure",
-		Name:              d.Get("name").(string),
-		TenantId:          d.Get("directory_id").(string),
-		ApplicationId:     d.Get("application_id").(string),
-		ClientSecretValue: d.Get("client_secret_value").(string),
-		SshKeyResourceId:  d.Get("ssh_key_resource_id").(string),
+	req := &credential.CreateGcpDeployCredReq{
+		Name:           d.Get("name").(string),
+		ServiceAccount: d.Get("client_secret_value").(string),
+		ProjectId:      d.Get("project_id").(string),
 	}
 	log.Printf("[DEBUG] create deployment credential, req:%+v", req)
 
@@ -83,7 +67,7 @@ func gcpResourceDeploymentCredentialCreate(ctx context.Context, d *schema.Resour
 	return diags
 }
 
-func gcpResourceDeploymentCredentialUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func azureResourceDeploymentCredentialUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 
 	var diags diag.Diagnostics
 
@@ -107,7 +91,7 @@ func gcpResourceDeploymentCredentialUpdate(ctx context.Context, d *schema.Resour
 	return diags
 }
 
-func gcpResourceDeploymentCredentialRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func azureResourceDeploymentCredentialRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
 	credID := d.Id()
@@ -129,7 +113,7 @@ func gcpResourceDeploymentCredentialRead(ctx context.Context, d *schema.Resource
 	return diags
 }
 
-func gcpResourceDeploymentCredentialDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func azureResourceDeploymentCredentialDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
 	// Warning or errors can be collected in a slice type

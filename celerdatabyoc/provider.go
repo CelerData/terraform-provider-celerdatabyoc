@@ -87,6 +87,7 @@ func Provider() *schema.Provider {
 			"celerdatabyoc_cluster_modify_volume_detail":            resourceClusterModifyVolume(),
 			"celerdatabyoc_elastic_cluster_v2":                      resourceElasticClusterV2(),
 			"celerdatabyoc_auto_scaling_policy":                     resourceAutoScalingPolicy(),
+			"celerdatabyoc_gcp_data_credential":                     gcpResourceDataCredential(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"celerdatabyoc_aws_data_credential_assume_policy": dataAwsDataCredentialAssumeRolePolicy(),
