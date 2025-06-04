@@ -36,7 +36,7 @@ func gcpResourceDeploymentCredential() *schema.Resource {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
-				Default:  "",
+				Default:  "service@celerdata-byoc-1683716900563.iam.gserviceaccount.com",
 			},
 			"project_id": {
 				Type:     schema.TypeString,
