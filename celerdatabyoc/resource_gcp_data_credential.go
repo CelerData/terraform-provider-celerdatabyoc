@@ -68,10 +68,8 @@ func gcpResourceDataCredentialCreate(ctx context.Context, d *schema.ResourceData
 func gcpResourceDataCredentialRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
-	// Warning or errors can be collected in a slice type
 	credID := d.Id()
 	credCli := credential.NewCredentialAPI(c)
-	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
 	log.Printf("[DEBUG] get data credential, id[%s]", credID)
@@ -92,10 +90,8 @@ func gcpResourceDataCredentialRead(ctx context.Context, d *schema.ResourceData, 
 func gcpResourceDataCredentialDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
-	// Warning or errors can be collected in a slice type
 	credID := d.Id()
 	credCli := credential.NewCredentialAPI(c)
-	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
 	log.Printf("[DEBUG] delete data role credential, id:%s", credID)
@@ -103,9 +99,5 @@ func gcpResourceDataCredentialDelete(ctx context.Context, d *schema.ResourceData
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
-	// d.SetId("") is automatically called assuming delete returns no errors, but
-	// it is added here for explicitness.
-	d.SetId("")
 	return diags
 }

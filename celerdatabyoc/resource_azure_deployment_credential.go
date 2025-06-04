@@ -60,7 +60,7 @@ func azureResourceDeploymentCredential() *schema.Resource {
 	}
 }
 
-func gcpResourceDeploymentCredentialCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
+func azureResourceDeploymentCredentialCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	c := m.(*client.CelerdataClient)
 
 	credCli := credential.NewCredentialAPI(c)
@@ -83,7 +83,7 @@ func gcpResourceDeploymentCredentialCreate(ctx context.Context, d *schema.Resour
 	return diags
 }
 
-func gcpResourceDeploymentCredentialUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func azureResourceDeploymentCredentialUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 
 	var diags diag.Diagnostics
 
@@ -107,7 +107,7 @@ func gcpResourceDeploymentCredentialUpdate(ctx context.Context, d *schema.Resour
 	return diags
 }
 
-func gcpResourceDeploymentCredentialRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func azureResourceDeploymentCredentialRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
 	credID := d.Id()
@@ -129,7 +129,7 @@ func gcpResourceDeploymentCredentialRead(ctx context.Context, d *schema.Resource
 	return diags
 }
 
-func gcpResourceDeploymentCredentialDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func azureResourceDeploymentCredentialDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
 	// Warning or errors can be collected in a slice type

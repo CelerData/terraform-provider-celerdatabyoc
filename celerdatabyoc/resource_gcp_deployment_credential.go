@@ -4,10 +4,14 @@ import (
 	"context"
 	"log"
 	"regexp"
+	"strings"
+	"sync"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/credential"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 )
@@ -15,7 +19,6 @@ import (
 func gcpResourceDeploymentCredential() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: gcpResourceDeploymentCredentialCreate,
-		UpdateContext: gcpResourceDeploymentCredentialUpdate,
 		ReadContext:   gcpResourceDeploymentCredentialRead,
 		DeleteContext: gcpResourceDeploymentCredentialDelete,
 		Schema: map[string]*schema.Schema{
@@ -53,83 +56,97 @@ func gcpResourceDeploymentCredentialCreate(ctx context.Context, d *schema.Resour
 	credCli := credential.NewCredentialAPI(c)
 	req := &credential.CreateGcpDeployCredReq{
 		Name:           d.Get("name").(string),
-		ServiceAccount: d.Get("client_secret_value").(string),
+		ServiceAccount: d.Get("service_account").(string),
 		ProjectId:      d.Get("project_id").(string),
 	}
 	log.Printf("[DEBUG] create deployment credential, req:%+v", req)
-
-	resp, err := credCli.CreateDeploymentAkSkCredential(ctx, req)
-	if err != nil {
-		return diag.FromErr(err)
-	}
-	d.SetId(resp.CredID)
-
-	return diags
-}
-
-func azureResourceDeploymentCredentialUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-
-	var diags diag.Diagnostics
-
-	if !d.IsNewResource() && d.HasChange("client_secret_value") {
-		log.Printf("[DEBUG] rotate deployment credential")
-		c := m.(*client.CelerdataClient)
-
-		credCli := credential.NewCredentialAPI(c)
-		credID := d.Id()
-
-		err := credCli.RotateAkSkCredential(ctx, &credential.RotateAkSkCredentialReq{
-			CredID: credID,
-			Ak:     d.Get("application_id").(string),
-			Sk:     d.Get("client_secret_value").(string),
-		})
+	err := gcpDelayRetryContext(ctx, 10*time.Second, time.Minute, func() *retry.RetryError {
+		resp, err := credCli.CreateGcpDeploymentCredential(ctx, req)
 		if err != nil {
-			return diag.FromErr(err)
+			if strings.Contains(err.Error(), "Role arn or external id invalid.") {
+				return retry.RetryableError(err)
+			}
+			return retry.NonRetryableError(err)
 		}
+
+		log.Printf("[DEBUG] create deployment role credential[%s] success", resp.CredID)
+		d.SetId(resp.CredID)
+		return nil
+	})
+	if err != nil {
+		return diag.FromErr(err)
 	}
 
 	return diags
 }
 
-func azureResourceDeploymentCredentialRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func gcpDelayRetryContext(ctx context.Context, delay, timeout time.Duration, f retry.RetryFunc) error {
+	var resultErr error
+	var resultErrMu sync.Mutex
+
+	c := &retry.StateChangeConf{
+		Delay:      delay,
+		Pending:    []string{"retryableerror"},
+		Target:     []string{"success"},
+		Timeout:    timeout,
+		MinTimeout: 500 * time.Millisecond,
+		Refresh: func() (interface{}, string, error) {
+			rerr := f()
+
+			resultErrMu.Lock()
+			defer resultErrMu.Unlock()
+
+			if rerr == nil {
+				resultErr = nil
+				return 42, "success", nil
+			}
+
+			resultErr = rerr.Err
+
+			if rerr.Retryable {
+				return 42, "retryableerror", nil
+			}
+			return nil, "quit", rerr.Err
+		},
+	}
+
+	_, waitErr := c.WaitForStateContext(ctx)
+	resultErrMu.Lock()
+	defer resultErrMu.Unlock()
+	if resultErr == nil {
+		return waitErr
+	}
+	return resultErr
+}
+
+func gcpResourceDeploymentCredentialRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
 
 	credID := d.Id()
 	credCli := credential.NewCredentialAPI(c)
 	var diags diag.Diagnostics
 
-	log.Printf("[DEBUG] get deployment credential, id[%s]", credID)
-	resp, err := credCli.GetDeploymentAkSkCredential(ctx, credID)
+	log.Printf("[DEBUG] get deployment role credential, id[%s]", credID)
+	resp, err := credCli.GetDeploymentRoleCredential(ctx, credID)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	if resp.DeployAkSkCred == nil || len(resp.DeployAkSkCred.BizID) == 0 {
-		d.SetId("")
-	}
-
-	log.Printf("[DEBUG] get deployment credential, resp:%+v", resp)
+	log.Printf("[DEBUG] get deployment role credential, resp:%+v", resp)
 
 	return diags
 }
 
-func azureResourceDeploymentCredentialDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func gcpResourceDeploymentCredentialDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	c := m.(*client.CelerdataClient)
-
-	// Warning or errors can be collected in a slice type
 	credID := d.Id()
 	credCli := credential.NewCredentialAPI(c)
-	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 
-	log.Printf("[DEBUG] delete deployment credential, id:%s", credID)
-	err := credCli.DeleteDeploymentAkSkCredential(ctx, credID)
+	log.Printf("[DEBUG] delete deployment role credential, id:%s", credID)
+	err := credCli.DeleteDeploymentRoleCredential(ctx, credID)
 	if err != nil {
 		return diag.FromErr(err)
 	}
-
-	// d.SetId("") is automatically called assuming delete returns no errors, but
-	// it is added here for explicitness.
-	d.SetId("")
 	return diags
 }
