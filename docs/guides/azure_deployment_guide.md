@@ -365,7 +365,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `csp`: The cloud service provider of the cluster. Set this argument to `azure`.
 
-- `region`: The ID of the Azure region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#aws). Set this argument to `local.cluster_region`, as we recommend that you set the bucket element as a local value `cluster_region` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+- `region`: The ID of the Azure region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#azure). Set this argument to `local.cluster_region`, as we recommend that you set the bucket element as a local value `cluster_region` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
 - `depends_on`: This argument creates a dependency between resources. If you want to deploy an Azure cluster, you must ensure that the resources used to declare the privileges of the resource group and managed identity are destroyed only after the cluster is released. To achieve this, you need to add this dependency.
 

@@ -354,9 +354,10 @@ func resourceElasticClusterV2() *schema.Resource {
 				},
 			},
 			"resource_tags": {
-				Type:     schema.TypeMap,
-				Optional: true,
-				Elem:     &schema.Schema{Type: schema.TypeString},
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "A map of tags to assign to the resource. For AWS, these are tags; for GCP, these are labels.",
 			},
 			"default_admin_password": {
 				Type:             schema.TypeString,
@@ -1145,9 +1146,14 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 			},
 		})
 	}
+
+	d.Set("csp", resp.Cluster.Csp)
+	d.Set("region", resp.Cluster.Region)
+
+	csp := d.Get("csp").(string)
 	tags := make(map[string]string)
 	for k, v := range resp.Cluster.Tags {
-		if !InternalTagKeys[k] {
+		if !IsInternalTagKeys(csp, k) {
 			tags[k] = v
 		}
 	}
@@ -2583,14 +2589,6 @@ func IsAllRunning(c *cluster.Cluster) bool {
 	}
 
 	return true
-}
-
-var InternalTagKeys = map[string]bool{
-	"Vendor":             true,
-	"Creator":            true,
-	"ClusterName":        true,
-	"ServiceAccountName": true,
-	"ServiceAccountID":   true,
 }
 
 type UpdateWarehouseReq struct {
