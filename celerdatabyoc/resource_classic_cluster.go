@@ -753,13 +753,19 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("region", resp.Cluster.Region)
 
 	csp := d.Get("csp").(string)
-	tags := make(map[string]string)
+	tags := make(map[string]interface{})
 	for k, v := range resp.Cluster.Tags {
 		if !IsInternalTagKeys(csp, k) {
 			tags[k] = v
 		}
 	}
+
 	d.Set("resource_tags", tags)
+
+	log.Printf("[DEBUG] API返回的标签: %#v", tags)
+
+	log.Printf("[DEBUG] 当前状态中的标签: %#v", d.Get("resource_tags"))
+
 	if len(resp.Cluster.LdapSslCerts) > 0 {
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
@@ -2049,7 +2055,7 @@ func VolumeParamVerify(ctx context.Context, req *VolumeParamVerifyReq) error {
 func IsInternalTagKeys(csp, key string) bool {
 
 	if csp != cluster.CSP_GOOGLE {
-		return !AwsAzureInternalTagKeys[key]
+		return AwsAzureInternalTagKeys[key]
 	}
 	return GcpInternalTagKeys[key]
 }

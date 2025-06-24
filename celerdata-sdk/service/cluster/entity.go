@@ -27,7 +27,7 @@ var (
 const (
 	CSP_AWS    = "aws"
 	CSP_AZURE  = "azure"
-	CSP_GOOGLE = "google"
+	CSP_GOOGLE = "gcp"
 
 	ClusterTypeClassic         = ClusterType("CLASSIC")
 	ClusterTypeElasic          = ClusterType("ELASTIC")
