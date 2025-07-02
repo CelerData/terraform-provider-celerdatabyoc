@@ -54,4 +54,5 @@ type CreateGcpNetworkReq struct {
 	Region                 string `json:"region" mapstructure:"region"`
 	NetworkTag             string `json:"network_tag" mapstructure:"network_tag"`
 	SubnetName             string `json:"subnet_name" mapstructure:"subnet_name"`
+	PscConnectionId        string `json:"psc_connection_id" mapstructure:"psc_connection_id"`
 }

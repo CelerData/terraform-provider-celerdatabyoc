@@ -44,6 +44,11 @@ func gcpResourceNetwork() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
+			"psc_connection_id": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+			},
 			"deployment_credential_id": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -65,6 +70,7 @@ func gcpResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m int
 		Region:                 d.Get("region").(string),
 		NetworkTag:             d.Get("network_tag").(string),
 		SubnetName:             d.Get("subnet_name").(string),
+		PscConnectionId:        d.Get("psc_connection_id").(string),
 	}
 
 	resp, err := networkCli.CreateGcpNetwork(ctx, req)
