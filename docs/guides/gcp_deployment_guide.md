@@ -54,13 +54,9 @@ terraform {
       source  = "CelerData/celerdatabyoc"
       version = "<provider_version>"
     }
-    azuread = {
-      source  = "hashicorp/azuread"
-      version = "2.47.0"
-    }
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "=3.0.0"
+    google = {
+      source = "hashicorp/google"
+      version = "6.37.0"
     }
   }
 }
@@ -70,9 +66,9 @@ provider "celerdatabyoc" {
   client_secret = "<client_secret>"
 }
 
-locals {
-  cluster_region = "<Azure_region_ID>"
-  azure_region   = "<Azure_region_name>"
+provider "google" {
+  project     = "<project_id>"
+  region      = "<region>"
 }
 ```
 
@@ -80,149 +76,219 @@ The parameters you need to specify are as follows:
 
 - `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See [For CelerData](#for-celerdata).
-- `cluster_region` and `azure_region`: Enter the ID (for example, `eastus`) and name (for example, `East US`), respectively, of the GCP region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#gcp). The GCP region you specify here must be the same as the GCP region of the resource group you create in [Configure GCP objects](#configure-gcp-objects). By setting these region elements as local values, you can then directly set the arguments for these region elements in your Terraform configuration to `local.cluster_region` and `local.azure_region` to save time.
+- `project_id`: Enter your GCP cloud project ID.
+- `region`: Enter the ID of the GCP cloud region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp). 
 
 ## Configure GCP objects
 
-This section assumes that you have [completed the preparations](#preparations) and have [configured the providers](#configure-providers).
+The deployment on GCP requires creating Data Credential, Deployment Credential, and Network Credential in CelerData Cloud. For detailed steps, please refer to: [Cloud Setting For GCP](https://docs.celerdata.com/BYOC/docs/category/gcp/)
+- [Create Deployment Credential](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_deployment_credentials/)
+- [Create Data Credential](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_data_credentials/)
+- [Create Network Credential](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_network_configurations/)
 
-The cluster deployment on GCP depends on the following GCP objects:
-
-- A resource group, which will host all the GCP resources required for the cluster deployment, including a storage account and a container within the storage account, a managed identity, a virtual network and a subnet within the virtual network, a security group, and an SSH public key.
-- A storage account and a container within the storage account, which will be used to store your data.
-- A managed identity, to which you also need to grant the required permissions, so the cluster will be able to store query profiles to the container.
-- An app registration to authorize Terraform as a service principal, and a client secret for the registered application. You also need to add role assignments to the application, so Terraform can launch the resources necessary to deploy the cluster within your GCP service account.
-- An SSH public key, which gives access to your virtual machines (VMs) for automatic deployment, so Terraform can deploy the required service processes on your VMs.
-
-  You need to create an SSH public key on your local computer, because you will need to fill the path in the `public_key` element of this object.
-
-- A virtual network and a subnet within the virtual network for the VMs on which the cluster depends.
-- A security group to which the subnet is assigned.
-
-To create these GCP objects, you need to declare the following resources in the **.tf** file (for example, **main.tf**) in which you have configured the providers:
+Here is an example written based on the document:
 
 ```terraform
-provider "azuread" {}
-
-provider "azurerm" {
-  features {}
-  subscription_id = "<Microsoft_subscription_ID>"
+provider "google" {
+  project     = "<gcp_project_id>"
+  region      = "us-central1"
 }
 
-# Create a resource group
-resource "azurerm_resource_group" "example" {
-  name     = "<resource_group_name>"
-  location = local.azure_region
+resource "google_project_service" "project" {
+  for_each = toset([
+    "analyticshub.googleapis.com",
+    "bigquery.googleapis.com",
+    "bigqueryconnection.googleapis.com",
+    "bigquerydatapolicy.googleapis.com",
+    "bigquerymigration.googleapis.com",
+    "bigqueryreservation.googleapis.com",
+    "bigquerystorage.googleapis.com",
+    "compute.googleapis.com",
+    "cloudapis.googleapis.com",
+    "logging.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "dataplex.googleapis.com",
+    "datastore.googleapis.com",
+    "dns.googleapis.com",
+    "monitoring.googleapis.com",
+    "oslogin.googleapis.com",
+    "sqladmin.googleapis.com",
+    "storage.googleapis.com",
+    "cloudtrace.googleapis.com",
+    "dataform.googleapis.com",
+    "storage-api.googleapis.com",
+    "privilegedaccessmanager.googleapis.com",
+    "servicedirectory.googleapis.com",
+    "servicemanagement.googleapis.com",
+    "servicenetworking.googleapis.com",
+    "serviceusage.googleapis.com",
+  ])
+  service            = each.key
+  disable_on_destroy = false
 }
 
-# Create a managed identity
-resource "azurerm_user_assigned_identity" "example" {
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
-  name                = "<managed_identity_name>"
+resource "google_storage_bucket" "storage-bucket" {
+  name     = "tf-test-bucket-${local.gcp_project_id}"
+  location = us-central1
+  storage_class = "STANDARD"
+  uniform_bucket_level_access = false 
+  public_access_prevention    = "enforced" 
+
+  force_destroy = false
+
+  labels = {
+    environment = "sandbox"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      cors
+    ]
+  }
 }
 
-# Assign permissions to the managed identity
-locals {
-  managed_identity_roles = [
-    "Reader",
-    "Storage Account Contributor",
+resource "google_service_account" "storage-sa" {
+  account_id   = "tf-test-storage-sa"
+  display_name = "Terraform Test Service Account"
+}
+
+resource "google_project_iam_custom_role" "storage-custom-role" {
+  role_id     = "tfteststoragerole"
+  title       = "CelerData Compute Engine Storage Role"
+  description = "Custom role with only necessary permissions for CelerData"
+  project     = "<gcp_project_id>"
+
+  permissions = [
+    "iam.serviceAccounts.signBlob",
+    "storage.buckets.get",
+    "storage.buckets.update",
+    "storage.objects.create",
+    "storage.objects.delete",
+    "storage.objects.get",
+    "storage.objects.list"
   ]
 }
-resource "azurerm_role_assignment" "assignment_identity_roles" {
-  count                = length(local.managed_identity_roles)
-  role_definition_name = local.managed_identity_roles[count.index]
-  scope                = azurerm_resource_group.example.id
-  principal_id         = azurerm_user_assigned_identity.example.principal_id
+
+resource "google_project_iam_member" "storage-sa-role-binding" {
+  project = "<gcp_project_id>"
+  role = google_project_iam_custom_role.storage-custom-role.id
+  member = "serviceAccount:${google_service_account.storage-sa.email}"
+  condition {
+    title       = "bucket_conditons"
+    description = "Bucket conditons."
+    expression  = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.storage-bucket.name}/\") || resource.name == \"projects/_/buckets/${google_storage_bucket.storage-bucket.name}\""
+  }
 }
 
-# Create a storage account
-resource "azurerm_storage_account" "example" {
-  name                     = "<storage_account_name>"
-  resource_group_name      = azurerm_resource_group.example.name
-  location                 = azurerm_resource_group.example.location
-  account_tier             = "Standard"
-  account_replication_type = "GRS"
-}
+resource "google_project_iam_custom_role" "deployment-custom-role" {
+  role_id     = "tftestdeploymentrole"
+  title       = "CelerData Compute Engine Deployment Role"
+  description = "Custom role with only necessary permissions for CelerData"
+  project     = "<gcp_project_id>"
 
-# Create a storage container
-resource "azurerm_storage_container" "example" {
-  name                  = "<storage_container_name>"
-  storage_account_name  = azurerm_storage_account.example.name
-  container_access_type = "private"
-}
-
-# Create an app registration and a client secret for it
-resource "azuread_application_registration" "example" {
-  display_name     = "<app_registration_name>"
-  description      = "My example application"
-  sign_in_audience = "AzureADMyOrg"
-}
-resource "azuread_application_password" "example" {
-  application_id = azuread_application_registration.example.id
-  display_name   = "<app_secret_name>"
-}
-resource "azuread_service_principal" "app_service_principal" {
-  client_id = azuread_application_registration.example.client_id
-}
-
-# Add role assignments to the app application
-locals {
-  app_registration_roles = [
-    "Reader",
-    "Virtual Machine Contributor",
-    "Network Contributor",
-    "Managed Identity Operator"
+  permissions = [
+    "iam.serviceAccounts.actAs",
+    "storage.buckets.get"
   ]
 }
-resource "azurerm_role_assignment" "assignment_app_roles" {
-  count                = length(local.app_registration_roles)
-  role_definition_name = local.app_registration_roles[count.index]
-  scope                = azurerm_resource_group.example.id
-  principal_id         = azuread_service_principal.app_service_principal.object_id
+
+resource "google_project_iam_member" "deployment-sa-custom-role-binding-1" {  
+  project = "<gcp_project_id>"
+  role    = google_project_iam_custom_role.deployment-custom-role.id
+  member  = "serviceAccount:byoc-sandbox-service@byoc-sandbox.iam.gserviceaccount.com"
 }
 
-# Create an SSH public key
-resource "azurerm_ssh_public_key" "example" {
-  name                = "<ssh_key_name>"
-  resource_group_name = azurerm_resource_group.example.name
-  location            = azurerm_resource_group.example.location
-  public_key          = file("~/.ssh/id_rsa.pub")
+resource "google_project_iam_member" "deployment-sa-static-role-binding" {  
+  project = "<gcp_project_id>"
+  role    = "roles/compute.admin"
+  member  = "serviceAccount:byoc-sandbox-service@byoc-sandbox.iam.gserviceaccount.com"
 }
 
-# Create a virtual network
-resource "azurerm_virtual_network" "example" {
-  name                = "<network_name>"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
-  address_space       = ["10.0.0.0/16"]
+resource "google_compute_network" "celerdata_vpc" {
+  name                    = "tf-test-vpc"
+  auto_create_subnetworks = false
+  routing_mode            = "REGIONAL"
+  bgp_best_path_selection_mode = "LEGACY"
 }
 
-# Create a subnet
-resource "azurerm_subnet" "example" {
-  name                 = "<subnet_name>"
-  resource_group_name  = azurerm_resource_group.example.name
-  virtual_network_name = azurerm_virtual_network.example.name
-  address_prefixes     = ["10.0.1.0/24"]
+resource "google_compute_subnetwork" "subnetwork" {
+  name          = "tf-test-subnetwork"
+  ip_cidr_range = "10.0.0.0/24"
+  region        = us-central1
+  network       = google_compute_network.celerdata_vpc.name
+  private_ip_google_access = true
 }
 
-# Create a network security group
-resource "azurerm_network_security_group" "example" {
-  name                = "<security_group_name>"
-  location            = azurerm_resource_group.example.location
-  resource_group_name = azurerm_resource_group.example.name
+resource "google_compute_firewall" "fr-ingress-internal" {
+  name    = "tf-test-fr-ingress-internal"
+  network = google_compute_network.celerdata_vpc.name
+  priority = 100
+  direction = "INGRESS"
+
+  allow {
+    protocol = "all"
+  }
+  target_tags = [local.gcp_network_tag]
+  source_ranges = ["10.0.0.0/24"]
 }
 
-# Assign the subnet to the security group
-resource "azurerm_subnet_network_security_group_association" "example" {
-  subnet_id                 = azurerm_subnet.example.id
-  network_security_group_id = azurerm_network_security_group.example.id
+resource "google_compute_firewall" "fr-ingress-external" {
+  name    = "tf-test-fr-ingress-external"
+  network = google_compute_network.celerdata_vpc.name
+  priority = 100
+  direction = "INGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports = ["443", "9030"]
+  }
+  source_ranges = ["0.0.0.0/0"]
+}
+
+resource "google_compute_firewall" "fr-egress-internal" {
+  name    = "tf-test-fr-egress-internal"
+  network = google_compute_network.celerdata_vpc.name
+  priority = 100
+  direction = "EGRESS"
+
+  allow {
+    protocol = "all"
+  }
+  target_tags = [local.gcp_network_tag]
+  source_ranges = ["10.0.0.0/24"]
+}
+
+resource "google_compute_firewall" "fr-egress-external" {
+  name    = "tf-test-fr-egress-external"
+  network = google_compute_network.celerdata_vpc.name
+  priority = 100
+  direction = "EGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports = ["443","9030"]
+  }  
+  source_ranges = ["0.0.0.0/0"]
+}
+
+resource "google_compute_firewall" "fr-ingress-nlb" {
+  name    = "tf-test-fr-ingress-nlb"
+  network = google_compute_network.celerdata_vpc.name
+  priority = 100
+  direction = "INGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports = ["443"]
+  }
+  target_tags = [local.gcp_network_tag]
+  source_ranges = ["35.191.0.0/16", "209.85.152.0/22", "209.85.204.0/22", "130.211.0.0/22"]
 }
 ```
 
 See the following documents for more information:
 
-- [azurerm_resource_group](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group)
+- [google_project_service](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group)
 - [azurerm_user_assigned_identity](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/user_assigned_identity)
 - [azurerm_role_assignment](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_assignment)
 - [azurerm_storage_account](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_account)
@@ -241,14 +307,13 @@ This section provides a sample infrastructure configuration that automates the d
 
 To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers and GCP objects.
 
-### [celerdatabyoc_azure_data_credential](../resources/azure_data_credential.md)
+### [celerdatabyoc_gcp_data_credential](../resources/gcp_data_credential.md)
 
 ```terraform
-resource "celerdatabyoc_azure_data_credential" "example" {
-  name                         = "<data_credential_name>"
-  managed_identity_resource_id = azurerm_user_assigned_identity.example.id
-  storage_account_name         = azurerm_storage_account.example.name
-  container_name               = azurerm_storage_container.example.name
+resource "celerdatabyoc_gcp_data_credential" "storage_credential" {
+  name = "tf-test-0604"
+  bucket_name = google_storage_bucket.storage-bucket.name
+  service_account = google_service_account.storage-sa.email
 }
 ```
 
@@ -256,21 +321,16 @@ This resource contains the following required arguments:
 
 - `name`: (Forces new resource) The name of the data credential. Enter a unique name.
 
-- `managed_identity_resource_id`: (Forces new resource) The ID of the managed identity. Set this argument to `azurerm_user_assigned_identity.example.id`.
+- `bucket_name`: (Forces new resource) The name of the GCP bucket. Set this argument to `google_storage_bucket.storage-bucket.name`.
 
-- `storage_account_name`: (Forces new resource) The name of the storage account. Set this argument to `azurerm_storage_account.example.name`.
+- `service_account`: (Forces new resource) The service account email of the storage. Set this argument to `google_service_account.storage-sa.email`.
 
-- `container_name`: (Forces new resource) The name of the container. Set this argument to `azurerm_storage_container.example.name`.
-
-### [celerdatabyoc_azure_deployment_credential](../resources/azure_deployment_credential.md)
+### [celerdatabyoc_gcp_deployment_credential](../resources/gcp_deployment_credential.md)
 
 ```terraform
-resource "celerdatabyoc_azure_deployment_credential" "example" {
-  name                = "<deployment_credential_name>"
-  application_id      = azuread_application_registration.example.client_id
-  directory_id        = azuread_service_principal.app_service_principal.application_tenant_id
-  client_secret_value = azuread_application_password.example.value
-  ssh_key_resource_id = azurerm_ssh_public_key.example.id
+resource "celerdatabyoc_gcp_deployment_credential" "deployment_credential" {
+  name = "tf-test-0604"
+  project_id = "<gcp_project_id>"
 }
 ```
 
@@ -278,24 +338,17 @@ This resource contains the following required arguments:
 
 - `name`: (Forces new resource) The name of the deployment credential. Enter a unique name.
 
-- `application_id`: (Forces new resource) The application (client) ID of the registered application. Set this argument to `azuread_application_registration.example.client_id`.
+- `project_id`: (Forces new resource) The service account email of the storage. Set this argument to `google_service_account.storage-sa.email`.
 
-- `directory_id`: (Forces new resource) The directory (tenant) ID of the registered application. Set this argument to `azuread_service_principal.app_service_principal.application_tenant_id`.
-
-- `client_secret_value`: (Forces new resource) The value of the client secret of the registered application. Set this argument to `azuread_application_password.example.value`.
-
-- `ssh_key_resource_id`: (Forces new resource) The ID of the SSH public key. Set this argument to `azurerm_ssh_public_key.example.id`.
-
-### [celerdatabyoc_azure_network](../resources/azure_network.md)
+### [celerdatabyoc_gcp_network](../resources/gcp_network.md)
 
 ```terraform
-resource "celerdatabyoc_azure_network" "example" {
-  name                        = "<network_credential_name>"
-  deployment_credential_id    = celerdatabyoc_azure_deployment_credential.example.id
-  virtual_network_resource_id = azurerm_virtual_network.example.id
-  subnet_name                 = azurerm_subnet.example.name
-  region                      = local.cluster_region
-  public_accessible           = true
+resource "celerdatabyoc_gcp_network" "network_credential" {
+  name = "tf-test-0604"
+  region = us-central1
+  subnet_name = google_compute_subnetwork.subnetwork.name
+  network_tag = "<gcp_network_tag>"
+  deployment_credential_id = celerdatabyoc_gcp_deployment_credential.deployment_credential.id
 }
 ```
 
@@ -305,28 +358,32 @@ This resource contains the following required arguments and optional arguments:
 
 - `name`: (Forces new resource) The name of the network configuration. Enter a unique name.
 
-- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set this argument to `celerdatabyoc_azure_deployment_credential.example.id`.
-
-- `virtual_network_resource_id`: (Forces new resource) The resource ID of the GCP virtual network. Set this argument to `azurerm_virtual_network.example.id`.
+- `region`: (Forces new resource) The ID of the GCP region. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp).
 
 - `subnet_name`: (Forces new resource) The name of the subnet. Set this argument to `azurerm_subnet.example.name`.
 
-- `region`: (Forces new resource) The ID of the GCP region. Set this argument to `local.cluster_region`, as we recommend that you set the region element as a local value in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+- `network_tag`: (Forces new resource)The target tag of the firewall rules that you use to enable connectivity between cluster nodes within your own VPC and between CelerData's VPC and your own VPC over TLS.
+
+- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set this argument to `celerdatabyoc_azure_deployment_credential.example.id`.
 
 **Optional:**
 
-- `public_accessible`: Whether the cluster can be accessed from public networks. Valid values: `true` and `false`. If you set this argument to `true`, CelerData will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you set this argument to `false`, the cluster is accessible only through a private domain name.
+- `psc_connection_id`: (Forces new resource) The ID of the [Private Service Connect](https://cloud.google.com/vpc/docs/private-service-connect) that you create to allow direct, secure connectivity between CelerData's VPC and your own VPC.
+For information about how to create a PSC Connection, see [Create a Private Service Connect Endpoint](https://docs.celerdata.com/BYOC/docs/sql-reference/gcp/create_psc_endpoint/).
+NOTE:
+If you do not specify a PSC Connection, CelerData's VPC communicates with your own VPC over the Internet.
+
 
 ### [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
 
 ```terraform
-resource "celerdatabyoc_classic_cluster" "azure_terraform_test" {
+resource "celerdatabyoc_classic_cluster" "gcp_terraform_test" {
   cluster_name             = "<cluster_name>"
   fe_instance_type         = "<fe_node_instance_type>"
   fe_node_count            = 1
-  deployment_credential_id = celerdatabyoc_azure_deployment_credential.example.id
-  data_credential_id       = celerdatabyoc_azure_data_credential.example.id
-  network_id               = celerdatabyoc_azure_network.example.id
+  deployment_credential_id = celerdatabyoc_gcp_deployment_credential.deployment_credential.id
+  data_credential_id       = celerdatabyoc_gcp_data_credential.storage_credential.id
+  network_id               = celerdatabyoc_gcp_network.network_credential.id
   be_instance_type         = "<be_node_instance_type>"
   be_node_count            = 2
   be_disk_number           = 2
@@ -338,8 +395,7 @@ resource "celerdatabyoc_classic_cluster" "azure_terraform_test" {
     flag = "terraform-test"
   }
   csp    = "gcp"
-  region = local.cluster_region
-  depends_on = [azurerm_role_assignment.assignment_app_roles,azurerm_role_assignment.assignment_identity_roles]
+  region = "us-central1"
 }
 ```
 
@@ -351,11 +407,11 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
 
-- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_azure_deployment_credential.example.id`.
+- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_gcp_deployment_credential.deployment_credential.id`.
 
-- `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_azure_data_credential.example.id`.
+- `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_gcp_data_credential.storage_credential.id`.
 
-- `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_azure_network.example.id`.
+- `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_gcp_network.network_credential.id`.
 
 - `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
 
@@ -365,9 +421,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `csp`: The cloud service provider of the cluster. Set this argument to `gcp`.
 
-- `region`: The ID of the GCP region to which the VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#aws). Set this argument to `local.cluster_region`, as we recommend that you set the bucket element as a local value `cluster_region` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
-
-- `depends_on`: This argument creates a dependency between resources. If you want to deploy an GCP cluster, you must ensure that the resources used to declare the privileges of the resource group and managed identity are destroyed only after the cluster is released. To achieve this, you need to add this dependency.
+- `region`: The ID of the GCP region to which the VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp).
 
 **Optional:**
 
