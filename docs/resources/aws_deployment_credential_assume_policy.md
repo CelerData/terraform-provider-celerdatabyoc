@@ -6,7 +6,7 @@ description: |-
   
 ---
 
-To ensure a successful deployment in your VPC, you must create an AWS deployment credential. For more information, see [Create an AWS deployment credential](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials#create-a-deployment-credential).
+To ensure a successful deployment in your VPC, you must create an AWS deployment credential. For more information, see [Create an AWS deployment credential](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials/#create-a-deployment-credential).
 
 This resource depends on the following resources and the [celerdatabyoc_aws_data_credential_assume_policy](../data-sources/aws_data_credential_assume_policy.md) data source:
 

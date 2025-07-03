@@ -81,7 +81,7 @@ This resource exports the following attribute:
 
 ## See Also
 
-- [Create an AWS data credential](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials#create-a-data-credential)
+- [Create an AWS data credential](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_data_credentials/#create-a-data-credential)
 - [celerdatabyoc_aws_data_credential_policy](../resources/aws_data_credential_policy.md)
 - [aws_iam_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
 - [aws_iam_instance_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile)
