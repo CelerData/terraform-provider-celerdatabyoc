@@ -6,7 +6,7 @@ description: |-
   
 ---
 
-This data source is a prerequisite for the implementation of the [celerdatabyoc_aws_deployment_role_credential](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/resources/aws_deployment_role_credential) resource.
+This data source is a prerequisite for the implementation of the [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md) resource.
 
 ### Example Usage
 

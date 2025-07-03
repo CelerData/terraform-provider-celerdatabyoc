@@ -24,7 +24,7 @@ This resource depends on the following resources and data source:
 ### Supported Node Sizes
 
 For information about the instance types supported by CelerData,
-see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_type/).
+see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_types/).
 
 ## Example Usage
 
@@ -334,7 +334,7 @@ The `celerdatabyoc_aws_network` resource contains the following required argumen
 - `security_group_id`: (Not allowed to modify) The ID of the security group within the AWS VPC.
 
 - `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs.
-  See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
+  See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/).
 
 - `deployment_credential_id`: (Not allowed to modify) Set the value to
   `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
@@ -402,7 +402,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `csp`: (Not allowed to modify) The cloud service provider of the cluster. Only AWS is supported.
 
 - `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs.
-  See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
+  See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/).
 
 **Optional:**
 
@@ -465,7 +465,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `init_scripts`: The configuration block to specify the paths to which scripts and script
   execution results are stored. The maximum number of executable scripts is 20. For information about the formats
   supported by these arguments, see `scripts.logs_dir` and `scripts.script_path`
-  in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
+  in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
 
     - `logs_dir`: The path in the AWS S3 bucket to which script execution results are stored. This
       S3 bucket can be the same as or different from the S3 bucket you specify in the
@@ -490,7 +490,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 ## See Also
 
 - [AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)
-- [Manage data credentials for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials)
-- [Manage deployment credentials for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials)
-- [Manage network configurations for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)
+- [Manage data credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_data_credentials/)
+- [Manage deployment credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials/)
+- [Manage network configurations for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_network_configurations/)
 - [Warehouse auto-scaling policy](../resources/warehouse_auto_scaling_policy.md)

@@ -49,5 +49,5 @@ This resource exports the following attributes:
   - `nlb_endpoint_type`: The type of the Network Load Balancer endpoint. Supported values: `IP` and `DOMAIN`.
 ## See Also
 
-- [Connect to a CelerData cluster](https://docs.celerdata.com/byoc/main/get_started/connect_cluster)
-- [Connect from a client application to a CelerData cluster](https://docs.celerdata.com/byoc/main/cluster_management/connect_application_to_cluster)
+- [Connect to a CelerData cluster](https://docs.celerdata.com/BYOC/docs/get_started/connect_cluster/)
+- [Connect from a client application to a CelerData cluster](https://docs.celerdata.com/BYOC/docs/cluster_management/connect_application_to_cluster/)

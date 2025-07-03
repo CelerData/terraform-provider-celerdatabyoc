@@ -11,13 +11,13 @@ description: |-
 
 Deploys a classic CelerData cluster on AWS EC2 instances or on Azure virtual machines.
 
-If you are setting up your first cluster and it consists of one FE node and one BE node, both with instance types that offer up to 4 CPU cores and 16 GB RAM, then the cluster will be automatically created as a [Free Developer Tier](https://docs.celerdata.com/byoc/main/get_started/free_developer_tier) cluster. This allows you to explore and experience the features of CelerData Cloud BYOC at a minimal cost.
+If you are setting up your first cluster and it consists of one FE node and one BE node, both with instance types that offer up to 4 CPU cores and 16 GB RAM, then the cluster will be automatically created as a [Free Developer Tier](https://docs.celerdata.com/BYOC/docs/get_started/free_developer_tier/) cluster. This allows you to explore and experience the features of CelerData Cloud BYOC at a minimal cost.
 
 The implementation of this resource is part of the whole cluster deployment procedure and depends on the implementation of a data credential, a deployment credential, and a network configuration. For detailed procedures of cluster deployments on AWS and Azure, see [Provision CelerData Cloud BYOC on AWS](../guides/aws_deployment_guide.md) and [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md).
 
 ## Supported Instance Types
 
-For information about the instance types supported by CelerData, see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_type/).
+For information about the instance types supported by CelerData, see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_types/).
 
 ## Example Usage
 
@@ -104,7 +104,7 @@ This resource contains the following required arguments and optional arguments:
 - `csp`: (Not allowed to modify) The cloud service provider of the cluster.
   - If you deploy the cluster on AWS, set this argument to `aws`.
   - If you deploy the cluster on Azure, set this argument to `azure`.
-- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions).
+- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/).
 
 **Optional:**
 
@@ -129,7 +129,7 @@ This resource contains the following required arguments and optional arguments:
 ~> You can only upload or delete LDAP or Ranger SSL certificates  while the cluster's `expected_cluster_state` is set to `Running`.
 
 - `resource_tags`: The tags to be attached to the cluster.
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
+- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
   - `logs_dir`: The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
@@ -140,9 +140,9 @@ This resource contains the following required arguments and optional arguments:
 ## See Also
 
 - [AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)
-- [Manage data credentials for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_data_credentials)
-- [Manage deployment credentials for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials)
-- [Manage network configurations for AWS](https://docs.celerdata.com/byoc/main/cloud_settings/aws_cloud_settings/manage_aws_network_configurations)
-- [Manage data credentials for Azure](https://docs.celerdata.com/byoc/main/cloud_settings/azure_cloud_settings/manage_azure_data_credentials)
-- [Manage deployment credentials for Azure](https://docs.celerdata.com/byoc/main/cloud_settings/azure_cloud_settings/manage_azure_deployment_credentials)
-- [Manage network configurations for Azure](https://docs.celerdata.com/byoc/main/cloud_settings/azure_cloud_settings/manage_azure_network_configurations)
+- [Manage data credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_data_credentials/)
+- [Manage deployment credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials/)
+- [Manage network configurations for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_network_configurations/)
+- [Manage data credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_data_credentials/)
+- [Manage deployment credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_deployment_credentials/)
+- [Manage network configurations for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_network_configurations/)
