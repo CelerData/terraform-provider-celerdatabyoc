@@ -47,3 +47,12 @@ type Network struct {
 type GetNetworkResp struct {
 	Network *Network `json:"network" mapstructure:"network"`
 }
+
+type CreateGcpNetworkReq struct {
+	DeploymentCredentialID string `json:"deployment_credential_id" mapstructure:"deployment_credential_id"`
+	Name                   string `json:"name" mapstructure:"name"`
+	Region                 string `json:"region" mapstructure:"region"`
+	NetworkTag             string `json:"network_tag" mapstructure:"network_tag"`
+	SubnetName             string `json:"subnet_name" mapstructure:"subnet_name"`
+	PscConnectionId        string `json:"psc_connection_id" mapstructure:"psc_connection_id"`
+}

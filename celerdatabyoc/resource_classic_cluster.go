@@ -144,9 +144,10 @@ func resourceClassicCluster() *schema.Resource {
 				},
 			},
 			"resource_tags": {
-				Type:     schema.TypeMap,
-				Optional: true,
-				Elem:     &schema.Schema{Type: schema.TypeString},
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "A map of tags to assign to the resource. For AWS, these are tags; for GCP, these are labels.",
 			},
 			"default_admin_password": {
 				Type:             schema.TypeString,
@@ -748,13 +749,23 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
 	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
-	tags := make(map[string]string)
+	d.Set("csp", resp.Cluster.Csp)
+	d.Set("region", resp.Cluster.Region)
+
+	csp := d.Get("csp").(string)
+	tags := make(map[string]interface{})
 	for k, v := range resp.Cluster.Tags {
-		if !InternalTagKeys[k] {
+		if !IsInternalTagKeys(csp, k) {
 			tags[k] = v
 		}
 	}
+
 	d.Set("resource_tags", tags)
+
+	log.Printf("[DEBUG] API返回的标签: %#v", tags)
+
+	log.Printf("[DEBUG] 当前状态中的标签: %#v", d.Get("resource_tags"))
+
 	if len(resp.Cluster.LdapSslCerts) > 0 {
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
 	}
@@ -2039,4 +2050,25 @@ func VolumeParamVerify(ctx context.Context, req *VolumeParamVerifyReq) error {
 		Throughput: throughput,
 	})
 	return err
+}
+
+func IsInternalTagKeys(csp, key string) bool {
+
+	if csp != cluster.CSP_GOOGLE {
+		return AwsAzureInternalTagKeys[key]
+	}
+	return GcpInternalTagKeys[key]
+}
+
+var AwsAzureInternalTagKeys = map[string]bool{
+	"Vendor":             true,
+	"Creator":            true,
+	"ClusterName":        true,
+	"ServiceAccountName": true,
+	"ServiceAccountID":   true,
+}
+
+var GcpInternalTagKeys = map[string]bool{
+	"vendor":       true,
+	"cluster-name": true,
 }

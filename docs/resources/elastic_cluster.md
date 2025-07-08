@@ -322,7 +322,7 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 
 ~> You can only upload or delete LDAP or Ranger SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
-- `resource_tags`: The tags to be attached to the cluster.
+- `resource_tags`: The tags to be attached to the cluster (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
 - `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
 

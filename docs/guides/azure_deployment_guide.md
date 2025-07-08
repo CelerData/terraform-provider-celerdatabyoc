@@ -78,7 +78,7 @@ locals {
 
 The parameters you need to specify are as follows:
 
-- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
+- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version, for example `version = "1.0.2"`. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See [For CelerData](#for-celerdata).
 - `cluster_region` and `azure_region`: Enter the ID (for example, `eastus`) and name (for example, `East US`), respectively, of the Azure region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#azure). The Azure region you specify here must be the same as the Azure region of the resource group you create in [Configure Azure objects](#configure-azure-objects). By setting these region elements as local values, you can then directly set the arguments for these region elements in your Terraform configuration to `local.cluster_region` and `local.azure_region` to save time.
 
@@ -365,7 +365,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `csp`: The cloud service provider of the cluster. Set this argument to `azure`.
 
-- `region`: The ID of the Azure region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#aws). Set this argument to `local.cluster_region`, as we recommend that you set the bucket element as a local value `cluster_region` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
+- `region`: The ID of the Azure region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#azure). Set this argument to `local.cluster_region`, as we recommend that you set the bucket element as a local value `cluster_region` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
 - `depends_on`: This argument creates a dependency between resources. If you want to deploy an Azure cluster, you must ensure that the resources used to declare the privileges of the resource group and managed identity are destroyed only after the cluster is released. To achieve this, you need to add this dependency.
 
@@ -387,13 +387,13 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 1. Initialize and install the providers defined in the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform init
    ```
 
 2. Verify that your Terraform project has been properly configured:
 
-   ```SQL
+   ```sh
    terraform plan
    ```
 
@@ -401,7 +401,7 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 3. Apply the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform apply
    ```
 

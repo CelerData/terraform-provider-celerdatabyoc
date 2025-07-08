@@ -139,11 +139,6 @@ func resourceClusterEndpointsRead(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) change complete: %s", d.Id(), err))
 	}
 
-	if stateResp.State != cluster.DomainAllocateStateSucceeded {
-		d.SetId("")
-		return diag.FromErr(errors.New("failed to get cluster endpoints"))
-	}
-
 	d.Set("endpoints", stateResp.List)
 	return diags
 }

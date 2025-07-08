@@ -144,9 +144,10 @@ func resourceElasticCluster() *schema.Resource {
 				},
 			},
 			"resource_tags": {
-				Type:     schema.TypeMap,
-				Optional: true,
-				Elem:     &schema.Schema{Type: schema.TypeString},
+				Type:        schema.TypeMap,
+				Optional:    true,
+				Elem:        &schema.Schema{Type: schema.TypeString},
+				Description: "A map of tags to assign to the resource. For AWS, these are tags; for GCP, these are labels.",
 			},
 			"default_admin_password": {
 				Type:             schema.TypeString,
@@ -771,9 +772,13 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	d.Set("free_tier", resp.Cluster.FreeTier)
 	d.Set("query_port", resp.Cluster.QueryPort)
 	d.Set("idle_suspend_interval", resp.Cluster.IdleSuspendInterval)
+	d.Set("csp", resp.Cluster.Csp)
+	d.Set("region", resp.Cluster.Region)
+
+	csp := d.Get("csp").(string)
 	tags := make(map[string]string)
 	for k, v := range resp.Cluster.Tags {
-		if !InternalTagKeys[k] {
+		if !IsInternalTagKeys(csp, k) {
 			tags[k] = v
 		}
 	}
