@@ -108,7 +108,7 @@ locals {
 
 The parameters you need to specify are as follows:
 
-- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
+- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version, for example `version = "1.0.2"`. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See "[For CelerData](#preparations)."
 - `region_name`: Enter the ID of the AWS region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#aws).
 - `access_key` and `secret_key`: Enter the access key ID ("access key" for short) and secret access key ("secret key" for short) of your access key pair. See "[For AWS](#preparations)." For security purposes, you can set the access key and secret key as [environment variables](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#provider-configuration).
@@ -357,13 +357,13 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 1. Initialize and install the providers defined in the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform init
    ```
 
 2. Verify that your Terraform project has been properly configured:
 
-   ```SQL
+   ```sh
    terraform plan
    ```
 
@@ -371,7 +371,7 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 3. Apply the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform apply
    ```
 

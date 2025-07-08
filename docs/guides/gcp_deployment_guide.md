@@ -74,7 +74,7 @@ provider "google" {
 
 The parameters you need to specify are as follows:
 
-- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
+- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version, for example `version = "1.0.3"`. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See [For CelerData](#for-celerdata).
 - `project_id`: Enter your GCP cloud project ID.
 - `region`: Enter the ID of the GCP cloud region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp). 
@@ -441,13 +441,13 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 1. Initialize and install the providers defined in the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform init
    ```
 
 2. Verify that your Terraform project has been properly configured:
 
-   ```SQL
+   ```sh
    terraform plan
    ```
 
@@ -455,7 +455,7 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 3. Apply the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform apply
    ```
 
@@ -471,7 +471,7 @@ Deleting a Terraform configuration means destroying all resources created by the
 
 To delete a Terraform configuration, run the following command in your Terraform project:
 
-```SQL
+```sh
 terraform destroy
 ```
 
