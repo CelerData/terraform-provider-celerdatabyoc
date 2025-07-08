@@ -145,20 +145,30 @@ func resourceAutoScalingPolicy() *schema.Resource {
 			},
 		},
 		CustomizeDiff: func(ctx context.Context, rd *schema.ResourceDiff, i interface{}) error {
-			min, _ := rd.Get("min_size").(int)
-			max, _ := rd.Get("max_size").(int)
-			if min > max {
+			m1, _ := rd.Get("min_size").(int)
+			m2, _ := rd.Get("max_size").(int)
+			if m1 > m2 {
 				return fmt.Errorf("field `max_size` should be greater than or equal `min_size`")
 			}
-
-			minSize := int32(min)
-			maxSize := int32(max)
+			minSize := int32(m1)
+			maxSize := int32(m2)
 			policyItemsArr := rd.Get("policy_item").(*schema.Set).List()
 			autoScalingConfig := ToAutoScalingConfigStruct(minSize, maxSize, policyItemsArr)
+
+			firstAutoScalingConditionType := ""
 			for _, item := range autoScalingConfig.PolicyItem {
 				for _, c := range item.Conditions {
 					ct := c.Type
 					ds := c.DurationSeconds
+
+					if len(firstAutoScalingConditionType) == 0 {
+						firstAutoScalingConditionType = cluster.AutoScalingConditionTypeGroup[ct]
+					}
+					currentAutoScalingConditionType := cluster.AutoScalingConditionTypeGroup[ct]
+					if currentAutoScalingConditionType != firstAutoScalingConditionType {
+						return fmt.Errorf("'%s' conditions and '%s' conditions cannot be specified simultaneously", firstAutoScalingConditionType, currentAutoScalingConditionType)
+					}
+
 					if ct == int32(cluster.WearhouseScalingConditionType_QUERY_QUEUE_LENGTH) || ct == int32(cluster.WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME) {
 						if ds > 0 {
 							return fmt.Errorf("for condition type [`QUERY_QUEUE_LENGTH`, `EARLIEST_QUERY_PENDING_TIME`] field `duration_seconds` value should be 0")
@@ -166,7 +176,6 @@ func resourceAutoScalingPolicy() *schema.Resource {
 					}
 				}
 			}
-
 			return nil
 		},
 	}

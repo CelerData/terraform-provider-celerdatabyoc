@@ -22,6 +22,13 @@ var (
 	ClusterNodeType                         = []string{"FE", "BE", "COORDINATOR"}
 	WarehouseAutoScalingPolicyType          = []string{"SCALE_OUT", "SCALE_IN"}
 	WarehouseAutoScalingPolicyConditionType = []string{"AVERAGE_CPU_UTILIZATION", "QUERY_QUEUE_LENGTH", "EARLIEST_QUERY_PENDING_TIME", "WAREHOUSE_RESOURCE_UTILIZATION"}
+
+	AutoScalingConditionTypeGroup = map[int32]string{
+		int32(WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION):        AutoScalingConditionType_CPU,
+		int32(WearhouseScalingConditionType_QUERY_QUEUE_LENGTH):             AutoScalingConditionType_QUERY_QUEUE,
+		int32(WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME):    AutoScalingConditionType_QUERY_QUEUE,
+		int32(WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION): AutoScalingConditionType_QUERY_QUEUE,
+	}
 )
 
 const (
@@ -68,10 +75,14 @@ const (
 	WearhouseScalingType_SCALE_IN  WearhouseScalingType = 1
 	WearhouseScalingType_SCALE_OUT WearhouseScalingType = 2
 
+	WearhouseScalingConditionType_UNKNOWN                                                      = 0
 	WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION        WearhouseScalingConditionType = 1
 	WearhouseScalingConditionType_QUERY_QUEUE_LENGTH             WearhouseScalingConditionType = 2
 	WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME    WearhouseScalingConditionType = 3
 	WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION WearhouseScalingConditionType = 4
+
+	AutoScalingConditionType_CPU         = "CPU-based"
+	AutoScalingConditionType_QUERY_QUEUE = "queue-based"
 
 	DistributionPolicySpecifyAZ  DistributionPolicy = "specify_az"
 	DistributionPolicyCrossingAZ DistributionPolicy = "crossing_az"
