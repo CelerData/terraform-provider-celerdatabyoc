@@ -157,6 +157,7 @@ func resourceAutoScalingPolicy() *schema.Resource {
 
 			firstAutoScalingConditionType := ""
 			for _, item := range autoScalingConfig.PolicyItem {
+				scalingType := item.Type
 				for _, c := range item.Conditions {
 					ct := c.Type
 					ds := c.DurationSeconds
@@ -164,9 +165,29 @@ func resourceAutoScalingPolicy() *schema.Resource {
 					if len(firstAutoScalingConditionType) == 0 {
 						firstAutoScalingConditionType = cluster.AutoScalingConditionTypeGroup[ct]
 					}
+
 					currentAutoScalingConditionType := cluster.AutoScalingConditionTypeGroup[ct]
 					if currentAutoScalingConditionType != firstAutoScalingConditionType {
 						return fmt.Errorf("'%s' conditions and '%s' conditions cannot be specified simultaneously", firstAutoScalingConditionType, currentAutoScalingConditionType)
+					}
+
+					var conditionTypeArr []cluster.WearhouseScalingConditionType
+					if scalingType == int32(cluster.WearhouseScalingType_SCALE_OUT) {
+						conditionTypeArr = cluster.WarehouseAutoScalingPolicyScaleOutConditionType
+					} else {
+						conditionTypeArr = cluster.WarehouseAutoScalingPolicyScaleInConditionType
+					}
+
+					pass := false
+					for _, i := range conditionTypeArr {
+						if int32(i) == ct {
+							pass = true
+							break
+						}
+					}
+					if !pass {
+						/;
+						return fmt.Errorf("'%s' conditions type doesn`t support '%s'", firstAutoScalingConditionType, ct)
 					}
 
 					if ct == int32(cluster.WearhouseScalingConditionType_QUERY_QUEUE_LENGTH) || ct == int32(cluster.WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME) {

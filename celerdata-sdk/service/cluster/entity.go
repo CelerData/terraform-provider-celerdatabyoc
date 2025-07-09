@@ -18,10 +18,12 @@ type WearhouseScalingConditionType int32
 type DistributionPolicy string
 
 var (
-	SupportedConfigType                     = []string{"FE", "BE", "RANGER"}
-	ClusterNodeType                         = []string{"FE", "BE", "COORDINATOR"}
-	WarehouseAutoScalingPolicyType          = []string{"SCALE_OUT", "SCALE_IN"}
-	WarehouseAutoScalingPolicyConditionType = []string{"AVERAGE_CPU_UTILIZATION", "QUERY_QUEUE_LENGTH", "EARLIEST_QUERY_PENDING_TIME", "WAREHOUSE_RESOURCE_UTILIZATION"}
+	SupportedConfigType                             = []string{"FE", "BE", "RANGER"}
+	ClusterNodeType                                 = []string{"FE", "BE", "COORDINATOR"}
+	WarehouseAutoScalingPolicyType                  = []string{"SCALE_OUT", "SCALE_IN"}
+	WarehouseAutoScalingPolicyConditionType         = []string{"AVERAGE_CPU_UTILIZATION", "QUERY_QUEUE_LENGTH", "EARLIEST_QUERY_PENDING_TIME", "WAREHOUSE_RESOURCE_UTILIZATION"}
+	WarehouseAutoScalingPolicyScaleOutConditionType = []WearhouseScalingConditionType{WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION, WearhouseScalingConditionType_QUERY_QUEUE_LENGTH, WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME}
+	WarehouseAutoScalingPolicyScaleInConditionType  = []WearhouseScalingConditionType{WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION, WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION}
 
 	AutoScalingConditionTypeGroup = map[int32]string{
 		int32(WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION):        AutoScalingConditionType_CPU,
