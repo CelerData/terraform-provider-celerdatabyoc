@@ -63,7 +63,7 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   ldap_ssl_certs = [
     "<ssl_cert_s3_path>"
   ]
-  ranger_certs_dir_path = "<ranger_config_s3_path>"
+  ranger_certs_dir_path = "<ranger_config_s3_path>" // Example : "s3://your-bucket/ranger_config_dir"
   resource_tags = {
     celerdata = "<tag_name>"
   }
