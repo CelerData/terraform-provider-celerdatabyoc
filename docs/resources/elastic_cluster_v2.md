@@ -197,8 +197,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
     - `idle_suspend_interval`: The amount of time (in minutes) during which the warehouse can stay idle. After the specified time period elapses, the warehouse will be automatically suspended. To enable the Auto Suspend feature, set this argument to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform configuration.
 
-    - `auto_scaling_policy`: This policy will automatically scale the number of Compute nodes (CN), based
-      on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+    - `auto_scaling_policy`: This policy will automatically scale the number of Compute nodes (CN), based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
 
     - `distribution_policy`: (Available only for AWS) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
