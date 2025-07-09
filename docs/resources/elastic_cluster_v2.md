@@ -175,8 +175,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 - `coordinator_node_volume_config`: The coordinator nodes volume configuration.
     - `vol_size`: The size per disk for each coordinator node. Unit: GB. Default value: `150`. You can only increase the value of this parameter.
-    - `iops`: Disk IOPS.
-    - `throughput`: Disk throughput.
+    - `iops`: (Available only for AWS) Disk IOPS.
+    - `throughput`: (Available only for AWS) Disk throughput.
 - `coordinator_node_configs`: The coordinator node static configuration.
 
 - `warehouse`: (List of Object) The list of warehouses. The attributes of a warehouse include:
