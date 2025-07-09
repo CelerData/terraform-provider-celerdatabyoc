@@ -63,7 +63,7 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   ldap_ssl_certs = [
     "<ssl_cert_s3_path>"
   ]
-  ranger_certs_dir_path = "s3://your-bucket/ranger_config_dir"
+  ranger_certs_dir_path = "<ranger_config_s3_path>" // Example : "s3://your-bucket/ranger_config_dir"
   resource_tags = {
     celerdata = "<tag_name>"
   }
@@ -123,14 +123,14 @@ This resource contains the following required arguments and optional arguments:
 ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a cluster BE is equal to `vol_number` * `vol_size`.
 - `be_configs`: The BE static configuration.
 
-- `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
-- `ranger_certs_dir`: The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+- `ldap_ssl_certs`: (Available only for AWS) The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+- `ranger_certs_dir`: (Available only for AWS) The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
 ~> You can only upload or delete LDAP or Ranger SSL certificates  while the cluster's `expected_cluster_state` is set to `Running`.
 
 - `resource_tags`: The tags to be attached to the cluster (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
+- `init_scripts`: (Available only for AWS) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
   - `logs_dir`: The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
