@@ -8,99 +8,22 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
 
-Deploys a multi-warehouse elastic CelerData cluster on AWS EC2 instances.
+Deploys a multi-warehouse elastic CelerData cluster on AWS EC2 instances or on Azure virtual machines.
 
-This resource depends on the following resources and data source:
-
-- [celerdatabyoc_aws_data_credential_policy](../resources/aws_data_credential_policy.md)
-- [aws_iam_role (celerdata_data_cred_role)](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
-- [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md)
-- [aws_iam_instance_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile)
-- [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
-- [aws_iam_role (deploy_cred_role)](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
-- [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
-- [celerdatabyoc_aws_network](../resources/aws_network.md)
+The implementation of this resource is part of the whole cluster deployment procedure and depends on the implementation of a data credential, a deployment credential, and a network configuration. For detailed procedures of cluster deployments on AWS and Azure, see [Provision CelerData Cloud BYOC on AWS](../guides/aws_deployment_guide.md) and [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md).
 
 ### Supported Node Sizes
 
-For information about the instance types supported by CelerData,
-see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_types/).
+For information about the instance types supported by CelerData, see [Supported instance types](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/supported_instance_types/).
 
 ## Example Usage
 
 ```terraform
-// Prerequisites for the celerdatabyoc_elastic_cluster_v2 resource
-
-data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
-
-resource "celerdatabyoc_aws_data_credential_policy" "role_policy" {
-  bucket = local.s3_bucket
-}
-
-resource "aws_iam_role" "celerdata_data_cred_role" {
-  name               = "<celerdata_data_credential_role_name>"
-  assume_role_policy = data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json
-  description        = "<celerdata_data_credential_role_description>"
-  inline_policy {
-    name   = "<celerdata_data_credential_role_policy_name>"
-    policy = celerdatabyoc_aws_data_credential_policy.role_policy.json
-  }
-}
-
-resource "celerdatabyoc_aws_data_credential" "data_credential" {
-  name = "<celerdata_data_credential_name>"
-  role_arn = aws_iam_role.celerdata_data_cred_role.arn
-  instance_profile_arn = aws_iam_instance_profile.celerdata_data_cred_profile.arn
-  bucket_name = local.s3_bucket
-  policy_version = celerdatabyoc_aws_data_credential_policy.role_policy.version
-}
-
-resource "aws_iam_instance_profile" "celerdata_data_cred_profile" {
-  name = "<celerdata_data_credential_profile_name>"
-  role = aws_iam_role.celerdata_data_cred_role.name
-}
-
-resource "celerdatabyoc_aws_deployment_credential_policy" "role_policy" {
-  bucket = local.s3_bucket
-  data_role_arn = aws_iam_role.celerdata_data_cred_role.arn
-}
-
-resource "celerdatabyoc_aws_deployment_credential_assume_policy" "role_policy" {}
-
-resource "aws_iam_role" "deploy_cred_role" {
-  name               = "<celerdata_deployment_credential_role_name>"
-  assume_role_policy = celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.json
-  description        = "<celerdata_deployment_credential_role_description>"
-  inline_policy {
-    name   = "<celerdata_deployment_credential_role_policy_name>"
-    policy = celerdatabyoc_aws_deployment_credential_policy.role_policy.json
-  }
-}
-
-resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credential" {
-  name = "<celerdata_deployment_credential_name>"
-  role_arn = aws_iam_role.deploy_cred_role.arn
-  external_id = celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id
-  policy_version = celerdatabyoc_aws_deployment_credential_policy.role_policy.version
-}
-
-resource "celerdatabyoc_aws_network" "network" {
-  name = "<VPC_name>"
-  subnet_id = "<subnet_id>"
-  // subnet_ids = ["<subnet_id_1>, <subnet_id_2>, <subnet_id_3>"]
-  security_group_id = "<security_group_id>"
-  region = "<AWS_VPC_region>"
-  deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
-  vpc_endpoint_id = "<vpc_endpoint_id>"
-}
-
-// The celerdatabyoc_elastic_cluster_v2 resource
-
 resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   cluster_name = "<cluster_name>"
-  deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
-  data_credential_id = celerdatabyoc_aws_data_credential.data_credential.id
-  network_id = celerdatabyoc_aws_network.network.id
+  deployment_credential_id = <deployment_credential_resource_ID>
+  data_credential_id = <data_credential_resource_ID>
+  network_id = <network_configuration_resource_ID>
 
   coordinator_node_size = "<coordinator_node_instance_type>"
   coordinator_node_count = <coordinator_node_number>
@@ -168,14 +91,15 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   
   default_admin_password = "<SQL_user_initial_password>"
   expected_cluster_state = "{Suspended | Running}"
-    ldap_ssl_certs = [
+  ldap_ssl_certs = [
     "<ssl_cert_s3_path>"
   ]
+  ranger_certs_dir_path = "<ranger_config_s3_path>"
   resource_tags = {
     celerdata = "<tag_name>"
   }
-  csp = "aws"
-  region = "<AWS_VPC_region>"
+  csp = "{aws | azure}"
+  region = "<cloud_provider_region>"
 
   init_scripts {
       logs_dir    = "<log_s3_path>"
@@ -189,162 +113,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
 
 ## Argument Reference
 
-### Data credential-related resources
-
-#### celerdatabyoc_aws_data_credential_policy
-
-This resource contains only the following required argument:
-
-- `bucket`: (Not allowed to modify) The name of the AWS S3 bucket for which to generate the JSON policy document and that
-  stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local
-  value `s3_bucket` in your Terraform configuration.
-  See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
-
-#### aws_iam_role (celerdata_data_cred_role)
-
-This resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `assume_role_policy`: The policy that grants an entity permission to assume the IAM role referenced in the data
-  credential. Set the value to `data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json`.
-
-**Optional:**
-
-- `name`: (Not allowed to modify) The name of the IAM role referenced in the data credential. Enter a unique name. If
-  omitted, Terraform will assign a random, unique name.
-  See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
-
-- `description`: The description of the IAM role.
-
-- `inline_policy`: The configuration block that defines an exclusive set of IAM inline policies associated with the IAM
-  role. See below. If no blocks are configured, Terraform will not manage any inline policies in this resource.
-  Configuring one empty block (namely, `inline_policy {}`) will cause Terraform to remove all inline policies added out
-  of band on `apply`.
-
-    - `name`: The name of the IAM policy that will be attached to the IAM role referenced in the data credential.
-    - `policy`: The IAM policy that will be attached to the IAM role. Set the value to
-      `celerdatabyoc_aws_data_credential_policy.role_policy.json`.
-
-#### celerdatabyoc_aws_data_credential
-
-This resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `role_arn`: (Not allowed to modify) The ARN of the IAM role referenced in the data credential. Set the value to
-  `aws_iam_role.celerdata_data_cred_role.arn`.
-
-- `instance_profile_arn`: (Not allowed to modify) The instance profile ARN of the IAM role referenced in the data
-  credential. Set the value to `aws_iam_instance_profile.celerdata_data_cred_profile.arn`.
-
-- `bucket_name`: (Not allowed to modify) The name of the AWS S3 bucket for which to generate the policy document and that
-  stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local
-  value `s3_bucket` in your Terraform configuration.
-  See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
-
-- `policy_version`: (Not allowed to modify) Set the value to
-  `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
-
-**Optional:**
-
-- `name`: (Not allowed to modify) The name of the data credential. Enter a unique name. If omitted, Terraform will assign
-  a random, unique name.
-
-### Deployment credential-related resources
-
-#### aws_iam_instance_profile
-
-This resource contains only the following optional arguments:
-
-- `name`: (Not allowed to modify) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign
-  a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of
-  characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`,
-  `.`, `@`, `-`. Spaces are not allowed.
-
-- `role`: The name of the IAM role to add to the instance profile. Set the value to
-  `aws_iam_role.celerdata_data_cred_role.name`.
-
-#### celerdatabyoc_aws_deployment_credential_policy
-
-This resource contains only the following required arguments:
-
-- `bucket`: The name of the AWS S3 bucket. Set the value to `local.s3_bucket`, as we recommend that you set the bucket
-  element as a local value `s3_bucket` in your Terraform configuration.
-  See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
-
-- `data_role_arn`: (Not allowed to modify) The ARN of the IAM role referenced in the deployment credential. Set the value
-  to `aws_iam_role.celerdata_data_cred_role.arn`.
-
-#### aws_iam_role (deploy_cred_role)
-
-This resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `assume_role_policy`: The policy that grants an entity permission to assume the IAM role referenced in the deployment
-  credential. Set the value to `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.json`.
-
-**Optional:**
-
-- `name`: (Not allowed to modify) The name of the IAM role referenced in the deployment credential. Enter a unique name.
-  If omitted, Terraform will assign a random, unique name.
-  See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
-
-- `description`: The description of the IAM role.
-
-- `inline_policy`: The configuration block that defines an exclusive set of IAM inline policies associated with the IAM
-  role. See below. If no blocks are configured, Terraform will not manage any inline policies in this resource.
-  Configuring one empty block (namely, `inline_policy {}`) will cause Terraform to remove all inline policies added out
-  of band on `apply`.
-
-    - `name`: The name of the IAM policy that will be attached to the IAM role.
-    - `policy`: The IAM policy that will be attached to the IAM role referenced in the deployment credential. Set the
-      value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.json`.
-
-#### celerdatabyoc_aws_deployment_role_credential
-
-This resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `role_arn`: (Not allowed to modify) Set the value to `aws_iam_role.deploy_cred_role.arn`.
-
-- `external_id`: (Not allowed to modify) Set the value to
-  `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id`.
-
-- `policy_version`: (Not allowed to modify) Set the value to
-  `celerdatabyoc_aws_deployment_credential_policy.role_policy.version`.
-
-**Optional:**
-
-- `name`: (Not allowed to modify) The name of the deployment credential. Enter a unique name. If omitted, Terraform will
-  assign a random, unique name.
-
-### Network configuration-related resources
-
-The `celerdatabyoc_aws_network` resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `name`: (Not allowed to modify) The name of the AWS VPC hosting the cluster. Enter a unique name.
-
-- `subnet_id`: (Not allowed to modify) The ID of the subnet within the AWS VPC.
-
-- `security_group_id`: (Not allowed to modify) The ID of the security group within the AWS VPC.
-
-- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs.
-  See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/).
-
-- `deployment_credential_id`: (Not allowed to modify) Set the value to
-  `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
-
-**Optional:**
-
-- `vpc_endpoint_id`: (Optional) The ID of your endpoint within your VPC. Set this argument if you need to achieve a more
-  stringent network communication method.
-
-### CelerData cluster-related resources
+~> This section explains only the arguments of the `celerdatabyoc_elastic_cluster_v2` resource. For the explanation of arguments of other resources, see the corresponding resource topics.
 
 The `celerdatabyoc_elastic_cluster_v2` resource contains the following required arguments and optional arguments:
 
@@ -352,140 +121,111 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 - `cluster_name`: (Not allowed to modify) The desired name for the cluster. Enter a unique name.
 
-- `coordinator_node_size`: The instance type for coordinator nodes in the cluster. Select a coordinator node instance
-  type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
-  `m6i.4xlarge`.
+- `coordinator_node_size`: The instance type for coordinator nodes in the cluster. Select a coordinator node instance type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to `m6i.4xlarge`.
 
-- `deployment_credential_id`: (Not allowed to modify) Set the value to
-  `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
+- `deployment_credential_id`: (Not allowed to modify) The ID of the deployment credential.
+  - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_deployment_role_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_deployment_role_credential` resource.
+  - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_deployment_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_deployment_credential` resource.
 
-- `data_credential_id`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_data_credential.data_credential.id`.
+- `data_credential_id`: (Not allowed to modify) The ID of the data credential.
+  - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_data_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_data_credential` resource.
+  - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_data_credential.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_data_credential` resource.
 
-- `network_id`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_network.network.id`.
+- `network_id`: (Not allowed to modify) The ID of the network configuration.
+  - If you deploy the cluster on AWS, set this argument to `celerdatabyoc_aws_network.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_aws_network` resource.
+  - If you deploy the cluster on Azure, set this argument to `celerdatabyoc_azure_network.<resource_name>.id` and replace `<resource_name>` with the name of the `celerdatabyoc_azure_network` resource.
 
 - `default_warehouse`: (List of Object) The default warehouse. The attributes of a default warehouse include:
-    - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance
-      type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
-      `r6id.4xlarge`.
+    - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to `r6id.4xlarge`.
 
-    - `compute_node_count`: (Optional) The number of compute nodes in the cluster. Valid values: any non-zero positive
-      integer.
-      Default value: `3`.
+    - `compute_node_count`: (Optional) The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
 
     - `compute_node_volume_config`: The compute nodes volume configuration.
         - `vol_number`: (Not allowed to modify) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`.
         - `vol_size`: The size per disk for each compute node. Unit: GB. Default value: `100`. You can only increase the value of this parameter.
-        - `iops`: Disk iops.
-        - `throughput`: Disk throughput.
+        - `iops`: (Available only for AWS) Disk IOPS.
+        - `throughput`: (Available only for AWS) Disk throughput.
           ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a compute node is equal to `vol_number` * `vol_size`.
-    - `compute_node_configs`: The compute node static configuration.ÅÅ
+    - `compute_node_configs`: The static configuration items you want to customize for the compute nodes in the warehouse.
 
-    - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of Compute nodes (CN), based
-      on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
-      `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
-    - `distribution_policy`: (Optional) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
+    - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of compute nodes, based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#compute-autoscaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+    - `distribution_policy`: (Optional, available only for AWS) The compute node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
-      ~> To enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
+      ~> To enable Multi-AZ Deployment, you must deploy at least 3 coordinator nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
-    - `specify_az`: (Optional) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
+    - `specify_az`: (Optional, available only for AWS) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
 
-- `custom_ami`: (Optional) The Amazon Machine Image (AMI) used to deploy the cluster. You can use custom AMI for deployment. You can only specify this parameter when creating the cluster. If this argument is not specified, the default AMI is used.
+- `custom_ami`: (Optional, available only for AWS) The Amazon Machine Image (AMI) used to deploy the cluster. You can use custom AMI for deployment. You can only specify this parameter when creating the cluster. If this argument is not specified, the default AMI is used.
   - `ami`: The ID of the custom AMI.
   - `os`: The operating system (OS) of the AMI. Currently only `al2023` (Amazon Linux 2023) is supported. The value of this field must be consistent with the actual OS of the AMI. Otherwise, the deployment will fail.
 
 - `default_admin_password`: (Not allowed to modify) The initial password of the cluster `admin` user.
 
-- `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating.
-  Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set
-  this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
+- `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
 
-- `csp`: (Not allowed to modify) The cloud service provider of the cluster. Only AWS is supported.
+- `csp`: (Not allowed to modify) The cloud service provider of the cluster.
+  - If you deploy the cluster on AWS, set this argument to `aws`.
+  - If you deploy the cluster on Azure, set this argument to `azure`.
 
-- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs.
-  See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/).
+- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/).
 
 **Optional:**
 
-- `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, and `5`. Default
-  value: `1`. If you want to enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
+- `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`. If you want to enable Multi-AZ Deployment (Available only for AWS), you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
 - `coordinator_node_volume_config`: The coordinator nodes volume configuration.
     - `vol_size`: The size per disk for each coordinator node. Unit: GB. Default value: `150`. You can only increase the value of this parameter.
-    - `iops`: Disk iops.
+    - `iops`: Disk IOPS.
     - `throughput`: Disk throughput.
 - `coordinator_node_configs`: The coordinator node static configuration.
 
 - `warehouse`: (List of Object) The list of warehouses. The attributes of a warehouse include:
     - `name`: (Required) The warehouse name must be unique within the cluster and cannot be named "default_warehouse".
-    - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance
-      type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to
-      `r6id.4xlarge`.
+    - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to `r6id.4xlarge`.
 
-    - `compute_node_count`: (Optional) The number of compute nodes in the cluster. Valid values: any non-zero positive
-      integer.
-      Default value: `3`.
+    - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
 
     - `compute_node_volume_config`: The compute nodes volume configuration.
         - `vol_number`: (Not allowed to modify) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`.
         - `vol_size`: The size per disk for each compute node. Unit: GB. Default value: `100`. You can only increase the value of this parameter.
-        - `iops`: Disk iops.
-        - `throughput`: Disk throughput.
+        - `iops`: (Available only for AWS) Disk IOPS.
+        - `throughput`: (Available only for AWS) Disk throughput.
           ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a compute node is equal to `vol_number` * `vol_size`.
-    - `compute_node_configs`: The compute node static configuration.ÅÅ
+    - `compute_node_configs`: The compute node static configuration.
 
-    - `expected_state`: (Optional) When creating non-default warehouse, you can declare the status of the warehouse
-      you are creating. Warehouse states are categorized as `Suspended` and `Running`. If you want the warehouse to
-      start after provisioning, set
-      this argument to `Running`. If you set this argument to `Suspended`, the warehouse will be suspended after
-      provisioning.
+    - `expected_state`: When creating non-default warehouse, you can declare the status of the warehouse. Warehouse states are categorized as `Suspended` and `Running`. If you want the warehouse to start after provisioning, set this argument to `Running`. If you set this argument to `Suspended`, the warehouse will be suspended after provisioning.
 
-    - `idle_suspend_interval`: (Optional) The amount of time (in minutes) during which the warehouse can stay idle.
-      After the specified time period elapses, the warehouse will be automatically suspended. To enable the Auto Suspend feature, set this argument
-      to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform
-      configuration.
-    - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of Compute nodes (CN), based
-      on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the
-      `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
-    - `distribution_policy`: (Optional) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
+    - `idle_suspend_interval`: The amount of time (in minutes) during which the warehouse can stay idle. After the specified time period elapses, the warehouse will be automatically suspended. To enable the Auto Suspend feature, set this argument to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform configuration.
+
+    - `auto_scaling_policy`: This policy will automatically scale the number of Compute nodes (CN), based
+      on CPU utilization of the warehouse. Learn more about these here: [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+
+    - `distribution_policy`: (Available only for AWS) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
       ~> To enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
-    - `specify_az`: (Optional) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
+    - `specify_az`:  (Available only for AWS) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
 
-- `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be
-  separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To
-  allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to
-  CelerData. To delete the certificates uploaded, you only need to remove this argument.
-- `ranger_certs_dir`: The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+- `ldap_ssl_certs`: (Available only for AWS) The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+
+- `ranger_certs_dir`: (Available only for AWS) The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
 ~> You can only upload or delete LDAP or Ranger SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
 
 - `resource_tags`: The tags to be attached to the cluster (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
-- `init_scripts`: The configuration block to specify the paths to which scripts and script
-  execution results are stored. The maximum number of executable scripts is 20. For information about the formats
-  supported by these arguments, see `scripts.logs_dir` and `scripts.script_path`
-  in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
-
-    - `logs_dir`: The path in the AWS S3 bucket to which script execution results are stored. This
-      S3 bucket can be the same as or different from the S3 bucket you specify in the
+- `init_scripts`: (Available only for AWS) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
+    - `logs_dir`: The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the
       `celerdatabyoc_aws_data_credential` resource.
-    - `script_path`: The path in the AWS S3 bucket that stores the scripts to run via Terraform.
-      This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
+    - `script_path`: The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 
-- `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value:
-  `false`.
+- `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
 
-- `run_scripts_timeout`: The amount of time after which the script execution times out. Unit: Seconds. Default: `3600` (
-  1 hour). The maximum value of this item is `21600` (6 hours).
+- `run_scripts_timeout`: The amount of time after which the script execution times out. Unit: Seconds. Default: `3600` (1 hour). The maximum value of this item is `21600` (6 hours).
 
-- `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port
-    9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
+- `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port `9030`. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 
-- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified
-  time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To
-  enable the Auto Suspend feature, set this argument to an integer with the range of 15-999999. To disable this feature
-  again, remove this argument from your Terraform configuration.
+- `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 ## See Also
 
@@ -493,4 +233,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - [Manage data credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_data_credentials/)
 - [Manage deployment credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials/)
 - [Manage network configurations for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_network_configurations/)
+- [Manage data credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_data_credentials/)
+- [Manage deployment credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_deployment_credentials/)
+- [Manage network configurations for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_network_configurations/)
 - [Warehouse auto-scaling policy](../resources/warehouse_auto_scaling_policy.md)
