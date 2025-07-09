@@ -104,7 +104,7 @@ func resourceAutoScalingPolicy() *schema.Resource {
 										Default:  0,
 										ValidateFunc: func(i interface{}, k string) (warnings []string, errors []error) {
 											v := i.(int)
-											if v != 0 || v < 300 {
+											if v != 0 && v < 300 {
 												errors = append(errors, fmt.Errorf("expected %s to be 0 or at least %d, got %d", k, 300, v))
 												return warnings, errors
 											}
