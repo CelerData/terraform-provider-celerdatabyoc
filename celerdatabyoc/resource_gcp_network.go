@@ -2,6 +2,7 @@ package celerdatabyoc
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"regexp"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
@@ -37,17 +38,12 @@ func gcpResourceNetwork() *schema.Resource {
 			"subnet_name": {
 				Type:       schema.TypeString,
 				Optional:   true,
+				ForceNew:   true,
 				Deprecated: "This field has been deprecated. Please use the 'subnet' field.",
-				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-					if new != "" && d.Get("subnet").(string) == "" {
-						_ = d.Set("subnet", new)
-					}
-					return true
-				},
 			},
 			"subnet": {
 				Type:          schema.TypeString,
-				Required:      true,
+				Optional:      true,
 				ForceNew:      true,
 				ConflictsWith: []string{"subnet_name"},
 			},
@@ -70,18 +66,35 @@ func gcpResourceNetwork() *schema.Resource {
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
+		CustomizeDiff: func(ctx context.Context, diff *schema.ResourceDiff, i interface{}) error {
+			subnet := diff.Get("subnet").(string)
+			subnetName := diff.Get("subnet_name").(string)
+			if subnetName != "" {
+				log.Printf("[WARN] 'subnet_name' is deprecated. Please use 'subnet' instead.")
+			}
+			if subnetName == "" && subnet == "" {
+				return fmt.Errorf("attribute 'subnet' is required")
+			}
+			return nil
+		},
 	}
 }
 
 func gcpResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	c := m.(*client.CelerdataClient)
 	networkCli := network.NewNetworkAPI(c)
+
+	subnet := d.Get("subnet").(string)
+	if subnet == "" {
+		subnet = d.Get("subnet_name").(string)
+	}
+
 	req := &network.CreateGcpNetworkReq{
 		DeploymentCredentialID: d.Get("deployment_credential_id").(string),
 		Name:                   d.Get("name").(string),
 		Region:                 d.Get("region").(string),
 		NetworkTag:             d.Get("network_tag").(string),
-		Subnet:                 d.Get("subnet").(string),
+		Subnet:                 subnet,
 		PscConnectionId:        d.Get("psc_connection_id").(string),
 	}
 
