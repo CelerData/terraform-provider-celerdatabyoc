@@ -346,7 +346,7 @@ This resource contains the following required arguments:
 resource "celerdatabyoc_gcp_network" "network_credential" {
   name = "tf-test-0604"
   region = us-central1
-  subnet_name = google_compute_subnetwork.subnetwork.name
+  subnet = google_compute_subnetwork.subnetwork.name
   network_tag = "<gcp_network_tag>"
   deployment_credential_id = celerdatabyoc_gcp_deployment_credential.deployment_credential.id
 }
@@ -360,7 +360,7 @@ This resource contains the following required arguments and optional arguments:
 
 - `region`: (Forces new resource) The ID of the GCP region. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp).
 
-- `subnet_name`: (Forces new resource) The name of the subnet. Set this argument to `azurerm_subnet.example.name`.
+- `subnet`: (Forces new resource) The GCP subnet. Eg: `azurerm_subnet.example.name`.
 
 - `network_tag`: (Forces new resource)The target tag of the firewall rules that you use to enable connectivity between cluster nodes within your own VPC and between CelerData's VPC and your own VPC over TLS.
 
