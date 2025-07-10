@@ -34,10 +34,22 @@ func gcpResourceNetwork() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
+			"subnet_name": {
+				Type:       schema.TypeString,
+				Optional:   true,
+				Deprecated: "This field has been deprecated. Please use the 'subnet' field.",
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					if new != "" && d.Get("subnet").(string) == "" {
+						_ = d.Set("subnet", new)
+					}
+					return true
+				},
+			},
 			"subnet": {
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
+				Type:          schema.TypeString,
+				Required:      true,
+				ForceNew:      true,
+				ConflictsWith: []string{"subnet_name"},
 			},
 			"network_tag": {
 				Type:     schema.TypeString,
