@@ -165,7 +165,7 @@ func resourceAutoScalingPolicy() *schema.Resource {
 					metricType := conditionMap["type"].(string)
 					ds := conditionMap["duration_seconds"].(int)
 
-					metricGroup := cluster.WhMetricGroup[policyTypeStr]
+					metricGroup := cluster.WhMetricGroup[metricType]
 					if firstMetricGroup == "" {
 						firstMetricType = metricType
 						firstMetricGroup = metricGroup
@@ -188,7 +188,7 @@ func resourceAutoScalingPolicy() *schema.Resource {
 					}
 					if metricType == "QUERY_QUEUE_LENGTH" || metricType == "EARLIEST_QUERY_PENDING_TIME" {
 						if ds > 0 {
-							return fmt.Errorf("for condition type [`QUERY_QUEUE_LENGTH`, `EARLIEST_QUERY_PENDING_TIME`] field `duration_seconds` value should be 0")
+							return fmt.Errorf("for condition metric type `%s` field `duration_seconds` value should be 0", metricType)
 						}
 					}
 				}
