@@ -14,22 +14,38 @@ type DomainAllocateState int32
 type CustomConfigType int
 type ClusterInfraActionState string
 type WearhouseScalingType int32
-type WearhouseScalingConditionType int32
+type WhMetricType int32
 type DistributionPolicy string
 
 var (
-	SupportedConfigType                             = []string{"FE", "BE", "RANGER"}
-	ClusterNodeType                                 = []string{"FE", "BE", "COORDINATOR"}
-	WarehouseAutoScalingPolicyType                  = []string{"SCALE_OUT", "SCALE_IN"}
-	WarehouseAutoScalingPolicyConditionType         = []string{"AVERAGE_CPU_UTILIZATION", "QUERY_QUEUE_LENGTH", "EARLIEST_QUERY_PENDING_TIME", "WAREHOUSE_RESOURCE_UTILIZATION"}
-	WarehouseAutoScalingPolicyScaleOutConditionType = []WearhouseScalingConditionType{WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION, WearhouseScalingConditionType_QUERY_QUEUE_LENGTH, WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME}
-	WarehouseAutoScalingPolicyScaleInConditionType  = []WearhouseScalingConditionType{WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION, WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION}
+	SupportedConfigType = []string{"FE", "BE", "RANGER"}
+	ClusterNodeType     = []string{"FE", "BE", "COORDINATOR"}
 
-	AutoScalingConditionTypeGroup = map[int32]string{
-		int32(WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION):        AutoScalingConditionType_CPU,
-		int32(WearhouseScalingConditionType_QUERY_QUEUE_LENGTH):             AutoScalingConditionType_QUERY_QUEUE,
-		int32(WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME):    AutoScalingConditionType_QUERY_QUEUE,
-		int32(WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION): AutoScalingConditionType_QUERY_QUEUE,
+	WhScaleType = []string{"SCALE_OUT", "SCALE_IN"}
+
+	WhMetricGroup = map[string]string{
+		"AVERAGE_CPU_UTILIZATION":        AutoScalingMetricType_CPU,
+		"QUERY_QUEUE_LENGTH":             AutoScalingMetricType_QUERY_QUEUE,
+		"EARLIEST_QUERY_PENDING_TIME":    AutoScalingMetricType_QUERY_QUEUE,
+		"WAREHOUSE_RESOURCE_UTILIZATION": AutoScalingMetricType_QUERY_QUEUE,
+	}
+
+	CPU_BASED_WhMetricType = map[string][]string{
+		"SCALE_OUT": {
+			"AVERAGE_CPU_UTILIZATION",
+		},
+		"SCALE_IN": {
+			"AVERAGE_CPU_UTILIZATION",
+		},
+	}
+
+	QUERY_QUEUE_BASED_WhMetricType = map[string][]string{
+		"SCALE_OUT": {
+			"QUERY_QUEUE_LENGTH", "EARLIEST_QUERY_PENDING_TIME",
+		},
+		"SCALE_IN": {
+			"WAREHOUSE_RESOURCE_UTILIZATION",
+		},
 	}
 )
 
@@ -77,14 +93,14 @@ const (
 	WearhouseScalingType_SCALE_IN  WearhouseScalingType = 1
 	WearhouseScalingType_SCALE_OUT WearhouseScalingType = 2
 
-	WearhouseScalingConditionType_UNKNOWN                                                      = 0
-	WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION        WearhouseScalingConditionType = 1
-	WearhouseScalingConditionType_QUERY_QUEUE_LENGTH             WearhouseScalingConditionType = 2
-	WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME    WearhouseScalingConditionType = 3
-	WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION WearhouseScalingConditionType = 4
+	WearhouseScalingConditionType_UNKNOWN                    = 0
+	WhMetricType_AVERAGE_CPU_UTILIZATION        WhMetricType = 1
+	WhMetricType_QUERY_QUEUE_LENGTH             WhMetricType = 2
+	WhMetricType_EARLIEST_QUERY_PENDING_TIME    WhMetricType = 3
+	WhMetricType_WAREHOUSE_RESOURCE_UTILIZATION WhMetricType = 4
 
-	AutoScalingConditionType_CPU         = "CPU-based"
-	AutoScalingConditionType_QUERY_QUEUE = "queue-based"
+	AutoScalingMetricType_CPU         = "CPU-based"
+	AutoScalingMetricType_QUERY_QUEUE = "queue-based"
 
 	DistributionPolicySpecifyAZ  DistributionPolicy = "specify_az"
 	DistributionPolicyCrossingAZ DistributionPolicy = "crossing_az"
@@ -828,4 +844,13 @@ func DefaultBeVolumeMap() map[string]interface{} {
 	volumeConfig["vol_number"] = int(2)
 	volumeConfig["vol_size"] = int(100)
 	return volumeConfig
+}
+
+func Contains(arr []string, target string) bool {
+	for _, s := range arr {
+		if s == target {
+			return true
+		}
+	}
+	return false
 }

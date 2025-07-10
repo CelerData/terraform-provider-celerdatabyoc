@@ -75,7 +75,7 @@ func resourceAutoScalingPolicy() *schema.Resource {
 						"type": {
 							Type:         schema.TypeString,
 							Required:     true,
-							ValidateFunc: validation.StringInSlice(cluster.WarehouseAutoScalingPolicyType, false),
+							ValidateFunc: validation.StringInSlice(cluster.WhScaleType, false),
 						},
 						"step_size": {
 							Type:         schema.TypeInt,
@@ -94,9 +94,8 @@ func resourceAutoScalingPolicy() *schema.Resource {
 							Elem: &schema.Resource{
 								Schema: map[string]*schema.Schema{
 									"type": {
-										Type:         schema.TypeString,
-										Required:     true,
-										ValidateFunc: validation.StringInSlice(cluster.WarehouseAutoScalingPolicyConditionType, false),
+										Type:     schema.TypeString,
+										Required: true,
 									},
 									"duration_seconds": {
 										Type:     schema.TypeInt,
@@ -150,52 +149,50 @@ func resourceAutoScalingPolicy() *schema.Resource {
 			if m1 > m2 {
 				return fmt.Errorf("field `max_size` should be greater than or equal `min_size`")
 			}
-			minSize := int32(m1)
-			maxSize := int32(m2)
+
+			// Metric type check
 			policyItemsArr := rd.Get("policy_item").(*schema.Set).List()
-			autoScalingConfig := ToAutoScalingConfigStruct(minSize, maxSize, policyItemsArr)
 
-			firstAutoScalingConditionType := ""
-			for _, item := range autoScalingConfig.PolicyItem {
-				scalingType := item.Type
-				for _, c := range item.Conditions {
-					ct := c.Type
-					ds := c.DurationSeconds
+			firstMetricType := ""
+			firstMetricGroup := ""
 
-					if len(firstAutoScalingConditionType) == 0 {
-						firstAutoScalingConditionType = cluster.AutoScalingConditionTypeGroup[ct]
+			for _, policyItem := range policyItemsArr {
+				policyItemMap := policyItem.(map[string]interface{})
+				policyTypeStr := policyItemMap["type"].(string)
+
+				for _, conditionItem := range policyItemMap["condition"].(*schema.Set).List() {
+					conditionMap := conditionItem.(map[string]interface{})
+					metricType := conditionMap["type"].(string)
+					ds := conditionMap["duration_seconds"].(int)
+
+					metricGroup := cluster.WhMetricGroup[policyTypeStr]
+					if firstMetricGroup == "" {
+						firstMetricType = metricType
+						firstMetricGroup = metricGroup
 					}
-
-					currentAutoScalingConditionType := cluster.AutoScalingConditionTypeGroup[ct]
-					if currentAutoScalingConditionType != firstAutoScalingConditionType {
-						return fmt.Errorf("'%s' conditions and '%s' conditions cannot be specified simultaneously", firstAutoScalingConditionType, currentAutoScalingConditionType)
+					if metricGroup != firstMetricGroup {
+						return fmt.Errorf("metric['%s'] of type %s cannot be declared together with metric['%s'] of type %s", metricType, metricGroup, firstMetricType, firstMetricGroup)
 					}
-
-					var conditionTypeArr []cluster.WearhouseScalingConditionType
-					if scalingType == int32(cluster.WearhouseScalingType_SCALE_OUT) {
-						conditionTypeArr = cluster.WarehouseAutoScalingPolicyScaleOutConditionType
-					} else {
-						conditionTypeArr = cluster.WarehouseAutoScalingPolicyScaleInConditionType
-					}
-
-					pass := false
-					for _, i := range conditionTypeArr {
-						if int32(i) == ct {
-							pass = true
-							break
+					if metricGroup == cluster.AutoScalingMetricType_CPU {
+						if v, ok := cluster.CPU_BASED_WhMetricType[policyTypeStr]; ok {
+							if !cluster.Contains(v, metricType) {
+								return fmt.Errorf("for type %s - %s, %s is not supported. only the following metrics are supported: [%s]", metricGroup, policyTypeStr, metricType, strings.Join(v, ","))
+							}
+						}
+					} else if metricGroup == cluster.AutoScalingMetricType_QUERY_QUEUE {
+						if v, ok := cluster.QUERY_QUEUE_BASED_WhMetricType[policyTypeStr]; ok {
+							if !cluster.Contains(v, metricType) {
+								return fmt.Errorf("for type %s - %s, %s is not supported. only the following metrics are supported: [%s]", metricGroup, policyTypeStr, metricType, strings.Join(v, ","))
+							}
 						}
 					}
-					if !pass {
-						/;
-						return fmt.Errorf("'%s' conditions type doesn`t support '%s'", firstAutoScalingConditionType, ct)
-					}
-
-					if ct == int32(cluster.WearhouseScalingConditionType_QUERY_QUEUE_LENGTH) || ct == int32(cluster.WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME) {
+					if metricType == "QUERY_QUEUE_LENGTH" || metricType == "EARLIEST_QUERY_PENDING_TIME" {
 						if ds > 0 {
 							return fmt.Errorf("for condition type [`QUERY_QUEUE_LENGTH`, `EARLIEST_QUERY_PENDING_TIME`] field `duration_seconds` value should be 0")
 						}
 					}
 				}
+
 			}
 			return nil
 		},
@@ -211,28 +208,30 @@ func ToAutoScalingConfigStruct(minSize, maxSize int32, policyItemsArr []interfac
 		policyTypeStr := policyItemMap["type"].(string)
 		stepSize := int32(policyItemMap["step_size"].(int))
 
-		conditons := make([]*cluster.WearhouseScalingCondition, 0)
-		policyConditionMap := policyItemMap["condition"].(*schema.Set).List()[0].(map[string]interface{})
-		value := math.Round(policyConditionMap["value"].(float64)*100) / 100
-		conditionTypeStr := policyConditionMap["type"].(string)
+		conditions := make([]*cluster.WearhouseScalingCondition, 0)
+		for _, conditionItem := range policyItemMap["condition"].(*schema.Set).List() {
+			conditionMap := conditionItem.(map[string]interface{})
+			value := math.Round(conditionMap["value"].(float64)*100) / 100
+			conditionTypeStr := conditionMap["type"].(string)
 
-		var conditionType cluster.WearhouseScalingConditionType
-		switch conditionTypeStr {
-		case "AVERAGE_CPU_UTILIZATION":
-			conditionType = cluster.WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION
-		case "QUERY_QUEUE_LENGTH":
-			conditionType = cluster.WearhouseScalingConditionType_QUERY_QUEUE_LENGTH
-		case "EARLIEST_QUERY_PENDING_TIME":
-			conditionType = cluster.WearhouseScalingConditionType_EARLIEST_QUERY_PENDING_TIME
-		case "WAREHOUSE_RESOURCE_UTILIZATION":
-			conditionType = cluster.WearhouseScalingConditionType_WAREHOUSE_RESOURCE_UTILIZATION
+			var conditionType cluster.WhMetricType
+			switch conditionTypeStr {
+			case "AVERAGE_CPU_UTILIZATION":
+				conditionType = cluster.WhMetricType_AVERAGE_CPU_UTILIZATION
+			case "QUERY_QUEUE_LENGTH":
+				conditionType = cluster.WhMetricType_QUERY_QUEUE_LENGTH
+			case "EARLIEST_QUERY_PENDING_TIME":
+				conditionType = cluster.WhMetricType_EARLIEST_QUERY_PENDING_TIME
+			case "WAREHOUSE_RESOURCE_UTILIZATION":
+				conditionType = cluster.WhMetricType_WAREHOUSE_RESOURCE_UTILIZATION
+			}
+
+			conditions = append(conditions, &cluster.WearhouseScalingCondition{
+				Type:            int32(conditionType),
+				DurationSeconds: int64(conditionMap["duration_seconds"].(int)),
+				Value:           fmt.Sprintf("%.2f", value),
+			})
 		}
-
-		conditons = append(conditons, &cluster.WearhouseScalingCondition{
-			Type:            int32(conditionType),
-			DurationSeconds: int64(policyConditionMap["duration_seconds"].(int)),
-			Value:           fmt.Sprintf("%.2f", value),
-		})
 
 		policyType := cluster.WearhouseScalingType_SCALE_OUT
 		if strings.EqualFold(policyTypeStr, "SCALE_IN") {
@@ -242,7 +241,7 @@ func ToAutoScalingConfigStruct(minSize, maxSize int32, policyItemsArr []interfac
 		policyItems = append(policyItems, &cluster.WearhouseScalingPolicyItem{
 			Type:       int32(policyType),
 			StepSize:   stepSize,
-			Conditions: conditons,
+			Conditions: conditions,
 		})
 	}
 
@@ -284,7 +283,7 @@ func ValidateAutoScalingPolicyStr(jsonStr string) error {
 			return fmt.Errorf("policyItem.conditions can`t be empty")
 		}
 		for _, cond := range item.Conditions {
-			if !isInArray([]int32{int32(cluster.WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION)}, cond.Type) {
+			if !isInArray([]int32{int32(cluster.WhMetricType_AVERAGE_CPU_UTILIZATION)}, cond.Type) {
 				return fmt.Errorf("policyItem.type is invalid, expect:[%s] get %d", "1: AVERAGE_CPU_UTILIZATION,", cond.Type)
 			}
 			if cond.DurationSeconds < 300 {
