@@ -17,7 +17,7 @@ The implementation of this resource can be part of the whole cluster deployment 
 resource "celerdatabyoc_gcp_network" "network_credential" {
   name = "<network_credential_name>"
   region = "<region_name>"
-  subnet_name = "<subnet_name>"
+  subnet = "<subnet>"
   network_tag = "<network_tag>"
   deployment_credential_id = "<deployment_credential_id>"
 }
@@ -35,7 +35,7 @@ This resource contains the following required arguments and optional arguments:
 
 - `region`: (Forces new resource) The Name of the GCP region.
 
-- `subnet_name`: (Forces new resource) The name of the subnet.
+- `subnet`: (Forces new resource) The GCP subnet.
 
 - `network_tag`: (Forces new resource) The target tag of the firewall rules that you use to enable connectivity between cluster nodes within your own VPC and between CelerData's VPC and your own VPC over TLS.
 

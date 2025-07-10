@@ -34,7 +34,7 @@ func gcpResourceNetwork() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
-			"subnet_name": {
+			"subnet": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
@@ -69,7 +69,7 @@ func gcpResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m int
 		Name:                   d.Get("name").(string),
 		Region:                 d.Get("region").(string),
 		NetworkTag:             d.Get("network_tag").(string),
-		SubnetName:             d.Get("subnet_name").(string),
+		Subnet:                 d.Get("subnet").(string),
 		PscConnectionId:        d.Get("psc_connection_id").(string),
 	}
 
