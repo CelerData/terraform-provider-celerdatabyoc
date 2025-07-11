@@ -33,7 +33,7 @@ see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/doc
 
 ### Scale In (Contraction)
 **Trigger Condition**:
-- `WAREHOUSE_RESOURCE_UTILIZATION < 5.25`  
+- `AVERAGE_CPU_UTILIZATION < 5.25`  
   (Resource utilization below 5.25%)
 - Must persist for `600 seconds` (10 minutes)
 
