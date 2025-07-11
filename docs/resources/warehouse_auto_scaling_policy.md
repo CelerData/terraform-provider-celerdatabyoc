@@ -64,6 +64,18 @@ resource "celerdatabyoc_auto_scaling_policy" "policy_1" {
     }
   }
 }
+
+resource "celerdatabyoc_elastic_cluster_v2" "multi_az_cluster" {
+  ...
+  default_warehouse {
+    ...
+    auto_scaling_policy = celerdatabyoc_auto_scaling_policy.policy_1.policy_json
+  }
+  warehouse {
+    ...
+    auto_scaling_policy = celerdatabyoc_auto_scaling_policy.policy_1.policy_json
+  }
+}
 ```
 
 ### Queue-based Auto Scaling Policy
@@ -124,6 +136,18 @@ resource "celerdatabyoc_auto_scaling_policy" "policy_1" {
       type             = "WAREHOUSE_RESOURCE_UTILIZATION"
       value            = 5
     }
+  }
+}
+
+resource "celerdatabyoc_elastic_cluster_v2" "multi_az_cluster" {
+  ...
+  default_warehouse {
+    ...
+    auto_scaling_policy = celerdatabyoc_auto_scaling_policy.policy_1.policy_json
+  }
+  warehouse {
+    ...
+    auto_scaling_policy = celerdatabyoc_auto_scaling_policy.policy_1.policy_json
   }
 }
 ```
