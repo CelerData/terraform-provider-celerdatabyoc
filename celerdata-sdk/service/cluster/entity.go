@@ -13,24 +13,48 @@ type ClusterType string
 type DomainAllocateState int32
 type CustomConfigType int
 type ClusterInfraActionState string
-type WearhouseScalingType int32
-type WhMetricType int32
+type WhScalingType int32
+type MetricType int32
 type DistributionPolicy string
 
 var (
 	SupportedConfigType = []string{"FE", "BE", "RANGER"}
 	ClusterNodeType     = []string{"FE", "BE", "COORDINATOR"}
 
-	WhScaleType = []string{"SCALE_OUT", "SCALE_IN"}
+	WhScaleTypeArr = []string{"SCALE_OUT", "SCALE_IN"}
 
-	WhMetricGroup = map[string]string{
+	ScaleTypeArr = []int32{
+		int32(WhScalingType_SCALE_OUT),
+		int32(WhScalingType_SCALE_IN),
+	}
+
+	ScaleTypeToStr = map[int32]string{
+		int32(WhScalingType_SCALE_OUT): "SCALE_OUT",
+		int32(WhScalingType_SCALE_IN):  "SCALE_IN",
+	}
+
+	MetricArr = []int32{
+		int32(MetricType_AVERAGE_CPU_UTILIZATION),
+		int32(MetricType_QUERY_QUEUE_LENGTH),
+		int32(MetricType_EARLIEST_QUERY_PENDING_TIME),
+		int32(MetricType_WAREHOUSE_RESOURCE_UTILIZATION),
+	}
+
+	MetricToStr = map[int32]string{
+		int32(MetricType_AVERAGE_CPU_UTILIZATION):        "AVERAGE_CPU_UTILIZATION",
+		int32(MetricType_QUERY_QUEUE_LENGTH):             "QUERY_QUEUE_LENGTH",
+		int32(MetricType_EARLIEST_QUERY_PENDING_TIME):    "EARLIEST_QUERY_PENDING_TIME",
+		int32(MetricType_WAREHOUSE_RESOURCE_UTILIZATION): "WAREHOUSE_RESOURCE_UTILIZATION",
+	}
+
+	MetricStrGroup = map[string]string{
 		"AVERAGE_CPU_UTILIZATION":        AutoScalingMetricType_CPU,
 		"QUERY_QUEUE_LENGTH":             AutoScalingMetricType_QUERY_QUEUE,
 		"EARLIEST_QUERY_PENDING_TIME":    AutoScalingMetricType_QUERY_QUEUE,
 		"WAREHOUSE_RESOURCE_UTILIZATION": AutoScalingMetricType_QUERY_QUEUE,
 	}
 
-	CPU_BASED_WhMetricType = map[string][]string{
+	CpuBasedMetric = map[string][]string{
 		"SCALE_OUT": {
 			"AVERAGE_CPU_UTILIZATION",
 		},
@@ -39,7 +63,7 @@ var (
 		},
 	}
 
-	QUERY_QUEUE_BASED_WhMetricType = map[string][]string{
+	QueryQueueBasedMetric = map[string][]string{
 		"SCALE_OUT": {
 			"QUERY_QUEUE_LENGTH", "EARLIEST_QUERY_PENDING_TIME",
 		},
@@ -90,14 +114,14 @@ const (
 
 	RANGER_CONFIG_KEY = "s3_path"
 
-	WearhouseScalingType_SCALE_IN  WearhouseScalingType = 1
-	WearhouseScalingType_SCALE_OUT WearhouseScalingType = 2
+	WhScalingType_SCALE_IN  WhScalingType = 1
+	WhScalingType_SCALE_OUT WhScalingType = 2
 
-	WearhouseScalingConditionType_UNKNOWN                    = 0
-	WhMetricType_AVERAGE_CPU_UTILIZATION        WhMetricType = 1
-	WhMetricType_QUERY_QUEUE_LENGTH             WhMetricType = 2
-	WhMetricType_EARLIEST_QUERY_PENDING_TIME    WhMetricType = 3
-	WhMetricType_WAREHOUSE_RESOURCE_UTILIZATION WhMetricType = 4
+	MetricType_UNKNOWN                        MetricType = 0
+	MetricType_AVERAGE_CPU_UTILIZATION        MetricType = 1
+	MetricType_QUERY_QUEUE_LENGTH             MetricType = 2
+	MetricType_EARLIEST_QUERY_PENDING_TIME    MetricType = 3
+	MetricType_WAREHOUSE_RESOURCE_UTILIZATION MetricType = 4
 
 	AutoScalingMetricType_CPU         = "CPU-based"
 	AutoScalingMetricType_QUERY_QUEUE = "queue-based"
@@ -834,23 +858,39 @@ func Equal(a, b interface{}) bool {
 }
 
 func DefaultFeVolumeMap() map[string]interface{} {
-	volumeConfig := make(map[string]interface{}, 0)
-	volumeConfig["vol_size"] = int(150)
+	volumeConfig := make(map[string]interface{})
+	volumeConfig["vol_size"] = 150
 	return volumeConfig
 }
 
 func DefaultBeVolumeMap() map[string]interface{} {
-	volumeConfig := make(map[string]interface{}, 0)
-	volumeConfig["vol_number"] = int(2)
-	volumeConfig["vol_size"] = int(100)
+	volumeConfig := make(map[string]interface{})
+	volumeConfig["vol_number"] = 2
+	volumeConfig["vol_size"] = 100
 	return volumeConfig
 }
 
-func Contains(arr []string, target string) bool {
-	for _, s := range arr {
-		if s == target {
+func Contains[T comparable](arr []T, target T) bool {
+	for _, v := range arr {
+		if v == target {
 			return true
 		}
 	}
 	return false
+}
+
+func GetKeys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func GetVals[K comparable, V any](m map[K]V) []V {
+	vals := make([]V, 0, len(m))
+	for _, v := range m {
+		vals = append(vals, v)
+	}
+	return vals
 }

@@ -14,27 +14,115 @@ This policy will automatically scale the number of Compute Nodes (CN) based on C
 see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling).
 
 ## Example Usage
+### CPU-based Auto Scaling Policy
+#### Supported Metrics
+##### Scale Out Metrics:
+- `AVERAGE_CPU_UTILIZATION`
+##### Scale In Metric:
+- `AVERAGE_CPU_UTILIZATION`
 
-```terraform
+#### Scaling Trigger Mechanism
+##### Scale Out (Expansion)
+**Trigger Conditions**
+- `AVERAGE_CPU_UTILIZATION > 85.75`  
+  (Resource utilization above 85.75%)
+- Must persist for `300 seconds` (5 minutes)
+
+**Behavior**:
+- Adds 2 nodes per scaling action (`step_size = 2`)
+
+### Scale In (Contraction)
+**Trigger Condition**:
+- `WAREHOUSE_RESOURCE_UTILIZATION < 5.25`  
+  (Resource utilization below 5.25%)
+- Must persist for `600 seconds` (10 minutes)
+
+**Behavior**:
+- Removes 1 node per scaling action (`step_size = 1`)
+
+#### Configuration Example
+```sh
 resource "celerdatabyoc_auto_scaling_policy" "policy_1" {
   min_size = <max_compute_node_count>
   max_size = <min_compute_node_count>
   policy_item {
-    step_size = 4
+    step_size = 2
     type      = "SCALE_OUT"
     condition {
-      duration_seconds = 800
+      duration_seconds = 300
       type             = "AVERAGE_CPU_UTILIZATION"
-      value            = 85.03
+      value            = 85.75
     }
   }
   policy_item {
     type      = "SCALE_IN"
-    step_size = 2
+    step_size = 1
     condition {
       duration_seconds = 600
       type             = "AVERAGE_CPU_UTILIZATION"
-      value            = 10.25
+      value            = 5.25
+    }
+  }
+}
+```
+
+### Queue-based Auto Scaling Policy
+#### Supported Metrics
+##### Scale Out Metrics:
+- `QUERY_QUEUE_LENGTH`
+- `EARLIEST_QUERY_PENDING_TIME`
+##### Scale In Metric:
+- `WAREHOUSE_RESOURCE_UTILIZATION`
+
+#### Scaling Trigger Mechanism
+
+##### Scale Out (Expansion)
+**Trigger Conditions** (OR logic - either condition will trigger):
+1. `QUERY_QUEUE_LENGTH > 50`  
+   (Backlogged queries exceed 50)
+2. `EARLIEST_QUERY_PENDING_TIME > 200`  
+   (Earliest query pending time exceeds 200s)
+
+**Behavior**:
+- Adds 2 nodes per scaling action (`step_size = 2`)
+
+### Scale In (Contraction)
+**Trigger Condition**:
+- `WAREHOUSE_RESOURCE_UTILIZATION < 5`  
+  (Resource utilization below 5%)
+- Must persist for `300 seconds` (5 minutes)
+
+**Behavior**:
+- Removes 1 node per scaling action (`step_size = 1`)
+
+#### Configuration Example
+```sh
+resource "celerdatabyoc_auto_scaling_policy" "policy_1" {
+  min_size = <max_compute_node_count>
+  max_size = <min_compute_node_count>
+  policy_item {
+    step_size = 2
+    type      = "SCALE_OUT"
+    condition {
+      type             = "QUERY_QUEUE_LENGTH"
+      value            = 50
+    }
+  }
+  policy_item {
+    step_size = 2
+    type      = "SCALE_OUT"
+    condition {
+      type             = "EARLIEST_QUERY_PENDING_TIME"
+      value            = 200
+    }
+  }
+  policy_item {
+    type      = "SCALE_IN"
+    step_size = 1
+    condition {
+      duration_seconds = 300
+      type             = "WAREHOUSE_RESOURCE_UTILIZATION"
+      value            = 5
     }
   }
 }
