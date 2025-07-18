@@ -67,13 +67,9 @@ func gcpResourceNetwork() *schema.Resource {
 			StateContext: schema.ImportStatePassthroughContext,
 		},
 		CustomizeDiff: func(ctx context.Context, diff *schema.ResourceDiff, i interface{}) error {
-			subnet := diff.Get("subnet").(string)
 			subnetName := diff.Get("subnet_name").(string)
 			if subnetName != "" {
 				log.Printf("[WARN] 'subnet_name' is deprecated. Please use 'subnet' instead.")
-			}
-			if subnetName == "" && subnet == "" {
-				return fmt.Errorf("attribute 'subnet' is required")
 			}
 			return nil
 		},
@@ -87,6 +83,9 @@ func gcpResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m int
 	subnet := d.Get("subnet").(string)
 	if subnet == "" {
 		subnet = d.Get("subnet_name").(string)
+	}
+	if subnet == "" {
+		return diag.FromErr(fmt.Errorf("attribute 'subnet' is required"))
 	}
 
 	req := &network.CreateGcpNetworkReq{
