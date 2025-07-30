@@ -137,7 +137,7 @@ resource "google_storage_bucket" "storage-bucket" {
   force_destroy = false
 
   labels = {
-    environment = "sandbox"
+    environment = "prod"
   }
 
   lifecycle {
@@ -174,8 +174,8 @@ resource "google_project_iam_member" "storage-sa-role-binding" {
   role = google_project_iam_custom_role.storage-custom-role.id
   member = "serviceAccount:${google_service_account.storage-sa.email}"
   condition {
-    title       = "bucket_conditons"
-    description = "Bucket conditons."
+    title       = "bucket_conditions"
+    description = "Bucket conditions."
     expression  = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.storage-bucket.name}/\") || resource.name == \"projects/_/buckets/${google_storage_bucket.storage-bucket.name}\""
   }
 }
@@ -195,13 +195,13 @@ resource "google_project_iam_custom_role" "deployment-custom-role" {
 resource "google_project_iam_member" "deployment-sa-custom-role-binding-1" {  
   project = "<gcp_project_id>"
   role    = google_project_iam_custom_role.deployment-custom-role.id
-  member  = "serviceAccount:byoc-sandbox-service@byoc-sandbox.iam.gserviceaccount.com"
+  member  = "serviceAccount:service@celerdata-byoc-1683716900563.iam.gserviceaccount.com"
 }
 
 resource "google_project_iam_member" "deployment-sa-static-role-binding" {  
   project = "<gcp_project_id>"
   role    = "roles/compute.admin"
-  member  = "serviceAccount:byoc-sandbox-service@byoc-sandbox.iam.gserviceaccount.com"
+  member  = "serviceAccount:service@celerdata-byoc-1683716900563.iam.gserviceaccount.com"
 }
 
 resource "google_compute_network" "celerdata_vpc" {

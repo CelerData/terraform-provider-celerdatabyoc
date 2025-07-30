@@ -16,7 +16,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	err = os.Setenv("CELERDATA_HOST", "https://cloud-api-sandbox.celerdata.com")
+	err = os.Setenv("CELERDATA_HOST", "https://cloud-api.celerdata.com")
 	// err = os.Setenv("CELERDATA_HOST", "http://localhost:18455")
 	if err != nil {
 		panic(err)
