@@ -3,6 +3,7 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -18,6 +19,8 @@ type MetricType int32
 type DistributionPolicy string
 
 var (
+	WeekDays = []string{"SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"}
+
 	SupportedConfigType = []string{"FE", "BE", "RANGER"}
 	ClusterNodeType     = []string{"FE", "BE", "COORDINATOR"}
 
@@ -853,6 +856,64 @@ type RemoveClusterConfigResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
+type ListClusterSchedulePolicyReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type ListClusterSchedulePolicyResp struct {
+	SchedulePolicies []*ClusterSchedulePolicy `json:"schedule_policies" mapstructure:"schedule_policies"`
+}
+
+type ClusterSchedulePolicy struct {
+	PolicyId        string `json:"policy_id" mapstructure:"policy_id"`
+	ClusterId       string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyName      string `json:"policy_name" mapstructure:"policy_name"`
+	Description     string `json:"description" mapstructure:"description"`
+	TimeZone        string `json:"time_zone" mapstructure:"time_zone"`
+	ActiveDateValue string `json:"active_date_value" mapstructure:"active_date_value"`
+	ResumeAt        string `json:"resume_at" mapstructure:"resume_at"`
+	SuspendAt       string `json:"suspend_at" mapstructure:"suspend_at"`
+	State           int32  `json:"state" mapstructure:"state"`
+}
+type CheckClusterSchedulePolicyReq struct {
+	ClusterId  string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyName string `json:"policy_name" mapstructure:"policy_name"`
+}
+
+type CheckClusterSchedulePolicyResp struct {
+	Exist bool `json:"exist" mapstructure:"exist"`
+}
+
+type DeleteClusterSchedulePolicyReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyId  string `json:"policy_id" mapstructure:"policy_id"`
+}
+
+type ModifyClusterSchedulePolicyReq struct {
+	PolicyId   string `json:"policy_id" mapstructure:"policy_id"`
+	ClusterId  string `json:"cluster_id" mapstructure:"cluster_id"`
+	TimeZone   string `json:"time_zone" mapstructure:"time_zone"`
+	ActiveDays string `json:"active_days" mapstructure:"active_days"`
+	ResumeAt   string `json:"resume_at" mapstructure:"resume_at"`
+	SuspendAt  string `json:"suspend_at" mapstructure:"suspend_at"`
+	State      bool   `json:"state" mapstructure:"state"`
+}
+
+type SaveClusterSchedulePolicyReq struct {
+	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyName  string `json:"policy_name" mapstructure:"policy_name"`
+	Description string `json:"description" mapstructure:"description"`
+	TimeZone    string `json:"time_zone" mapstructure:"time_zone"`
+	ActiveDays  string `json:"active_days" mapstructure:"active_days"`
+	ResumeAt    string `json:"resume_at" mapstructure:"resume_at"`
+	SuspendAt   string `json:"suspend_at" mapstructure:"suspend_at"`
+	State       bool   `json:"state" mapstructure:"state"`
+}
+
+type SaveClusterSchedulePolicyResp struct {
+	PolicyId string `json:"policy_id" mapstructure:"policy_id"`
+}
+
 func Equal(a, b interface{}) bool {
 	return cmp.Equal(a, b)
 }
@@ -893,4 +954,9 @@ func GetVals[K comparable, V any](m map[K]V) []V {
 		vals = append(vals, v)
 	}
 	return vals
+}
+
+func IsValidTimeZoneName(tzName string) bool {
+	_, err := time.LoadLocation(tzName)
+	return err == nil
 }

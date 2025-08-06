@@ -69,6 +69,12 @@ type IClusterAPI interface {
 
 	GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error)
 	UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error
+
+	ListClusterSchedulePolicy(ctx context.Context, req *ListClusterSchedulePolicyReq) (*ListClusterSchedulePolicyResp, error)
+	IsSchedulePolicyNameExist(ctx context.Context, req *CheckClusterSchedulePolicyReq) (*CheckClusterSchedulePolicyResp, error)
+	SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error)
+	ModifyClusterSchedulePolicy(ctx context.Context, req *ModifyClusterSchedulePolicyReq) error
+	DeleteClusterSchedulePolicy(ctx context.Context, req *DeleteClusterSchedulePolicyReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -549,6 +555,51 @@ func (c *clusterAPI) ModifyClusterVolume(ctx context.Context, req *ModifyCluster
 
 func (c *clusterAPI) VolumeParamVerification(ctx context.Context, req *ModifyClusterVolumeReq) error {
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/volume/param-verification", c.apiVersion), req, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *clusterAPI) ListClusterSchedulePolicy(ctx context.Context, req *ListClusterSchedulePolicyReq) (*ListClusterSchedulePolicyResp, error) {
+	var schedulePolicies []*ClusterSchedulePolicy
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies", c.apiVersion, req.ClusterId), nil, schedulePolicies)
+	if err != nil {
+		return nil, err
+	}
+	return &ListClusterSchedulePolicyResp{
+		SchedulePolicies: schedulePolicies,
+	}, nil
+}
+
+func (c *clusterAPI) IsSchedulePolicyNameExist(ctx context.Context, req *CheckClusterSchedulePolicyReq) (*CheckClusterSchedulePolicyResp, error) {
+	resp := &CheckClusterSchedulePolicyResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policy/check-name", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error) {
+	resp := &SaveClusterSchedulePolicyResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policy", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ModifyClusterSchedulePolicy(ctx context.Context, req *ModifyClusterSchedulePolicyReq) error {
+	err := c.cli.Put(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies/%s", c.apiVersion, req.ClusterId, req.PolicyId), req, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *clusterAPI) DeleteClusterSchedulePolicy(ctx context.Context, req *DeleteClusterSchedulePolicyReq) error {
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies/%s", c.apiVersion, req.ClusterId, req.PolicyId), nil, nil)
 	if err != nil {
 		return err
 	}

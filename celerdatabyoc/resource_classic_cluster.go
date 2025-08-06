@@ -286,6 +286,66 @@ func resourceClassicCluster() *schema.Resource {
 				Optional:     true,
 				ValidateFunc: validation.StringIsNotWhiteSpace,
 			},
+			"scheduling_policy": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 5,
+				Elem: &schema.Resource{
+
+					Schema: map[string]*schema.Schema{
+						"policy_name": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"description": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"time_zone": {
+							Type:        schema.TypeString,
+							Description: "IANA Time-Zone",
+							Required:    true,
+							ValidateFunc: func(i interface{}, k string) ([]string, []error) {
+								v, ok := i.(string)
+								if !ok {
+									return nil, []error{fmt.Errorf("expected type of %s to be string", k)}
+								}
+								if !cluster.IsValidTimeZoneName(v) {
+									return nil, []error{fmt.Errorf("for param `%s`, value:%s is not a valid IANA Time-Zone", k, v)}
+								}
+								return nil, nil
+							},
+						},
+						"active_days": {
+							Type:     schema.TypeSet,
+							Required: true,
+							MinItems: 1,
+							MaxItems: 7,
+							Elem: &schema.Schema{
+								Type:         schema.TypeString,
+								ValidateFunc: validation.StringInSlice(cluster.WeekDays, false),
+							},
+						},
+						"resume_at": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"suspend_at": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"enable": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  true,
+						},
+					},
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
