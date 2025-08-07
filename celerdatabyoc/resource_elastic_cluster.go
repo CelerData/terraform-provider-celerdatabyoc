@@ -284,6 +284,73 @@ func resourceElasticCluster() *schema.Resource {
 				Optional:     true,
 				ValidateFunc: validation.StringIsNotWhiteSpace,
 			},
+			"scheduling_policy": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 5,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"policy_name": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"description": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"time_zone": {
+							Type:        schema.TypeString,
+							Description: "IANA Time-Zone",
+							Optional:    true,
+							Default:     "UTC",
+							ValidateFunc: func(i interface{}, k string) ([]string, []error) {
+								v, ok := i.(string)
+								if !ok {
+									return nil, []error{fmt.Errorf("expected type of %s to be string", k)}
+								}
+								if !cluster.IsValidTimeZoneName(v) {
+									return nil, []error{fmt.Errorf("for param `%s`, value:%s is not a valid IANA Time-Zone", k, v)}
+								}
+								return nil, nil
+							},
+						},
+						"active_days": {
+							Type:     schema.TypeSet,
+							Required: true,
+							MinItems: 1,
+							MaxItems: 7,
+							Elem: &schema.Schema{
+								Type:         schema.TypeString,
+								ValidateFunc: validation.StringInSlice(cluster.WeekDays, false),
+							},
+						},
+						"resume_at": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"suspend_at": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"enable": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  true,
+						},
+					},
+				},
+			},
+			"scheduling_policy_extra_info": {
+				Type:     schema.TypeMap,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -464,6 +531,18 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 				log.Printf("[ERROR] verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
 				return fmt.Errorf("verify %s volume params failed, volumeCate:%s volumeConfig:%+v err:%+v", nodeType, volumeCate, volumeConfig, err)
 			}
+		}
+	}
+
+	if v, ok := d.GetOk("scheduling_policy"); ok {
+		policies := v.(*schema.Set).List()
+		policyNameMap := make(map[string]bool)
+		for _, item := range policies {
+			m := item.(map[string]interface{})
+			if _, ok := policyNameMap[m["policy_name"].(string)]; ok {
+				return fmt.Errorf("duplicate scheduling policy name `%s`", m["policy_name"].(string))
+			}
+			policyNameMap[m["policy_name"].(string)] = true
 		}
 	}
 
@@ -690,6 +769,24 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	if v, ok := d.GetOk("scheduling_policy"); ok {
+		clusterId := resp.ClusterID
+		policies := v.(*schema.Set).List()
+		for _, item := range policies {
+			m := item.(map[string]interface{})
+			err := SaveClusterSchedulingPolicy(ctx, clusterAPI, clusterId, m)
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  fmt.Sprintf("Failed to save scheduling policy[%s], please retry again!", m["policy_name"].(string)),
+						Detail:   err.Error(),
+					},
+				}
+			}
+		}
+	}
+
 	return resourceElasticClusterRead(ctx, d, m)
 }
 
@@ -755,6 +852,12 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster comput node config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
+	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterID)
+	if err != nil {
+		log.Printf("[ERROR] list cluster schedule policy failed,clusterId:%s err:%+v", clusterID, err)
 		return diag.FromErr(err)
 	}
 
@@ -832,6 +935,11 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 			}
 			d.Set("compute_node_volume_config", []interface{}{beVolumeConfig})
 		}
+	}
+
+	if len(policies) > 0 {
+		d.Set("scheduling_policy", policies)
+		d.Set("scheduling_policy_extra_info", policyExtraInfo)
 	}
 
 	return diags
@@ -976,6 +1084,13 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterID, intervalTimeMills, enable)
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.HasChange("scheduling_policy") && !d.IsNewResource() {
+		diagError := HandleChangedClusterSchedulingPolicy(ctx, clusterAPI, d)
+		if diagError != nil {
+			return diagError
 		}
 	}
 
