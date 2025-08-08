@@ -574,7 +574,7 @@ func (c *clusterAPI) ListClusterSchedulePolicy(ctx context.Context, req *ListClu
 
 func (c *clusterAPI) IsSchedulePolicyNameExist(ctx context.Context, req *CheckClusterSchedulePolicyReq) (*CheckClusterSchedulePolicyResp, error) {
 	resp := &CheckClusterSchedulePolicyResp{}
-	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policy/check-name", c.apiVersion, req.ClusterId), req, resp)
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies/check-name", c.apiVersion, req.ClusterId), req, resp)
 	if err != nil {
 		return nil, err
 	}
@@ -583,7 +583,7 @@ func (c *clusterAPI) IsSchedulePolicyNameExist(ctx context.Context, req *CheckCl
 
 func (c *clusterAPI) SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error) {
 	resp := &SaveClusterSchedulePolicyResp{}
-	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policy", c.apiVersion, req.ClusterId), req, resp)
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies", c.apiVersion, req.ClusterId), req, resp)
 	if err != nil {
 		return nil, err
 	}

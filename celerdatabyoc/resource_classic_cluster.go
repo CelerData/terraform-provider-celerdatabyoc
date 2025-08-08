@@ -917,10 +917,8 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		}
 	}
 
-	if len(policies) > 0 {
-		d.Set("scheduling_policy", policies)
-		d.Set("scheduling_policy_extra_info", policyExtraInfo)
-	}
+	d.Set("scheduling_policy", policies)
+	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	return diags
 }
@@ -1530,7 +1528,9 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 	}
 	policyExtraInfo := make(map[string]string)
 	if v, ok := d.GetOk("scheduling_policy_extra_info"); ok {
-		policyExtraInfo = v.(map[string]string)
+		for k, v := range v.(map[string]interface{}) {
+			policyExtraInfo[k] = v.(string)
+		}
 	}
 	o, n := d.GetChange("scheduling_policy")
 	opMap := make(map[string]map[string]interface{})
