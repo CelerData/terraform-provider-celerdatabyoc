@@ -1552,7 +1552,7 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 	updatedPolicies := make([]map[string]interface{}, 0)
 	deletedPolicies := make([]map[string]interface{}, 0)
 
-	keys := []string{"policy_name", "description", "time_zone", "active_days_str", "resume_at", "suspend_at", "enable"}
+	keys := []string{"policy_name", "description", "time_zone", "active_days_str", "resume_at", "suspend_at", "enable_str"}
 	for k, nv := range npMap {
 		if opMap[k] == nil {
 			newPolicies = append(newPolicies, nv)
@@ -1572,6 +1572,9 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 
 			ov["active_days_str"] = strings.Join(ovdays, ",")
 			nv["active_days_str"] = strings.Join(nvdays, ",")
+
+			ov["enable_str"] = fmt.Sprintf("%s", ov["enable"].(bool))
+			nv["enable_str"] = fmt.Sprintf("%s", nv["enable"].(bool))
 			for _, k2 := range keys {
 				if nv[k2].(string) != ov[k2].(string) {
 					updatedPolicies = append(updatedPolicies, nv)
@@ -1593,8 +1596,8 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 			return diag.Diagnostics{
 				diag.Diagnostic{
 					Severity: diag.Warning,
-					Summary:  "Failed to modify cluster scheduling policy",
-					Detail:   fmt.Sprintf("Failed to add cluster scheduling policy, clusterId:%s policyItem:%+v", clusterId, item),
+					Summary:  "Failed to add cluster scheduling policy",
+					Detail:   fmt.Sprintf("Failed to add cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
 				},
 			}
 		}
@@ -1608,7 +1611,7 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 				diag.Diagnostic{
 					Severity: diag.Warning,
 					Summary:  "Failed to modify cluster scheduling policy",
-					Detail:   fmt.Sprintf("Failed to modify cluster scheduling policy, clusterId:%s policyItem:%+v", clusterId, item),
+					Detail:   fmt.Sprintf("Failed to modify cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
 				},
 			}
 		}
@@ -1621,8 +1624,8 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 			return diag.Diagnostics{
 				diag.Diagnostic{
 					Severity: diag.Warning,
-					Summary:  "Failed to modify cluster scheduling policy",
-					Detail:   fmt.Sprintf("Failed to delete cluster scheduling policy, clusterId:%s policyItem:%+v", clusterId, item),
+					Summary:  "Failed to delete cluster scheduling policy",
+					Detail:   fmt.Sprintf("Failed to delete cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
 				},
 			}
 		}

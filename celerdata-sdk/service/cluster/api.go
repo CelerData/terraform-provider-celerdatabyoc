@@ -563,7 +563,7 @@ func (c *clusterAPI) VolumeParamVerification(ctx context.Context, req *ModifyClu
 
 func (c *clusterAPI) ListClusterSchedulePolicy(ctx context.Context, req *ListClusterSchedulePolicyReq) (*ListClusterSchedulePolicyResp, error) {
 	var schedulePolicies []*ClusterSchedulePolicy
-	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies", c.apiVersion, req.ClusterId), nil, schedulePolicies)
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies", c.apiVersion, req.ClusterId), nil, &schedulePolicies)
 	if err != nil {
 		return nil, err
 	}
