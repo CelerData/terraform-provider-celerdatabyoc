@@ -890,13 +890,15 @@ type DeleteClusterSchedulePolicyReq struct {
 }
 
 type ModifyClusterSchedulePolicyReq struct {
-	PolicyId   string `json:"policy_id" mapstructure:"policy_id"`
-	ClusterId  string `json:"cluster_id" mapstructure:"cluster_id"`
-	TimeZone   string `json:"time_zone" mapstructure:"time_zone"`
-	ActiveDays string `json:"active_days" mapstructure:"active_days"`
-	ResumeAt   string `json:"resume_at" mapstructure:"resume_at"`
-	SuspendAt  string `json:"suspend_at" mapstructure:"suspend_at"`
-	State      bool   `json:"state" mapstructure:"state"`
+	PolicyId    string `json:"policy_id" mapstructure:"policy_id"`
+	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyName  string `json:"policy_name" mapstructure:"policy_name"`
+	Description string `json:"description" mapstructure:"description"`
+	TimeZone    string `json:"time_zone" mapstructure:"time_zone"`
+	ActiveDays  string `json:"active_days" mapstructure:"active_days"`
+	ResumeAt    string `json:"resume_at" mapstructure:"resume_at"`
+	SuspendAt   string `json:"suspend_at" mapstructure:"suspend_at"`
+	State       bool   `json:"state" mapstructure:"state"`
 }
 
 type SaveClusterSchedulePolicyReq struct {

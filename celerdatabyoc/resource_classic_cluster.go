@@ -1701,13 +1701,15 @@ func ModifyClusterSchedulingPolicy(ctx context.Context, api cluster.IClusterAPI,
 	}
 
 	err := api.ModifyClusterSchedulePolicy(ctx, &cluster.ModifyClusterSchedulePolicyReq{
-		ClusterId:  clusterId,
-		PolicyId:   policyId,
-		TimeZone:   m["time_zone"].(string),
-		ActiveDays: strings.Join(dayArr, ","),
-		ResumeAt:   m["resume_at"].(string),
-		SuspendAt:  m["suspend_at"].(string),
-		State:      m["enable"].(bool),
+		ClusterId:   clusterId,
+		PolicyId:    policyId,
+		PolicyName:  m["policy_name"].(string),
+		Description: m["description"].(string),
+		TimeZone:    m["time_zone"].(string),
+		ActiveDays:  strings.Join(dayArr, ","),
+		ResumeAt:    m["resume_at"].(string),
+		SuspendAt:   m["suspend_at"].(string),
+		State:       m["enable"].(bool),
 	})
 	if err != nil {
 		log.Printf("[ERROR] modify cluster scheduling policy failed,cluster[%s] paramMap:%+v  err:%+v", clusterId, m, err)
