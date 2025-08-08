@@ -508,7 +508,7 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 	}
 
 	if v, ok := d.GetOk("scheduling_policy"); ok {
-		policies := v.(*schema.Set).List()
+		policies := v.([]interface{})
 		policyNameMap := make(map[string]bool)
 		for _, item := range policies {
 			m := item.(map[string]interface{})
@@ -745,7 +745,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	}
 
 	if v, ok := d.GetOk("scheduling_policy"); ok {
-		policies := v.(*schema.Set).List()
+		policies := v.([]interface{})
 		for _, item := range policies {
 			m := item.(map[string]interface{})
 			err := SaveClusterSchedulingPolicy(ctx, clusterAPI, clusterId, m)
@@ -1535,14 +1535,14 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 	o, n := d.GetChange("scheduling_policy")
 	opMap := make(map[string]map[string]interface{})
 	npMap := make(map[string]map[string]interface{})
-	if o != nil && len(o.(*schema.Set).List()) > 0 {
-		for _, item := range o.(*schema.Set).List() {
+	if o != nil && len(o.([]interface{})) > 0 {
+		for _, item := range o.([]interface{}) {
 			m := item.(map[string]interface{})
 			opMap[m["policy_name"].(string)] = m
 		}
 	}
-	if n != nil && len(n.(*schema.Set).List()) > 0 {
-		for _, item := range n.(*schema.Set).List() {
+	if n != nil && len(n.([]interface{})) > 0 {
+		for _, item := range n.([]interface{}) {
 			m := item.(map[string]interface{})
 			npMap[m["policy_name"].(string)] = m
 		}

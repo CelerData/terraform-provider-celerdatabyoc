@@ -846,7 +846,7 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 	}
 
 	if v, ok := d.GetOk("scheduling_policy"); ok {
-		policies := v.(*schema.Set).List()
+		policies := v.([]interface{})
 		policyNameMap := make(map[string]bool)
 		for _, item := range policies {
 			m := item.(map[string]interface{})
@@ -1106,7 +1106,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	}
 
 	if v, ok := d.GetOk("scheduling_policy"); ok {
-		policies := v.(*schema.Set).List()
+		policies := v.([]interface{})
 		for _, item := range policies {
 			m := item.(map[string]interface{})
 			err := SaveClusterSchedulingPolicy(ctx, clusterAPI, clusterId, m)
