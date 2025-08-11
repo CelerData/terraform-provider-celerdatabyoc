@@ -1552,33 +1552,46 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 	updatedPolicies := make([]map[string]interface{}, 0)
 	deletedPolicies := make([]map[string]interface{}, 0)
 
-	keys := []string{"policy_name", "description", "time_zone", "active_days_str", "resume_at", "suspend_at", "enable_str"}
+	keys := []string{"policy_name", "description", "time_zone", "resume_at", "suspend_at"}
 	for k, nv := range npMap {
 		if opMap[k] == nil {
 			newPolicies = append(newPolicies, nv)
 		} else {
 			ov := opMap[k]
-			ovdays := make([]string, 0)
-			for _, item := range ov["active_days"].(*schema.Set).List() {
-				ovdays = append(ovdays, item.(string))
+
+			changed := false
+			if ov["enable"].(bool) != nv["enable"].(bool) {
+				updatedPolicies = append(updatedPolicies, nv)
+				changed = true
 			}
-			sort.Strings(ovdays)
-
-			nvdays := make([]string, 0)
-			for _, item := range nv["active_days"].(*schema.Set).List() {
-				nvdays = append(nvdays, item.(string))
+			if !changed {
+				for _, k2 := range keys {
+					if nv[k2].(string) != ov[k2].(string) {
+						updatedPolicies = append(updatedPolicies, nv)
+						changed = true
+						break
+					}
+				}
 			}
-			sort.Strings(nvdays)
 
-			ov["active_days_str"] = strings.Join(ovdays, ",")
-			nv["active_days_str"] = strings.Join(nvdays, ",")
+			if !changed {
+				ovdays := make([]string, 0)
+				for _, item := range ov["active_days"].(*schema.Set).List() {
+					ovdays = append(ovdays, item.(string))
+				}
+				sort.Strings(ovdays)
 
-			ov["enable_str"] = fmt.Sprintf("%s", ov["enable"].(bool))
-			nv["enable_str"] = fmt.Sprintf("%s", nv["enable"].(bool))
-			for _, k2 := range keys {
-				if nv[k2].(string) != ov[k2].(string) {
+				nvdays := make([]string, 0)
+				for _, item := range nv["active_days"].(*schema.Set).List() {
+					nvdays = append(nvdays, item.(string))
+				}
+				sort.Strings(nvdays)
+
+				ov_active_days_str := strings.Join(ovdays, ",")
+				nv_active_days_str := strings.Join(nvdays, ",")
+
+				if ov_active_days_str != nv_active_days_str {
 					updatedPolicies = append(updatedPolicies, nv)
-					break
 				}
 			}
 		}
