@@ -507,13 +507,15 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		}
 	}
 
+	log.Printf("[ERROR] scheduling policy: %+v", d.Get("scheduling_policy"))
+
 	if v, ok := d.GetOk("scheduling_policy"); ok {
 		policies := v.([]interface{})
 		policyNameMap := make(map[string]bool)
 		for _, item := range policies {
 			m := item.(map[string]interface{})
 			if _, ok := policyNameMap[m["policy_name"].(string)]; ok {
-				return fmt.Errorf("duplicate scheduling policy name `%s`", m["policy_name"].(string))
+				return fmt.Errorf("duplicate scheduling policy --- name `%s`", m["policy_name"].(string))
 			}
 
 			if m["resume_at"].(string) == "" && m["suspend_at"].(string) == "" {
