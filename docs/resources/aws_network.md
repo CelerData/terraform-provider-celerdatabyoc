@@ -20,7 +20,7 @@ This resource depends on the following resources:
 - [aws_iam_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
 - [aws_iam_instance_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile)
 - [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
-- celerdatabyoc_aws_deployment_credential_assume_policy
+- [celerdatabyoc_aws_deployment_credential_assume_policy](../resources/aws_deployment_credential_assume_policy.md)
 - [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md)
 - [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
 

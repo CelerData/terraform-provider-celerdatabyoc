@@ -41,6 +41,15 @@ This resource contains the following required arguments and optional arguments:
 
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. [celerdatabyoc_gcp_deployment_credential](../resources/gcp_deployment_credential.md)
 
+**Optional:**
+
+- `psc_connection_id`: (Forces new resource) The ID of the [Private Service Connect](https://cloud.google.com/vpc/docs/private-service-connect) connection that you create to allow direct, secure connectivity between CelerData's VPC and your own VPC.
+  
+  For information about how to create a PSC Connection, see [Create a Private Service Connect Endpoint](https://docs.celerdata.com/BYOC/docs/sql-reference/gcp/create_psc_endpoint/).
+  NOTE:
+    - If PSC connection ID is not set, then the Private Service Connect connection will not be built, CelerData's VPC communicates with your own VPC over the Internet.
+    - If you have enabled Shared VPC, you should enter the ID of the PSC Connection from the service project (that is, the project where the cluster is deployed)..
+
 ## Attribute Reference
 
 This resource exports the following attributes:'

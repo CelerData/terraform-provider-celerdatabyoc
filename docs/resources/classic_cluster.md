@@ -9,11 +9,11 @@ description: |-
 ~> The resource's API may change in subsequent versions to simplify user experience.
 ~> Classic CelerData clusters do not support Multi-AZ Deployment. For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
-Deploys a classic CelerData cluster on AWS EC2 instances or on Azure virtual machines.
+Deploy a classic CelerData cluster on AWS EC2 instances、Azure virtual machines or GCP virtual machines.
 
-If you are setting up your first cluster and it consists of one FE node and one BE node, both with instance types that offer up to 4 CPU cores and 16 GB RAM, then the cluster will be automatically created as a [Free Developer Tier](https://docs.celerdata.com/BYOC/docs/get_started/free_developer_tier/) cluster. This allows you to explore and experience the features of CelerData Cloud BYOC at a minimal cost.
+If you are setting up your first classic cluster, and it consists of one FE node and one BE node, both with instance types that offer up to 4 CPU cores and 16 GB RAM, then the cluster will be automatically created as a [Free Developer Tier](https://docs.celerdata.com/BYOC/docs/get_started/free_developer_tier/) cluster. This allows you to explore and experience the features of CelerData Cloud BYOC at a minimal cost.
 
-The implementation of this resource is part of the whole cluster deployment procedure and depends on the implementation of a data credential, a deployment credential, and a network configuration. For detailed procedures of cluster deployments on AWS and Azure, see [Provision CelerData Cloud BYOC on AWS](../guides/aws_deployment_guide.md) and [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md).
+The implementation of this resource is part of the whole cluster deployment procedure and depends on the implementation of a data credential, a deployment credential, and a network configuration. For detailed procedures of cluster deployments on AWS、Azure and GCP, see [Provision CelerData Cloud BYOC on AWS](../guides/aws_deployment_guide.md) and [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md).
 
 ## Supported Instance Types
 
@@ -23,11 +23,11 @@ For information about the instance types supported by CelerData, see [Supported 
 
 ```terraform
 resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
+  deployment_credential_id = "<deployment_credential_resource_ID>"
+  data_credential_id = "<data_credential_resource_ID>"
+  network_id = "<network_configuration_resource_ID>"
+
   cluster_name = "<cluster_name>"
-  deployment_credential_id = <deployment_credential_resource_ID>
-  data_credential_id = <data_credential_resource_ID>
-  network_id = <network_configuration_resource_ID>
-  
   fe_instance_type = "<fe_node_instance_type>"
   fe_node_count = 1
   
@@ -139,11 +139,16 @@ This resource contains the following required arguments and optional arguments:
 - `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default, and therefore it is not included in the configuration example above. To enable the Auto Suspend feature, set this argument to an integer within the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 ## See Also
-
+### AWS
 - [AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)
 - [Manage data credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_data_credentials/)
 - [Manage deployment credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials/)
 - [Manage network configurations for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_network_configurations/)
+### Azure
 - [Manage data credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_data_credentials/)
 - [Manage deployment credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_deployment_credentials/)
 - [Manage network configurations for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_network_configurations/)
+### GCP
+- [Manage data credentials for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_data_credentials/)
+- [Manage deployment credentials for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_deployment_credentials/)
+- [Manage network configurations for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_network_configurations/)

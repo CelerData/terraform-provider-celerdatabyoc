@@ -370,24 +370,30 @@ If you do not specify a PSC Connection, CelerData's VPC communicates with your o
 
 
 ### [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
-
 ```terraform
-resource "celerdatabyoc_classic_cluster" "gcp_terraform_test" {
-  cluster_name             = "<cluster_name>"
-  fe_instance_type         = "<fe_node_instance_type>"
-  fe_node_count            = 1
+resource "celerdatabyoc_classic_cluster" "demo_cluster" {
   deployment_credential_id = celerdatabyoc_gcp_deployment_credential.deployment_credential.id
   data_credential_id       = celerdatabyoc_gcp_data_credential.storage_credential.id
   network_id               = celerdatabyoc_gcp_network.network_credential.id
-  be_instance_type         = "<be_node_instance_type>"
-  be_node_count            = 2
-  be_disk_number           = 2
-  be_disk_per_size         = 100
-  default_admin_password   = "<SQL_user_initial_password>"
+  
+  cluster_name = "<cluster_name>"
+  fe_instance_type = "<fe_node_instance_type>"
+  fe_node_count = 1
 
+  be_instance_type = "<be_node_instance_type>"
+  be_node_count = 1
+  // optional
+  be_volume_config {
+    vol_number = <vol_number>
+    vol_size = <vol_size>
+    iops = <iops>
+    throughput = <throughput>
+  }
+  
+  default_admin_password = "<SQL_user_initial_password>"
   expected_cluster_state = "Running"
   resource_tags = {
-    flag = "terraform-test"
+    celerdata = "<tag_name>"
   }
   csp    = "gcp"
   region = "us-central1"
