@@ -515,6 +515,14 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 			if _, ok := policyNameMap[m["policy_name"].(string)]; ok {
 				return fmt.Errorf("duplicate scheduling policy name `%s`", m["policy_name"].(string))
 			}
+
+			if m["resume_at"].(string) == "" && m["suspend_at"].(string) == "" {
+				return fmt.Errorf("For scheduling policy name `%s`, field `resume_at` and `suspend_at` cannot be empty at the same time.", m["policy_name"].(string))
+			}
+
+			if m["resume_at"].(string) == m["suspend_at"].(string) {
+				return fmt.Errorf("For scheduling policy name `%s`, field `resume_at` and `suspend_at` cannot be the same", m["policy_name"].(string))
+			}
 			policyNameMap[m["policy_name"].(string)] = true
 		}
 	}
