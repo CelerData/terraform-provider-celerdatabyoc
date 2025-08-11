@@ -1603,14 +1603,15 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 		}
 	}
 
-	for _, item := range newPolicies {
-		err := SaveClusterSchedulingPolicy(ctx, api, clusterId, item)
+	for _, item := range deletedPolicies {
+		policyId := policyExtraInfo[item["policy_name"].(string)]
+		err := DeleteClusterSchedulingPolicy(ctx, api, clusterId, policyId)
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
 					Severity: diag.Warning,
-					Summary:  "Failed to add cluster scheduling policy",
-					Detail:   fmt.Sprintf("Failed to add cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
+					Summary:  "Failed to delete cluster scheduling policy",
+					Detail:   fmt.Sprintf("Failed to delete cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
 				},
 			}
 		}
@@ -1630,15 +1631,14 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 		}
 	}
 
-	for _, item := range deletedPolicies {
-		policyId := policyExtraInfo[item["policy_name"].(string)]
-		err := DeleteClusterSchedulingPolicy(ctx, api, clusterId, policyId)
+	for _, item := range newPolicies {
+		err := SaveClusterSchedulingPolicy(ctx, api, clusterId, item)
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
 					Severity: diag.Warning,
-					Summary:  "Failed to delete cluster scheduling policy",
-					Detail:   fmt.Sprintf("Failed to delete cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
+					Summary:  "Failed to add cluster scheduling policy",
+					Detail:   fmt.Sprintf("Failed to add cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
 				},
 			}
 		}
