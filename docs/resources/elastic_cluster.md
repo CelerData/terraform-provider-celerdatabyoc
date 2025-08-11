@@ -8,18 +8,9 @@ description: |-
 
 ~> The resource's API is **deprecated** and may cause unknown behaviors. It is recommended to deploy a multi-warehouse elastic CelerData cluster using [Multi-warehouse Based elastic cluster](../resources/elastic_cluster_v2.md).
 
-Deploys a single-warehouse elastic CelerData cluster on AWS EC2 instances.
+Deploy a single-warehouse elastic CelerData cluster on AWS EC2 instances、Azure virtual machines or GCP virtual machines.
 
-This resource depends on the following resources and data source:
-
-- [celerdatabyoc_aws_data_credential_policy](../resources/aws_data_credential_policy.md)
-- [aws_iam_role (celerdata_data_cred_role)](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
-- [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md)
-- [aws_iam_instance_profile](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile)
-- [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
-- [aws_iam_role (deploy_cred_role)](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role)
-- [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
-- [celerdatabyoc_aws_network](../resources/aws_network.md)
+The implementation of this resource is part of the whole cluster deployment procedure and depends on the implementation of a data credential, a deployment credential, and a network configuration. For detailed procedures of cluster deployments on AWS、Azure and GCP, see [Provision CelerData Cloud BYOC on AWS](../guides/aws_deployment_guide.md) and [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md).
 
 ### Supported Node Sizes
 
@@ -28,78 +19,15 @@ For information about the instance types supported by CelerData, see [Supported 
 ## Example Usage
 
 ```terraform
-# Prerequisites for the celerdatabyoc_elastic_cluster resource
-
-data "celerdatabyoc_aws_data_credential_assume_policy" "assume_role" {}
-
-resource "celerdatabyoc_aws_data_credential_policy" "role_policy" {
-  bucket = local.s3_bucket
-}
-
-resource "aws_iam_role" "celerdata_data_cred_role" {
-  name               = "<celerdata_data_credential_role_name>"
-  assume_role_policy = data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json
-  description        = "<celerdata_data_credential_role_description>"
-  inline_policy {
-    name   = "<celerdata_data_credential_role_policy_name>"
-    policy = celerdatabyoc_aws_data_credential_policy.role_policy.json
-  }
-}
-
-resource "celerdatabyoc_aws_data_credential" "data_credential" {
-  name = "<celerdata_data_credential_name>"
-  role_arn = aws_iam_role.celerdata_data_cred_role.arn
-  instance_profile_arn = aws_iam_instance_profile.celerdata_data_cred_profile.arn
-  bucket_name = local.s3_bucket
-  policy_version = celerdatabyoc_aws_data_credential_policy.role_policy.version
-}
-
-resource "aws_iam_instance_profile" "celerdata_data_cred_profile" {
-  name = "<celerdata_data_credential_profile_name>"
-  role = aws_iam_role.celerdata_data_cred_role.name
-}
-
-resource "celerdatabyoc_aws_deployment_credential_policy" "role_policy" {
-  bucket = local.s3_bucket
-  data_role_arn = aws_iam_role.celerdata_data_cred_role.arn
-}
-
-resource "celerdatabyoc_aws_deployment_credential_assume_policy" "role_policy" {}
-
-resource "aws_iam_role" "deploy_cred_role" {
-  name               = "<celerdata_deployment_credential_role_name>"
-  assume_role_policy = celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.json
-  description        = "<celerdata_deployment_credential_role_description>"
-  inline_policy {
-    name   = "<celerdata_deployment_credential_role_policy_name>"
-    policy = celerdatabyoc_aws_deployment_credential_policy.role_policy.json
-  }
-}
-
-resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credential" {
-  name = "<celerdata_deployment_credential_name>"
-  role_arn = aws_iam_role.deploy_cred_role.arn
-  external_id = celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id
-  policy_version = celerdatabyoc_aws_deployment_credential_policy.role_policy.version
-}
-
-resource "celerdatabyoc_aws_network" "network" {
-  name = "<VPC_name>"
-  subnet_id = "<subnet_id>"
-  security_group_id = "<security_group_id>"
-  region = "<AWS_VPC_region>"
-  deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
-  vpc_endpoint_id = "<vpc_endpoint_id>"
-}
-
-# The celerdatabyoc_elastic_cluster resource
+# The celerdatabyoc_elastic_cluster resource API is deprecated
+# It is recommended to deploy a multi-warehouse elastic CelerData cluster using resource `celerdatabyoc_elastic_cluster_v2`.
 
 resource "celerdatabyoc_elastic_cluster" "elastic_cluster_1" {
-  cluster_name = "<cluster_name>"
-  deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
-  data_credential_id = celerdatabyoc_aws_data_credential.data_credential.id
-  network_id = celerdatabyoc_aws_network.network.id
+  deployment_credential_id = "<deployment_credential_resource_ID>"
+  data_credential_id = "<data_credential_resource_ID>"
+  network_id = "<network_configuration_resource_ID>"
 
+  cluster_name = "<cluster_name>"
   coordinator_node_size = "<coordinator_node_instance_type>"
   coordinator_node_count = <coordinator_node_number>
   
@@ -152,127 +80,6 @@ resource "celerdatabyoc_elastic_cluster" "elastic_cluster_1" {
 ```
 
 ## Argument Reference
-
-### Data credential-related resources
-
-#### celerdatabyoc_aws_data_credential_policy
-
-This resource contains only the following required argument:
-
-- `bucket`: (Not allowed to modify) The name of the AWS S3 bucket for which to generate the JSON policy document and that stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
-
-#### aws_iam_role (celerdata_data_cred_role)
-
-This resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `assume_role_policy`: The policy that grants an entity permission to assume the IAM role referenced in the data credential. Set the value to `data.celerdatabyoc_aws_data_credential_assume_policy.assume_role.json`.
-
-**Optional:**
-
-- `name`: (Not allowed to modify) The name of the IAM role referenced in the data credential. Enter a unique name. If omitted, Terraform will assign a random, unique name. See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
-
-- `description`: The description of the IAM role.
-
-- `inline_policy`: The configuration block that defines an exclusive set of IAM inline policies associated with the IAM role. See below. If no blocks are configured, Terraform will not manage any inline policies in this resource. Configuring one empty block (namely, `inline_policy {}`) will cause Terraform to remove all inline policies added out of band on `apply`.
-
-  - `name`: The name of the IAM policy that will be attached to the IAM role referenced in the data credential.
-  - `policy`: The IAM policy that will be attached to the IAM role. Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.json`.
-
-#### celerdatabyoc_aws_data_credential
-
-This resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `role_arn`: (Not allowed to modify) The ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
-
-- `instance_profile_arn`: (Not allowed to modify) The instance profile ARN of the IAM role referenced in the data credential. Set the value to `aws_iam_instance_profile.celerdata_data_cred_profile.arn`.
-
-- `bucket_name`: (Not allowed to modify) The name of the AWS S3 bucket for which to generate the policy document and that stores query profiles. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
-
-- `policy_version`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.version`.
-
-**Optional:**
-
-- `name`: (Not allowed to modify) The name of the data credential. Enter a unique name. If omitted, Terraform will assign a random, unique name.
-
-### Deployment credential-related resources
-
-#### aws_iam_instance_profile
-
-This resource contains only the following optional arguments:
-
-- `name`: (Not allowed to modify) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`, `.`, `@`, `-`. Spaces are not allowed.
-
-- `role`: The name of the IAM role to add to the instance profile. Set the value to `aws_iam_role.celerdata_data_cred_role.name`.
-
-#### celerdatabyoc_aws_deployment_credential_policy
-
-This resource contains only the following required arguments:
-
-- `bucket`: The name of the AWS S3 bucket. Set the value to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
-
-- `data_role_arn`: (Not allowed to modify) The ARN of the IAM role referenced in the deployment credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
-
-#### aws_iam_role (deploy_cred_role)
-
-This resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `assume_role_policy`: The policy that grants an entity permission to assume the IAM role referenced in the deployment credential. Set the value to `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.json`.
-
-**Optional:**
-
-- `name`: (Not allowed to modify) The name of the IAM role referenced in the deployment credential. Enter a unique name. If omitted, Terraform will assign a random, unique name. See [IAM Identifiers](https://docs.aws.amazon.com/IAM/latest/UserGuide/Using_Identifiers.html) for more information.
-
-- `description`: The description of the IAM role.
-
-- `inline_policy`: The configuration block that defines an exclusive set of IAM inline policies associated with the IAM role. See below. If no blocks are configured, Terraform will not manage any inline policies in this resource. Configuring one empty block (namely, `inline_policy {}`) will cause Terraform to remove all inline policies added out of band on `apply`.
-
-  - `name`: The name of the IAM policy that will be attached to the IAM role.
-  - `policy`: The IAM policy that will be attached to the IAM role referenced in the deployment credential. Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.json`.
-
-#### celerdatabyoc_aws_deployment_role_credential
-
-This resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `role_arn`: (Not allowed to modify) Set the value to `aws_iam_role.deploy_cred_role.arn`.
-
-- `external_id`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_deployment_credential_assume_policy.role_policy.external_id`.
-
-- `policy_version`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.version`.
-
-**Optional:**
-
-- `name`: (Not allowed to modify) The name of the deployment credential. Enter a unique name. If omitted, Terraform will assign a random, unique name.
-
-### Network configuration-related resources
-
-The `celerdatabyoc_aws_network` resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `name`: (Not allowed to modify) The name of the AWS VPC hosting the cluster. Enter a unique name.
-
-- `subnet_id`: (Not allowed to modify) The ID of the subnet within the AWS VPC.
-
-- `security_group_id`: (Not allowed to modify) The ID of the security group within the AWS VPC.
-
-- `region`: (Not allowed to modify) The ID of the cloud provider region to which the network hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/).
-
-- `deployment_credential_id`: (Not allowed to modify) Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
-
-**Optional:**
-
-- `vpc_endpoint_id`: (Optional) The ID of your endpoint within your VPC. Set this argument if you need to achieve a more stringent network communication method.
-
-### CelerData cluster-related resources
-
 The `celerdatabyoc_elastic_cluster` resource contains the following required arguments and optional arguments:
 
 **Required:**
@@ -338,8 +145,16 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 - `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 ## See Also
-
+### AWS
 - [AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)
 - [Manage data credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_data_credentials/)
 - [Manage deployment credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials/)
 - [Manage network configurations for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_network_configurations/)
+### Azure
+- [Manage data credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_data_credentials/)
+- [Manage deployment credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_deployment_credentials/)
+- [Manage network configurations for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_network_configurations/)
+### GCP
+- [Manage data credentials for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_data_credentials/)
+- [Manage deployment credentials for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_deployment_credentials/)
+- [Manage network configurations for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_network_configurations/)

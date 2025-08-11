@@ -8,9 +8,9 @@ description: |-
 
 ~> The resource's API may change in subsequent versions to simplify user experience.
 
-Deploys a multi-warehouse elastic CelerData cluster on AWS EC2 instances or on Azure virtual machines.
+Deploy a multi-warehouse elastic CelerData cluster on AWS EC2 instances、Azure virtual machines or GCP virtual machines.
 
-The implementation of this resource is part of the whole cluster deployment procedure and depends on the implementation of a data credential, a deployment credential, and a network configuration. For detailed procedures of cluster deployments on AWS and Azure, see [Provision CelerData Cloud BYOC on AWS](../guides/aws_deployment_guide.md) and [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md).
+The implementation of this resource is part of the whole cluster deployment procedure and depends on the implementation of a data credential, a deployment credential, and a network configuration. For detailed procedures of cluster deployments on AWS、Azure and GCP, see [Provision CelerData Cloud BYOC on AWS](../guides/aws_deployment_guide.md) and [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md).
 
 ### Supported Node Sizes
 
@@ -20,11 +20,11 @@ For information about the instance types supported by CelerData, see [Supported 
 
 ```terraform
 resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
-  cluster_name = "<cluster_name>"
-  deployment_credential_id = <deployment_credential_resource_ID>
-  data_credential_id = <data_credential_resource_ID>
-  network_id = <network_configuration_resource_ID>
+  deployment_credential_id = "<deployment_credential_resource_ID>"
+  data_credential_id = "<data_credential_resource_ID>"
+  network_id = "<network_configuration_resource_ID>"
 
+  cluster_name = "<cluster_name>"
   coordinator_node_size = "<coordinator_node_instance_type>"
   coordinator_node_count = <coordinator_node_number>
   
@@ -227,12 +227,19 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 ## See Also
-
+### AWS
 - [AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)
 - [Manage data credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_data_credentials/)
 - [Manage deployment credentials for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_deployment_credentials/)
 - [Manage network configurations for AWS](https://docs.celerdata.com/BYOC/docs/cloud_settings/aws_cloud_settings/manage_aws_network_configurations/)
+### Azure
 - [Manage data credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_data_credentials/)
 - [Manage deployment credentials for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_deployment_credentials/)
 - [Manage network configurations for Azure](https://docs.celerdata.com/BYOC/docs/cloud_settings/azure_cloud_settings/manage_azure_network_configurations/)
+### GCP
+- [Manage data credentials for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_data_credentials/)
+- [Manage deployment credentials for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_deployment_credentials/)
+- [Manage network configurations for GCP](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_network_configurations/)
+
+### Warehouse
 - [Warehouse auto-scaling policy](../resources/warehouse_auto_scaling_policy.md)

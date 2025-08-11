@@ -290,66 +290,35 @@ The [`celerdatabyoc_aws_network`](../resources/aws_network.md) resource contains
 - `vpc_endpoint_id`: (Optional) The ID of your endpoint within your VPC. Set this argument if you need to achieve a more stringent network communication method.
 
 ### CelerData cluster-related resources
-
 ```terraform
 resource "celerdatabyoc_classic_cluster" "demo_cluster" {
-  cluster_name = "<cluster_name>"
-  fe_instance_type = "<fe_node_instance_type>"
-  fe_node_count = 1
   deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
   data_credential_id = celerdatabyoc_aws_data_credential.data_credential.id
   network_id = celerdatabyoc_aws_network.network.id
+  
+  cluster_name = "<cluster_name>"
+  fe_instance_type = "<fe_node_instance_type>"
+  fe_node_count = 1
+
   be_instance_type = "<be_node_instance_type>"
   be_node_count = 1
-  be_disk_number = 2
-  be_disk_per_size = 100
+  // optional
+  be_volume_config {
+    vol_number = <vol_number>
+    vol_size = <vol_size>
+    iops = <iops>
+    throughput = <throughput>
+  }
+  
   default_admin_password = "<SQL_user_initial_password>"
-
   expected_cluster_state = "Running"
   resource_tags = {
     celerdata = "<tag_name>"
   }
   csp = "aws"
   region = "<AWS_VPC_region>"
-
-  init_scripts {
-      logs_dir    = "<log_s3_path>"
-      script_path = "<script_s3_path>"
-  }
-  run_scripts_parallel = false
-  query_port = 9030
 }
 ```
-
-The [`celerdatabyoc_classic_cluster`](../resources/classic_cluster.md) resource contains the following required arguments and optional arguments:
-
-~> For information about the resource used to deploy an elastic CelerData cluster on AWS through Terraform, see [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md) (single-warehouse elastic cluster) and [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md) (multi-warehouse elastic cluster).
-
-**Required:**
-
-- `cluster_name`: (Forces new resource) The desired name for the cluster.
-- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
-- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
-- `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_aws_data_credential.data_credential.id`.
-- `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_aws_network.network.id`.
-- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
-- `default_admin_password`: The initial password of the cluster `admin` user.
-- `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
-- `csp`: The cloud service provider of the cluster. Set this argument to `aws`.
-- `region`: The ID of the AWS region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#aws).
-
-**Optional:**
-
-- `fe_node_count`: The number of FE nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
-- `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
-- `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
-- `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
-- `resource_tags`: The tags to be attached to the cluster.
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
-  - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
-  - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
-- `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
-- `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 
 ## Apply configurations
 
