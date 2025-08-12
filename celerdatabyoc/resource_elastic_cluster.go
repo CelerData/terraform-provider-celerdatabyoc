@@ -301,20 +301,11 @@ func resourceElasticCluster() *schema.Resource {
 							ValidateFunc: validation.StringIsNotWhiteSpace,
 						},
 						"time_zone": {
-							Type:        schema.TypeString,
-							Description: "IANA Time-Zone",
-							Optional:    true,
-							Default:     "UTC",
-							ValidateFunc: func(i interface{}, k string) ([]string, []error) {
-								v, ok := i.(string)
-								if !ok {
-									return nil, []error{fmt.Errorf("expected type of %s to be string", k)}
-								}
-								if !cluster.IsValidTimeZoneName(v) {
-									return nil, []error{fmt.Errorf("for param `%s`, value:%s is not a valid IANA Time-Zone", k, v)}
-								}
-								return nil, nil
-							},
+							Type:         schema.TypeString,
+							Description:  "IANA Time-Zone",
+							Optional:     true,
+							Default:      "UTC",
+							ValidateFunc: common.ValidateSchedulingPolicyTimeZone,
 						},
 						"active_days": {
 							Type:     schema.TypeSet,
@@ -329,12 +320,12 @@ func resourceElasticCluster() *schema.Resource {
 						"resume_at": {
 							Type:         schema.TypeString,
 							Optional:     true,
-							ValidateFunc: validation.StringIsNotWhiteSpace,
+							ValidateFunc: common.ValidateSchedulingPolicyDateTime,
 						},
 						"suspend_at": {
 							Type:         schema.TypeString,
 							Optional:     true,
-							ValidateFunc: validation.StringIsNotWhiteSpace,
+							ValidateFunc: common.ValidateSchedulingPolicyDateTime,
 						},
 						"enable": {
 							Type:     schema.TypeBool,
@@ -534,19 +525,8 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		}
 	}
 
-	if v, ok := d.GetOk("scheduling_policy"); ok {
-		policies := v.([]interface{})
-		policyNameMap := make(map[string]bool)
-		for _, item := range policies {
-			m := item.(map[string]interface{})
-			if _, ok := policyNameMap[m["policy_name"].(string)]; ok {
-				return fmt.Errorf("duplicate scheduling policy name `%s`", m["policy_name"].(string))
-			}
-			policyNameMap[m["policy_name"].(string)] = true
-		}
-	}
-
-	return nil
+	err2 := SchedulingPolicyParamCheck(d)
+	return err2
 }
 
 func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {

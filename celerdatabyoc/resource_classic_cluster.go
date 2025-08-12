@@ -305,20 +305,11 @@ func resourceClassicCluster() *schema.Resource {
 							ValidateFunc: validation.StringIsNotWhiteSpace,
 						},
 						"time_zone": {
-							Type:        schema.TypeString,
-							Description: "IANA Time-Zone",
-							Optional:    true,
-							Default:     "UTC",
-							ValidateFunc: func(i interface{}, k string) ([]string, []error) {
-								v, ok := i.(string)
-								if !ok {
-									return nil, []error{fmt.Errorf("expected type of %s to be string", k)}
-								}
-								if !cluster.IsValidTimeZoneName(v) {
-									return nil, []error{fmt.Errorf("for param `%s`, value:%s is not a valid IANA Time-Zone", k, v)}
-								}
-								return nil, nil
-							},
+							Type:         schema.TypeString,
+							Description:  "IANA Time-Zone",
+							Optional:     true,
+							Default:      "UTC",
+							ValidateFunc: common.ValidateSchedulingPolicyTimeZone,
 						},
 						"active_days": {
 							Type:     schema.TypeSet,
@@ -333,12 +324,12 @@ func resourceClassicCluster() *schema.Resource {
 						"resume_at": {
 							Type:         schema.TypeString,
 							Optional:     true,
-							ValidateFunc: validation.StringIsNotWhiteSpace,
+							ValidateFunc: common.ValidateSchedulingPolicyDateTime,
 						},
 						"suspend_at": {
 							Type:         schema.TypeString,
 							Optional:     true,
-							ValidateFunc: validation.StringIsNotWhiteSpace,
+							ValidateFunc: common.ValidateSchedulingPolicyDateTime,
 						},
 						"enable": {
 							Type:     schema.TypeBool,
@@ -507,28 +498,31 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		}
 	}
 
-	log.Printf("[ERROR] scheduling policy: %+v", d.Get("scheduling_policy"))
+	err2 := SchedulingPolicyParamCheck(d)
+	return err2
+}
 
+func SchedulingPolicyParamCheck(d *schema.ResourceDiff) error {
 	if v, ok := d.GetOk("scheduling_policy"); ok {
 		policies := v.([]interface{})
 		policyNameMap := make(map[string]bool)
 		for _, item := range policies {
 			m := item.(map[string]interface{})
 			if _, ok := policyNameMap[m["policy_name"].(string)]; ok {
-				return fmt.Errorf("duplicate scheduling policy --- name `%s`", m["policy_name"].(string))
+				return fmt.Errorf("Duplicate scheduling policy name `%s`", m["policy_name"].(string))
 			}
 
 			if m["resume_at"].(string) == "" && m["suspend_at"].(string) == "" {
-				return fmt.Errorf("For scheduling policy name `%s`, field `resume_at` and `suspend_at` cannot be empty at the same time.", m["policy_name"].(string))
+				return fmt.Errorf("For scheduling policy [`%s`], field `resume_at` and `suspend_at` cannot be empty at the same time.", m["policy_name"].(string))
 			}
 
 			if m["resume_at"].(string) == m["suspend_at"].(string) {
-				return fmt.Errorf("For scheduling policy name `%s`, field `resume_at` and `suspend_at` cannot be the same", m["policy_name"].(string))
+				return fmt.Errorf("For scheduling policy [`%s`], field `resume_at` and `suspend_at` cannot be the same", m["policy_name"].(string))
 			}
+
 			policyNameMap[m["policy_name"].(string)] = true
 		}
 	}
-
 	return nil
 }
 
