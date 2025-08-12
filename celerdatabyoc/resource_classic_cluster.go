@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sort"
+	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/network"
@@ -286,6 +288,64 @@ func resourceClassicCluster() *schema.Resource {
 				Optional:     true,
 				ValidateFunc: validation.StringIsNotWhiteSpace,
 			},
+			"scheduling_policy": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 5,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"policy_name": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"description": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"time_zone": {
+							Type:         schema.TypeString,
+							Description:  "IANA Time-Zone",
+							Optional:     true,
+							Default:      "UTC",
+							ValidateFunc: common.ValidateSchedulingPolicyTimeZone,
+						},
+						"active_days": {
+							Type:     schema.TypeSet,
+							Required: true,
+							MinItems: 1,
+							MaxItems: 7,
+							Elem: &schema.Schema{
+								Type:         schema.TypeString,
+								ValidateFunc: validation.StringInSlice(cluster.WeekDays, false),
+							},
+						},
+						"resume_at": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: common.ValidateSchedulingPolicyDateTime,
+						},
+						"suspend_at": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: common.ValidateSchedulingPolicyDateTime,
+						},
+						"enable": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  true,
+						},
+					},
+				},
+			},
+			"scheduling_policy_extra_info": {
+				Type:     schema.TypeMap,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -438,6 +498,31 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		}
 	}
 
+	err2 := SchedulingPolicyParamCheck(d)
+	return err2
+}
+
+func SchedulingPolicyParamCheck(d *schema.ResourceDiff) error {
+	if v, ok := d.GetOk("scheduling_policy"); ok {
+		policies := v.([]interface{})
+		policyNameMap := make(map[string]bool)
+		for _, item := range policies {
+			m := item.(map[string]interface{})
+			if _, ok := policyNameMap[m["policy_name"].(string)]; ok {
+				return fmt.Errorf("Duplicate scheduling policy name `%s`", m["policy_name"].(string))
+			}
+
+			if m["resume_at"].(string) == "" && m["suspend_at"].(string) == "" {
+				return fmt.Errorf("For scheduling policy [`%s`], field `resume_at` and `suspend_at` cannot be empty at the same time.", m["policy_name"].(string))
+			}
+
+			if m["resume_at"].(string) == m["suspend_at"].(string) {
+				return fmt.Errorf("For scheduling policy [`%s`], field `resume_at` and `suspend_at` cannot be the same", m["policy_name"].(string))
+			}
+
+			policyNameMap[m["policy_name"].(string)] = true
+		}
+	}
 	return nil
 }
 
@@ -584,8 +669,9 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 
-	d.SetId(resp.ClusterID)
-	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
+	clusterId := resp.ClusterID
+	d.SetId(clusterId)
+	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterId)
 
 	if v, ok := d.GetOk("fe_configs"); ok && len(d.Get("fe_configs").(map[string]interface{})) > 0 {
 		configMap := v.(map[string]interface{})
@@ -594,7 +680,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 			configs[k] = v.(string)
 		}
 		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
-			ClusterID:  resp.ClusterID,
+			ClusterID:  clusterId,
 			ConfigType: cluster.CustomConfigTypeFE,
 			Configs:    configs,
 		})
@@ -630,7 +716,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 
 		if len(sslCerts) > 0 {
-			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, false)
+			warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, clusterId, sslCerts, false)
 			if warningDiag != nil {
 				return warningDiag
 			}
@@ -639,7 +725,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 
 	if v, ok := d.GetOk("ranger_certs_dir"); ok {
 		rangerCertsDirPath := v.(string)
-		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, false)
+		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, clusterId, rangerCertsDirPath, false)
 		if warningDiag != nil {
 			return warningDiag
 		}
@@ -659,6 +745,23 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		warningDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
 		if warningDiag != nil {
 			return warningDiag
+		}
+	}
+
+	if v, ok := d.GetOk("scheduling_policy"); ok {
+		policies := v.([]interface{})
+		for _, item := range policies {
+			m := item.(map[string]interface{})
+			err := SaveClusterSchedulingPolicy(ctx, clusterAPI, clusterId, m)
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  fmt.Sprintf("Failed to save scheduling policy[%s], please retry again!", m["policy_name"].(string)),
+						Detail:   err.Error(),
+					},
+				}
+			}
 		}
 	}
 
@@ -735,6 +838,12 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		return diag.FromErr(err)
 	}
 
+	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterID)
+	if err != nil {
+		log.Printf("[ERROR] list cluster schedule policy failed,clusterId:%s err:%+v", clusterID, err)
+		return diag.FromErr(err)
+	}
+
 	log.Printf("[DEBUG] get cluster, resp:%+v", resp.Cluster)
 	d.Set("cluster_state", resp.Cluster.ClusterState)
 	d.Set("expected_cluster_state", resp.Cluster.ClusterState)
@@ -761,10 +870,6 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	}
 
 	d.Set("resource_tags", tags)
-
-	log.Printf("[DEBUG] API返回的标签: %#v", tags)
-
-	log.Printf("[DEBUG] 当前状态中的标签: %#v", d.Get("resource_tags"))
 
 	if len(resp.Cluster.LdapSslCerts) > 0 {
 		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
@@ -815,6 +920,9 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 			d.Set("be_volume_config", []interface{}{beVolumeConfig})
 		}
 	}
+
+	d.Set("scheduling_policy", policies)
+	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	return diags
 }
@@ -973,6 +1081,13 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterID, intervalTimeMills, enable)
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.HasChange("scheduling_policy") && !d.IsNewResource() {
+		diagError := HandleChangedClusterSchedulingPolicy(ctx, clusterAPI, d)
+		if diagError != nil {
+			return diagError
 		}
 	}
 
@@ -1401,6 +1516,241 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	}
 
 	return diags
+}
+
+func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClusterAPI, d *schema.ResourceData) diag.Diagnostics {
+
+	clusterId := d.Id()
+	if clusterId == "" {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Resource id not found",
+				Detail:   "Handle changed cluster scheduling policy, cluster id can`t be empty",
+			},
+		}
+	}
+	policyExtraInfo := make(map[string]string)
+	if v, ok := d.GetOk("scheduling_policy_extra_info"); ok {
+		for k, v := range v.(map[string]interface{}) {
+			policyExtraInfo[k] = v.(string)
+		}
+	}
+	o, n := d.GetChange("scheduling_policy")
+	opMap := make(map[string]map[string]interface{})
+	npMap := make(map[string]map[string]interface{})
+	if o != nil && len(o.([]interface{})) > 0 {
+		for _, item := range o.([]interface{}) {
+			m := item.(map[string]interface{})
+			opMap[m["policy_name"].(string)] = m
+		}
+	}
+	if n != nil && len(n.([]interface{})) > 0 {
+		for _, item := range n.([]interface{}) {
+			m := item.(map[string]interface{})
+			npMap[m["policy_name"].(string)] = m
+		}
+	}
+
+	newPolicies := make([]map[string]interface{}, 0)
+	updatedPolicies := make([]map[string]interface{}, 0)
+	deletedPolicies := make([]map[string]interface{}, 0)
+
+	keys := []string{"policy_name", "description", "time_zone", "resume_at", "suspend_at"}
+	for k, nv := range npMap {
+		if opMap[k] == nil {
+			newPolicies = append(newPolicies, nv)
+		} else {
+			ov := opMap[k]
+
+			changed := false
+			if ov["enable"].(bool) != nv["enable"].(bool) {
+				updatedPolicies = append(updatedPolicies, nv)
+				changed = true
+			}
+			if !changed {
+				for _, k2 := range keys {
+					if nv[k2].(string) != ov[k2].(string) {
+						updatedPolicies = append(updatedPolicies, nv)
+						changed = true
+						break
+					}
+				}
+			}
+
+			if !changed {
+				ovdays := make([]string, 0)
+				for _, item := range ov["active_days"].(*schema.Set).List() {
+					ovdays = append(ovdays, item.(string))
+				}
+				sort.Strings(ovdays)
+
+				nvdays := make([]string, 0)
+				for _, item := range nv["active_days"].(*schema.Set).List() {
+					nvdays = append(nvdays, item.(string))
+				}
+				sort.Strings(nvdays)
+
+				ov_active_days_str := strings.Join(ovdays, ",")
+				nv_active_days_str := strings.Join(nvdays, ",")
+
+				if ov_active_days_str != nv_active_days_str {
+					updatedPolicies = append(updatedPolicies, nv)
+				}
+			}
+		}
+	}
+
+	for k, ov := range opMap {
+		if npMap[k] == nil {
+			deletedPolicies = append(deletedPolicies, ov)
+		}
+	}
+
+	for _, item := range deletedPolicies {
+		policyId := policyExtraInfo[item["policy_name"].(string)]
+		err := DeleteClusterSchedulingPolicy(ctx, api, clusterId, policyId)
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Failed to delete cluster scheduling policy",
+					Detail:   fmt.Sprintf("Failed to delete cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
+				},
+			}
+		}
+	}
+
+	for _, item := range updatedPolicies {
+		policyId := policyExtraInfo[item["policy_name"].(string)]
+		err := ModifyClusterSchedulingPolicy(ctx, api, clusterId, policyId, item)
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Failed to modify cluster scheduling policy",
+					Detail:   fmt.Sprintf("Failed to modify cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
+				},
+			}
+		}
+	}
+
+	for _, item := range newPolicies {
+		err := SaveClusterSchedulingPolicy(ctx, api, clusterId, item)
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Failed to add cluster scheduling policy",
+					Detail:   fmt.Sprintf("Failed to add cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
+				},
+			}
+		}
+	}
+	return nil
+}
+
+func ListClusterSchedulingPolicy(ctx context.Context, api cluster.IClusterAPI, clusterId string) ([]map[string]interface{}, map[string]string, error) {
+
+	policyResp, err := api.ListClusterSchedulePolicy(ctx, &cluster.ListClusterSchedulePolicyReq{
+		ClusterId: clusterId,
+	})
+	if err != nil {
+		log.Printf("[ERROR] list cluster scheduling policy failed, cluster[%s] err:%+v", clusterId, err)
+		return nil, nil, err
+	}
+
+	policyList := make([]map[string]interface{}, 0)
+	policyExtraInfo := make(map[string]string)
+
+	if len(policyResp.SchedulePolicies) > 0 {
+		for _, item := range policyResp.SchedulePolicies {
+			m := map[string]interface{}{
+				"policy_name": item.PolicyName,
+				"description": item.Description,
+				"time_zone":   item.TimeZone,
+				"active_days": strings.Split(item.ActiveDateValue, ","),
+				"enable":      item.State == int32(1),
+			}
+			if item.ResumeAt != "" {
+				m["resume_at"] = item.ResumeAt
+			}
+			if item.SuspendAt != "" {
+				m["suspend_at"] = item.SuspendAt
+			}
+
+			policyList = append(policyList, m)
+			policyExtraInfo[item.PolicyName] = item.PolicyId
+		}
+	}
+	return policyList, policyExtraInfo, nil
+}
+
+func SaveClusterSchedulingPolicy(ctx context.Context, api cluster.IClusterAPI, clusterId string, m map[string]interface{}) error {
+
+	activeDays := m["active_days"].(*schema.Set).List()
+	dayArr := make([]string, 0)
+	for _, item := range activeDays {
+		dayArr = append(dayArr, item.(string))
+	}
+
+	resp, err := api.SaveClusterSchedulePolicy(ctx, &cluster.SaveClusterSchedulePolicyReq{
+		ClusterId:   clusterId,
+		PolicyName:  m["policy_name"].(string),
+		Description: m["description"].(string),
+		TimeZone:    m["time_zone"].(string),
+		ActiveDays:  strings.Join(dayArr, ","),
+		ResumeAt:    m["resume_at"].(string),
+		SuspendAt:   m["suspend_at"].(string),
+		State:       m["enable"].(bool),
+	})
+	if err != nil {
+		log.Printf("[ERROR] save cluster scheduling policy failed,cluster[%s] paramMap:%+v  err:%+v", clusterId, m, err)
+		return err
+	}
+	log.Printf("[DEBUG] save cluster scheduling policy, cluster[%s] paramMap:%+v resp:%+v", clusterId, m, resp)
+	return nil
+}
+
+func ModifyClusterSchedulingPolicy(ctx context.Context, api cluster.IClusterAPI, clusterId string, policyId string, m map[string]interface{}) error {
+
+	activeDays := m["active_days"].(*schema.Set).List()
+	dayArr := make([]string, 0)
+	for _, item := range activeDays {
+		dayArr = append(dayArr, item.(string))
+	}
+
+	err := api.ModifyClusterSchedulePolicy(ctx, &cluster.ModifyClusterSchedulePolicyReq{
+		ClusterId:   clusterId,
+		PolicyId:    policyId,
+		PolicyName:  m["policy_name"].(string),
+		Description: m["description"].(string),
+		TimeZone:    m["time_zone"].(string),
+		ActiveDays:  strings.Join(dayArr, ","),
+		ResumeAt:    m["resume_at"].(string),
+		SuspendAt:   m["suspend_at"].(string),
+		State:       m["enable"].(bool),
+	})
+	if err != nil {
+		log.Printf("[ERROR] modify cluster scheduling policy failed,cluster[%s] paramMap:%+v  err:%+v", clusterId, m, err)
+		return err
+	}
+	log.Printf("[DEBUG] modify cluster scheduling policy, cluster[%s] paramMap:%+v", clusterId, m)
+	return nil
+}
+
+func DeleteClusterSchedulingPolicy(ctx context.Context, api cluster.IClusterAPI, clusterId string, policyId string) error {
+
+	err := api.DeleteClusterSchedulePolicy(ctx, &cluster.DeleteClusterSchedulePolicyReq{
+		ClusterId: clusterId,
+		PolicyId:  policyId,
+	})
+	if err != nil {
+		log.Printf("[ERROR] delete cluster scheduling policy failed,cluster[%s] policyId:%s err:%+v", clusterId, policyId, err)
+		return err
+	}
+	log.Printf("[DEBUG] delete cluster scheduling policy, cluster[%s] policyId:%s", clusterId, policyId)
+	return nil
 }
 
 type waitStateReq struct {

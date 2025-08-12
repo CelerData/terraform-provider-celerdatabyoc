@@ -1,6 +1,6 @@
 # CelerData Cloud BYOC provider
 
-You can use the CelerData Cloud BYOC provider to interact with most CelerData Cloud BYOC resources. By default, you have the required AWS skills before you can follow the tutorials in this article.
+You can use the CelerData Cloud BYOC provider to interact with most CelerData Cloud BYOC resources.
 
 ### What you should prepare
 

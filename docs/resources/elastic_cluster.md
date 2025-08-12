@@ -57,6 +57,17 @@ resource "celerdatabyoc_elastic_cluster" "elastic_cluster_1" {
     <key> = <value>
   }
 
+  // optional
+  scheduling_policy {
+    policy_name = "auto-resume-suspend"
+    description = "Auto resume/suspend"
+    active_days = ["TUESDAY"]
+    time_zone = "UTC" // IANA Time-Zone
+    resume_at   = "09:00"
+    suspend_at  = "18:00"
+    enable      = true
+  }
+
   default_admin_password = "<SQL_user_initial_password>"
 
   expected_cluster_state = "{Suspended | Running}"
@@ -143,6 +154,23 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 
 - `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
+
+- `scheduling_policy`:(Optional, List) When specified. CelerData will automatically suspend the cluster to save the majority of costs on EC2 (only EBS costs will be incurred) and resume the cluster for usage as scheduled.
+  - `policy_name`: (Required) Policy name.
+  - `description`: (Optional) Explanation of this policy strategy.
+  - `active_days`: (Required) Configure the date when the cluster scheduling policy is triggered. Available values:
+    - `MONDAY`
+    - `TUESDAY`
+    - `WEDNESDAY`
+    - `THURSDAY`
+    - `FRIDAY`
+    - `SATURDAY`
+    - `SUNDAY`
+  - `time_zone`: (Optional) Specify your IANA Time-Zone. Default: `UTC`.
+  - `resume_at`: (Optional) Cluster auto resume time. `resume_at` and `suspend_at` cannot both be empty.
+  - `suspend_at`: (Optional) Cluster auto suspend time.
+  - `enable`: (Required) Whether to enable this scheduling policy. When specified as true, the system will perform cluster scheduling according to this policy.
+
 
 ## See Also
 ### AWS

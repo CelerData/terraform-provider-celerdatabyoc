@@ -489,6 +489,64 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional:     true,
 				ValidateFunc: validation.StringIsNotWhiteSpace,
 			},
+			"scheduling_policy": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 5,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"policy_name": {
+							Type:         schema.TypeString,
+							Required:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"description": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: validation.StringIsNotWhiteSpace,
+						},
+						"time_zone": {
+							Type:         schema.TypeString,
+							Description:  "IANA Time-Zone",
+							Optional:     true,
+							Default:      "UTC",
+							ValidateFunc: common.ValidateSchedulingPolicyTimeZone,
+						},
+						"active_days": {
+							Type:     schema.TypeSet,
+							Required: true,
+							MinItems: 1,
+							MaxItems: 7,
+							Elem: &schema.Schema{
+								Type:         schema.TypeString,
+								ValidateFunc: validation.StringInSlice(cluster.WeekDays, false),
+							},
+						},
+						"resume_at": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: common.ValidateSchedulingPolicyDateTime,
+						},
+						"suspend_at": {
+							Type:         schema.TypeString,
+							Optional:     true,
+							ValidateFunc: common.ValidateSchedulingPolicyDateTime,
+						},
+						"enable": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  true,
+						},
+					},
+				},
+			},
+			"scheduling_policy_extra_info": {
+				Type:     schema.TypeMap,
+				Computed: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -777,7 +835,9 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			}
 		}
 	}
-	return nil
+
+	err2 := SchedulingPolicyParamCheck(d)
+	return err2
 }
 
 func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
@@ -1025,6 +1085,23 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if v, ok := d.GetOk("scheduling_policy"); ok {
+		policies := v.([]interface{})
+		for _, item := range policies {
+			m := item.(map[string]interface{})
+			err := SaveClusterSchedulingPolicy(ctx, clusterAPI, clusterId, m)
+			if err != nil {
+				return diag.Diagnostics{
+					diag.Diagnostic{
+						Severity: diag.Warning,
+						Summary:  fmt.Sprintf("Failed to save scheduling policy[%s], please retry again!", m["policy_name"].(string)),
+						Detail:   err.Error(),
+					},
+				}
+			}
+		}
+	}
+
 	policyJson := defaultWhMap["auto_scaling_policy"].(string)
 	if len(policyJson) > 0 {
 		err := setWarehouseAutoScalingPolicy(ctx, clusterAPI, clusterId, defaultWarehouseId, policyJson)
@@ -1124,6 +1201,12 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster custom config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
+	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterId)
+	if err != nil {
+		log.Printf("[ERROR] list cluster schedule policy failed,clusterId:%s err:%+v", clusterId, err)
 		return diag.FromErr(err)
 	}
 
@@ -1331,8 +1414,12 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if len(coordinatorNodeConfigsResp.Configs) > 0 {
 		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
 	}
-
 	log.Printf("[DEBUG] get cluster, warehouses:%+v", resp.Cluster.Warehouses)
+
+	if len(policies) > 0 {
+		d.Set("scheduling_policy", policies)
+		d.Set("scheduling_policy_extra_info", policyExtraInfo)
+	}
 
 	return diags
 }
@@ -1474,6 +1561,13 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		errDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
 		if errDiag != nil {
 			return errDiag
+		}
+	}
+
+	if d.HasChange("scheduling_policy") && !d.IsNewResource() {
+		diagError := HandleChangedClusterSchedulingPolicy(ctx, clusterAPI, d)
+		if diagError != nil {
+			return diagError
 		}
 	}
 
