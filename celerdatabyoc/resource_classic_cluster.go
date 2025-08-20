@@ -283,6 +283,14 @@ func resourceClassicCluster() *schema.Resource {
 				Optional: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
+			"global_session_variables": {
+				Type:     schema.TypeMap,
+				Optional: true,
+				Elem: &schema.Schema{
+					Type:         schema.TypeString,
+					ValidateFunc: validation.StringIsNotWhiteSpace,
+				},
+			},
 			"ranger_certs_dir": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -498,6 +506,10 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		}
 	}
 
+	if d.HasChange("global_session_variables") && d.Get("expected_cluster_state") != string(cluster.ClusterStateRunning) {
+		return fmt.Errorf("when modify `global_session_variables`, field `expected_cluster_state` should change to:%s", cluster.ClusterStateRunning)
+	}
+
 	err2 := SchedulingPolicyParamCheck(d)
 	return err2
 }
@@ -706,6 +718,13 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
+	if v, ok := d.GetOk("global_session_variables"); ok && len(d.Get("global_session_variables").(map[string]interface{})) > 0 {
+		diagnostics := SetGlobalSqlSessionVariables(ctx, v, clusterAPI, clusterId)
+		if diagnostics != nil {
+			return diagnostics
+		}
+	}
+
 	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
 
 		arr := v.(*schema.Set).List()
@@ -838,6 +857,20 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		return diag.FromErr(err)
 	}
 
+	globalSessionVariables := make(map[string]string)
+	if v, ok := d.GetOk("global_session_variables"); ok && len(v.(map[string]interface{})) > 0 {
+		for k, v := range v.(map[string]interface{}) {
+			globalSessionVariables[k] = v.(string)
+		}
+		if stateResp.ClusterState == string(cluster.ClusterStateRunning) {
+			sessionVariablesResp, diagnostics := GetGlobalSqlSessionVariables(ctx, clusterAPI, clusterID, v)
+			if diagnostics != nil {
+				return diagnostics
+			}
+			globalSessionVariables = sessionVariablesResp.Variables
+		}
+	}
+
 	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterID)
 	if err != nil {
 		log.Printf("[ERROR] list cluster schedule policy failed,clusterId:%s err:%+v", clusterID, err)
@@ -884,6 +917,10 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 
 	if len(beConfigsResp.Configs) > 0 {
 		d.Set("be_configs", beConfigsResp.Configs)
+	}
+
+	if len(globalSessionVariables) > 0 {
+		d.Set("global_session_variables", globalSessionVariables)
 	}
 
 	feModule := resp.Cluster.FeModule
@@ -1096,6 +1133,13 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	if needResume(d) {
 		o, n := d.GetChange("expected_cluster_state")
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
+	if d.HasChange("global_session_variables") && !d.IsNewResource() {
+		errDiag := HandleChangedGlobalSqlSessionVariables(ctx, clusterAPI, d)
 		if errDiag != nil {
 			return errDiag
 		}
@@ -2421,4 +2465,148 @@ var AwsAzureInternalTagKeys = map[string]bool{
 var GcpInternalTagKeys = map[string]bool{
 	"vendor":       true,
 	"cluster-name": true,
+}
+
+func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.IClusterAPI, d *schema.ResourceData) diag.Diagnostics {
+
+	clusterId := d.Id()
+	if clusterId == "" {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Resource id not found",
+				Detail:   "Handle changed cluster scheduling policy, cluster id can`t be empty",
+			},
+		}
+	}
+
+	o, n := d.GetChange("global_session_variables")
+	oMap := make(map[string]string)
+	nMap := make(map[string]string)
+	if o != nil && len(o.(map[string]interface{})) > 0 {
+		for k, v := range o.(map[string]interface{}) {
+			oMap[k] = v.(string)
+		}
+	}
+	if n != nil && len(n.(map[string]interface{})) > 0 {
+		for k, v := range n.(map[string]interface{}) {
+			nMap[k] = v.(string)
+		}
+	}
+
+	updatedVariables := make(map[string]string)
+	removedVariables := make([]string, 0)
+
+	for k, nv := range nMap {
+		if ov, ok := oMap[k]; !ok || nv != ov {
+			updatedVariables[k] = nv
+		}
+	}
+
+	for k, _ := range oMap {
+		if _, ok := nMap[k]; !ok {
+			removedVariables = append(removedVariables, k)
+		}
+	}
+
+	if len(updatedVariables) > 0 {
+		resp, err := api.SetGlobalSqlSessionVariables(ctx, &cluster.SetGlobalSqlSessionVariablesReq{
+			ClusterId: clusterId,
+			Variables: updatedVariables,
+		})
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Failed to update global session variables",
+					Detail:   fmt.Sprintf("ErrMsg:%s", err.Error()),
+				},
+			}
+		}
+		if resp.HasFailed {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Failed to update global session variables",
+					Detail:   fmt.Sprintf("ErrMsg:%s", strings.Join(resp.ErrMsgArr, "\n")),
+				},
+			}
+		}
+	}
+
+	if len(removedVariables) > 0 {
+		resp, err := api.ResetGlobalSqlSessionVariables(ctx, &cluster.ResetGlobalSqlSessionVariablesReq{
+			ClusterId: clusterId,
+			Variables: removedVariables,
+		})
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Failed to reset global session variables",
+					Detail:   fmt.Sprintf("ErrMsg:%s", err.Error()),
+				},
+			}
+		}
+		if resp.HasFailed {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  "Failed to reset global session variables",
+					Detail:   fmt.Sprintf("ErrMsg:%s", strings.Join(resp.ErrMsgArr, "\n")),
+				},
+			}
+		}
+	}
+	return nil
+}
+
+func SetGlobalSqlSessionVariables(ctx context.Context, v interface{}, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	configMap := v.(map[string]interface{})
+	configs := make(map[string]string, 0)
+	for k, v := range configMap {
+		configs[k] = v.(string)
+	}
+
+	setVariablesResp, err := clusterAPI.SetGlobalSqlSessionVariables(ctx, &cluster.SetGlobalSqlSessionVariablesReq{
+		ClusterId: clusterId,
+		Variables: configs,
+	})
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Set global sql session variables error",
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if setVariablesResp.HasFailed {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Set global sql session variables failed",
+				Detail:   strings.Join(setVariablesResp.ErrMsgArr, "\n"),
+			},
+		}
+	}
+	return nil
+}
+
+func GetGlobalSqlSessionVariables(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string, v interface{}) (*cluster.GetGlobalSqlSessionVariablesResp, diag.Diagnostics) {
+	variables := make([]string, 0)
+	for k, _ := range v.(map[string]interface{}) {
+		variables = append(variables, k)
+	}
+
+	sessionVariablesResp, err := clusterAPI.GetGlobalSqlSessionVariables(ctx, &cluster.GetGlobalSqlSessionVariablesReq{
+		ClusterId: clusterID,
+		Variables: variables,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query cluster global session variables failed, err:%+v", err)
+		return nil, diag.FromErr(err)
+	}
+	return sessionVariablesResp, nil
 }

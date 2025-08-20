@@ -912,6 +912,37 @@ type SaveClusterSchedulePolicyReq struct {
 	State       bool   `json:"state" mapstructure:"state"`
 }
 
+type ResetGlobalSqlSessionVariablesResp struct {
+	HasFailed       bool     `json:"has_failed" mapstructure:"has_failed"`
+	FailedVariables []string `json:"failed_variables" mapstructure:"failed_variables"`
+	ErrMsgArr       []string `json:"err_msg_arr" mapstructure:"err_msg_arr"`
+}
+
+type ResetGlobalSqlSessionVariablesReq struct {
+	ClusterId string   `json:"cluster_id" mapstructure:"cluster_id"`
+	Variables []string `json:"variables" mapstructure:"variables"`
+}
+
+type SetGlobalSqlSessionVariablesResp struct {
+	HasFailed       bool     `json:"has_failed" mapstructure:"has_failed"`
+	FailedVariables []string `json:"failed_variables" mapstructure:"failed_variables"`
+	ErrMsgArr       []string `json:"err_msg_arr" mapstructure:"err_msg_arr"`
+}
+
+type SetGlobalSqlSessionVariablesReq struct {
+	ClusterId string            `json:"cluster_id" mapstructure:"cluster_id"`
+	Variables map[string]string `json:"variables" mapstructure:"variables"`
+}
+
+type GetGlobalSqlSessionVariablesReq struct {
+	ClusterId string   `json:"cluster_id" mapstructure:"cluster_id"`
+	Variables []string `json:"variables" mapstructure:"variables"`
+}
+
+type GetGlobalSqlSessionVariablesResp struct {
+	Variables map[string]string `json:"variables" mapstructure:"variables"`
+}
+
 type SaveClusterSchedulePolicyResp struct {
 	PolicyId string `json:"policy_id" mapstructure:"policy_id"`
 }

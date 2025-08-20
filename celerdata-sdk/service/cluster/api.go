@@ -77,6 +77,9 @@ type IClusterAPI interface {
 	SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error)
 	ModifyClusterSchedulePolicy(ctx context.Context, req *ModifyClusterSchedulePolicyReq) error
 	DeleteClusterSchedulePolicy(ctx context.Context, req *DeleteClusterSchedulePolicyReq) error
+	GetGlobalSqlSessionVariables(ctx context.Context, req *GetGlobalSqlSessionVariablesReq) (*GetGlobalSqlSessionVariablesResp, error)
+	SetGlobalSqlSessionVariables(ctx context.Context, req *SetGlobalSqlSessionVariablesReq) (*SetGlobalSqlSessionVariablesResp, error)
+	ResetGlobalSqlSessionVariables(ctx context.Context, req *ResetGlobalSqlSessionVariablesReq) (*ResetGlobalSqlSessionVariablesResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -611,4 +614,33 @@ func (c *clusterAPI) DeleteClusterSchedulePolicy(ctx context.Context, req *Delet
 		return err
 	}
 	return nil
+}
+
+func (c *clusterAPI) GetGlobalSqlSessionVariables(ctx context.Context, req *GetGlobalSqlSessionVariablesReq) (*GetGlobalSqlSessionVariablesResp, error) {
+	variables := make(map[string]string)
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/global/sql-session/variables", c.apiVersion, req.ClusterId), req, &variables)
+	if err != nil {
+		return nil, err
+	}
+	return &GetGlobalSqlSessionVariablesResp{
+		Variables: variables,
+	}, nil
+}
+
+func (c *clusterAPI) SetGlobalSqlSessionVariables(ctx context.Context, req *SetGlobalSqlSessionVariablesReq) (*SetGlobalSqlSessionVariablesResp, error) {
+	resp := &SetGlobalSqlSessionVariablesResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/global/sql-session/variables", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ResetGlobalSqlSessionVariables(ctx context.Context, req *ResetGlobalSqlSessionVariablesReq) (*ResetGlobalSqlSessionVariablesResp, error) {
+	resp := &ResetGlobalSqlSessionVariablesResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/global/sql-session/variables/reset", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
