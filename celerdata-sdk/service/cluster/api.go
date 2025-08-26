@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
 	"time"
@@ -618,7 +619,9 @@ func (c *clusterAPI) DeleteClusterSchedulePolicy(ctx context.Context, req *Delet
 
 func (c *clusterAPI) GetGlobalSqlSessionVariables(ctx context.Context, req *GetGlobalSqlSessionVariablesReq) (*GetGlobalSqlSessionVariablesResp, error) {
 	variables := make(map[string]string)
-	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/global/sql-session/variables", c.apiVersion, req.ClusterId), req, &variables)
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/global/sql-session/variables", c.apiVersion, req.ClusterId), map[string]string{
+		"variables": strings.Join(req.Variables, ","),
+	}, &variables)
 	if err != nil {
 		return nil, err
 	}
