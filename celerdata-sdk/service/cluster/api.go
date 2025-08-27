@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math/rand"
 	"strings"
+	"sync"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
-	"time"
 )
 
 type IClusterAPI interface {
@@ -240,11 +239,11 @@ func (c *clusterAPI) ChangeWarehouseDistribution(ctx context.Context, req *Chang
 	return resp, nil
 }
 
-func (c *clusterAPI) Deploy(ctx context.Context, req *DeployReq) (*DeployResp, error) {
+var mu sync.Mutex
 
-	rand.New(rand.NewSource(time.Now().UnixNano()))
-	sleepTime := time.Duration(rand.Intn(2)+1) * time.Second
-	time.Sleep(sleepTime)
+func (c *clusterAPI) Deploy(ctx context.Context, req *DeployReq) (*DeployResp, error) {
+	mu.Lock()
+	defer mu.Unlock()
 
 	resp := &DeployResp{}
 	req.SourceFrom = "terraform"
