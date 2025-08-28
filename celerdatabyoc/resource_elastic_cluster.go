@@ -534,7 +534,8 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 	}
 
 	if d.HasChange("global_session_variables") && d.Get("expected_cluster_state") != string(cluster.ClusterStateRunning) {
-		return fmt.Errorf("when modify `global_session_variables`, field `expected_cluster_state` should change to:%s", cluster.ClusterStateRunning)
+		o, n := d.GetChange("global_session_variables")
+		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
 	}
 
 	err2 := SchedulingPolicyParamCheck(d)
