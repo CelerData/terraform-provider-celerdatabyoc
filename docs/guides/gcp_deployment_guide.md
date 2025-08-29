@@ -3,12 +3,12 @@
 page_title: "Provision CelerData Cloud BYOC on GCP"
 subcategory: ""
 description: |-
-  
+
 ---
 
 # Provision CelerData Cloud BYOC on GCP
 
-This article walks you through the following steps necessary to deploy a CelerData Cloud BYOC cluster on GCP:
+Step by step deployment of a CelerData Cloud BYOC cluster on GCP:
 
 - [Preparations](#preparations)
 - [Configure providers](#configure-providers)
@@ -22,20 +22,16 @@ Read this article before you start a Terraform configuration for your cluster de
 
 Before using the CelerData Cloud BYOC provider to create infrastructure at the GCP account level for the first time, you must complete the following preparations:
 
-### For GCP
-
-For GCP, you need to:
+### GCP prerequisites
 
 1. Have an GCP service account with administrative privileges.
-2. Install the GCP CLI. For more information, see [How to install the GCP CLI](https://learn.microsoft.com/en-us/cli/gcp/install-gcp-cli).
+2. Install the GCP CLI. For more information, see [How to install the GCP CLI](https://cloud.google.com/sdk/docs/install).
 
-### For CelerData
+### CelerData prerequisites
 
-For CelerData, you need to obtain the credentials with which you can authenticate into the CelerData Cloud BYOC platform. For details, see [Authentication](../index.md#authentication).
+Obtain the credentials to authenticate into the CelerData Cloud BYOC platform. For details, see [Authentication](../index.md#authentication).
 
-### For Terraform
-
-For Terraform, you need to:
+### Terraform prerequisites
 
 1. Install [Terraform](https://developer.hashicorp.com/terraform/downloads) in your terminal.
 
@@ -45,7 +41,7 @@ For Terraform, you need to:
 
 This section assumes that you have [completed the preparations](#preparations).
 
-Create a **.tf** file (for example, **main.tf**) in your Terraform project. Then, add the following code snippet to the **.tf** file:
+Create a **`.tf`** file (for example, **`main.tf`**) in your Terraform project. Then, add the following code snippet to the **`.tf`** file:
 
 ```terraform
 terraform {
@@ -77,11 +73,11 @@ The parameters you need to specify are as follows:
 - `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version, for example `version = "1.0.3"`. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See [For CelerData](#for-celerdata).
 - `project_id`: Enter your GCP cloud project ID.
-- `region`: Enter the ID of the GCP cloud region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp). 
+- `region`: Enter the ID of the GCP cloud region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp).
 
 ## Configure GCP objects
 
-The deployment on GCP requires creating Data Credential, Deployment Credential, and Network Credential in CelerData Cloud. For detailed steps, please refer to: [Cloud Setting For GCP](https://docs.celerdata.com/BYOC/docs/category/gcp/)
+The deployment on GCP requires creating a Data Credential, Deployment Credential, and Network Credential in CelerData Cloud. For detailed steps, please refer to: [Cloud Setting For GCP](https://docs.celerdata.com/BYOC/docs/category/gcp/)
 - [Create Deployment Credential](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_deployment_credentials/)
 - [Create Data Credential](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_data_credentials/)
 - [Create Network Credential](https://docs.celerdata.com/BYOC/docs/cloud_settings/gcp_cloud_settings/manage_gcp_network_configurations/)
@@ -131,8 +127,8 @@ resource "google_storage_bucket" "storage-bucket" {
   name     = "tf-test-bucket-${local.gcp_project_id}"
   location = us-central1
   storage_class = "STANDARD"
-  uniform_bucket_level_access = false 
-  public_access_prevention    = "enforced" 
+  uniform_bucket_level_access = false
+  public_access_prevention    = "enforced"
 
   force_destroy = false
 
@@ -192,13 +188,13 @@ resource "google_project_iam_custom_role" "deployment-custom-role" {
   ]
 }
 
-resource "google_project_iam_member" "deployment-sa-custom-role-binding-1" {  
+resource "google_project_iam_member" "deployment-sa-custom-role-binding-1" {
   project = "<gcp_project_id>"
   role    = google_project_iam_custom_role.deployment-custom-role.id
   member  = "serviceAccount:service@celerdata-byoc-1683716900563.iam.gserviceaccount.com"
 }
 
-resource "google_project_iam_member" "deployment-sa-static-role-binding" {  
+resource "google_project_iam_member" "deployment-sa-static-role-binding" {
   project = "<gcp_project_id>"
   role    = "roles/compute.admin"
   member  = "serviceAccount:service@celerdata-byoc-1683716900563.iam.gserviceaccount.com"
@@ -267,7 +263,7 @@ resource "google_compute_firewall" "fr-egress-external" {
   allow {
     protocol = "tcp"
     ports = ["443","9030"]
-  }  
+  }
   source_ranges = ["0.0.0.0/0"]
 }
 
@@ -288,21 +284,21 @@ resource "google_compute_firewall" "fr-ingress-nlb" {
 
 See the following documents for more information:
 
-- [google_project_service](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_service)
-- [google_storage_bucket](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/storage_bucket)
-- [google_service_account](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account)
-- [google_project_iam_custom_role](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam_custom_role)
-- [google_project_iam_member](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam#google_project_iam_member-1)
-- [google_compute_network](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_network)
-- [google_compute_firewall](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall)
+- [`google_project_service`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_service)
+- [`google_storage_bucket`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/storage_bucket)
+- [`google_service_account`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_service_account)
+- [`google_project_iam_custom_role`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam_custom_role)
+- [`google_project_iam_member`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/google_project_iam#google_project_iam_member-1)
+- [`google_compute_network`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_network)
+- [`google_compute_firewall`](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall)
 
 ## Describe infrastructure
 
-This section provides a sample infrastructure configuration that automates the deployment of a classic CelerData cluster on GCP to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the GCP objects](#configure-gcp-objects).
+This section provides a sample infrastructure configuration that automates the deployment of a classic (shared-nothing) CelerData cluster on GCP to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the GCP objects](#configure-gcp-objects).
 
-To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers and GCP objects.
+To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **`.tf`** file (for example, **`main.tf`**) in which you have configured the providers and GCP objects.
 
-### [celerdatabyoc_gcp_data_credential](../resources/gcp_data_credential.md)
+### [`celerdatabyoc_gcp_data_credential`](../resources/gcp_data_credential.md)
 
 ```terraform
 resource "celerdatabyoc_gcp_data_credential" "storage_credential" {
@@ -320,7 +316,7 @@ This resource contains the following required arguments:
 
 - `service_account`: (Forces new resource) The service account email of the storage. Set this argument to `google_service_account.storage-sa.email`.
 
-### [celerdatabyoc_gcp_deployment_credential](../resources/gcp_deployment_credential.md)
+### [`celerdatabyoc_gcp_deployment_credential`](../resources/gcp_deployment_credential.md)
 
 ```terraform
 resource "celerdatabyoc_gcp_deployment_credential" "deployment_credential" {
@@ -335,7 +331,7 @@ This resource contains the following required arguments:
 
 - `project_id`: (Forces new resource) The service account email of the storage. Set this argument to `google_service_account.storage-sa.email`.
 
-### [celerdatabyoc_gcp_network](../resources/gcp_network.md)
+### [`celerdatabyoc_gcp_network`](../resources/gcp_network.md)
 
 ```terraform
 resource "celerdatabyoc_gcp_network" "network_credential" {
@@ -355,27 +351,29 @@ This resource contains the following required arguments and optional arguments:
 
 - `region`: (Forces new resource) The ID of the GCP region. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp).
 
-- `subnet`: (Forces new resource) The GCP subnet. Eg: `google_compute_subnetwork.subnetwork.name`.
+- `subnet`: (Forces new resource) The GCP subnet. e.g., `google_compute_subnetwork.subnetwork.name`.
 
-- `network_tag`: (Forces new resource)The target tag of the firewall rules that you use to enable connectivity between cluster nodes within your own VPC and between CelerData's VPC and your own VPC over TLS.
+- `network_tag`: (Forces new resource) The target tag of the firewall rules that you use to enable connectivity between cluster nodes within your own VPC, and between CelerData's VPC and your own VPC over TLS.
 
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set this argument to `celerdatabyoc_gcp_deployment_credential.example.id`.
 
 **Optional:**
 
-- `psc_connection_id`: (Forces new resource) The ID of the [Private Service Connect](https://cloud.google.com/vpc/docs/private-service-connect) that you create to allow direct, secure connectivity between CelerData's VPC and your own VPC.
+- `psc_connection_id`: (Forces new resource) The ID of the [Private Service Connection](https://cloud.google.com/vpc/docs/private-service-connect) that you create to allow direct, secure connectivity between CelerData's VPC and your own VPC.
 For information about how to create a PSC Connection, see [Create a Private Service Connect Endpoint](https://docs.celerdata.com/BYOC/docs/sql-reference/gcp/create_psc_endpoint/).
-NOTE:
-If you do not specify a PSC Connection, CelerData's VPC communicates with your own VPC over the Internet.
+
+  > NOTE:
+  > If you do not specify a PSC Connection, CelerData's VPC communicates with your own VPC over the Internet.
 
 
-### [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
+### [`celerdatabyoc_classic_cluster`](../resources/classic_cluster.md)
+
 ```terraform
 resource "celerdatabyoc_classic_cluster" "demo_cluster" {
   deployment_credential_id = celerdatabyoc_gcp_deployment_credential.deployment_credential.id
   data_credential_id       = celerdatabyoc_gcp_data_credential.storage_credential.id
   network_id               = celerdatabyoc_gcp_network.network_credential.id
-  
+
   cluster_name = "<cluster_name>"
   fe_instance_type = "<fe_node_instance_type>"
   fe_node_count = 1
@@ -389,7 +387,7 @@ resource "celerdatabyoc_classic_cluster" "demo_cluster" {
     iops = <iops>
     throughput = <throughput>
   }
-  
+
   default_admin_password = "<SQL_user_initial_password>"
   expected_cluster_state = "Running"
   resource_tags = {
@@ -406,7 +404,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `cluster_name`: (Forces new resource) The desired name for the cluster.
 
-- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
+- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)."
 
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_gcp_deployment_credential.deployment_credential.id`.
 
@@ -414,7 +412,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_gcp_network.network_credential.id`.
 
-- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
+- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)."
 
 - `default_admin_password`: The initial password of the cluster `admin` user.
 
@@ -430,7 +428,7 @@ The `celerdatabyoc_classic_cluster` resource contains the following required arg
 
 - `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
 
-- `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
+- `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: `[1,24]`. Default value: `2`.
 
 - `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
 
@@ -460,7 +458,7 @@ After you finish [configuring the providers](#configure-providers) and [describi
    terraform apply
    ```
 
-When the system returns a "Apply complete!" message, the Terraform configuration has been successfully applied.
+When the system returns an "Apply complete!" message, the Terraform configuration has been successfully applied.
 
 ~> After you change the provider versions in the Terraform configuration, you must run `terraform init -upgrade` to initialize the providers and then run `terraform apply` again to apply the Terraform configuration.
 
