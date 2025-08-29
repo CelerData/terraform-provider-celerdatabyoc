@@ -8,7 +8,7 @@ description: |-
 
 # Provision CelerData Cloud BYOC on AWS
 
-This article walks you through the following steps necessary to deploy a CelerData Cloud BYOC cluster on AWS:
+Deploy a CelerData Cloud BYOC cluster on AWS step by step:
 
 - [Preparations](#preparations)
 - [Configure providers](#configure-providers)
@@ -21,9 +21,7 @@ Read this article before you start a Terraform configuration for your cluster de
 
 Before using the CelerData Cloud BYOC provider to create infrastructure at the AWS account level for the first time, you must complete the following preparations:
 
-### For AWS
-
-For AWS, you need to:
+### AWS prerequisites
 
 1. Have an AWS account with administrative privileges.
 2. Have an AWS S3 bucket.
@@ -58,13 +56,11 @@ For AWS, you need to:
    }
    ```
 
-### For CelerData
+### CelerData prrerequisites
 
-For CelerData, you need to obtain the credentials with which you can authenticate into the CelerData Cloud BYOC platform. For details, see [Authentication](../index.md#authentication).
+Obtain the credentials with which you can authenticate into the CelerData Cloud BYOC platform. For details, see [Authentication](../index.md#authentication).
 
-### For Terraform
-
-For Terraform, you need to:
+### Terraform prerequisites
 
 1. Install [Terraform](https://developer.hashicorp.com/terraform/downloads) in your terminal.
 
@@ -74,7 +70,7 @@ For Terraform, you need to:
 
 This section assumes that you have [completed the preparations](#preparations).
 
-Create a **.tf** file (for example, **main.tf**) in your Terraform project. Then, add the following code snippet to the **.tf** file:
+Create a **`.tf`** file (for example, **`main.tf`**) in your Terraform project. Then, add the following code snippet to the **`.tf`** file:
 
 ```terraform
 terraform {
@@ -118,7 +114,7 @@ The parameters you need to specify are as follows:
 
 This section provides a sample infrastructure configuration that automates the deployment of a classic CelerData cluster on AWS to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations) and have [configured the providers](#configure-providers).
 
-To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers.
+To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **`.tf`** file (for example, **`main.tf`**) in which you have configured the providers.
 
 ### Data credential-related resources
 
@@ -148,13 +144,13 @@ resource "celerdatabyoc_aws_data_credential" "data_credential" {
 }
 ```
 
-#### [celerdatabyoc_aws_data_credential_policy](../resources/aws_data_credential_policy.md)
+#### [`celerdatabyoc_aws_data_credential_policy`](../resources/aws_data_credential_policy.md)
 
 This resource contains only the following required argument:
 
 - `bucket`: (Forces new resource) The name of the AWS S3 bucket for which to generate the JSON policy document and that stores query profiles. Set this argument to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
-#### aws_iam_role (celerdata_data_cred_role)
+#### `aws_iam_role` (celerdata_data_cred_role)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -170,7 +166,7 @@ This resource contains the following required arguments and optional arguments:
   - `name`: The name of the IAM policy that will be attached to the IAM role referenced in the data credential.
   - `policy`: The IAM policy that will be attached to the IAM role. Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.json`.
 
-#### [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md)
+#### [`celerdatabyoc_aws_data_credential`](../resources/aws_data_credential.md)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -218,21 +214,21 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 }
 ```
 
-#### aws_iam_instance_profile
+#### `aws_iam_instance_profile`
 
 This resource contains only the following optional arguments:
 
 - `name`: (Forces new resource) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`, `.`, `@`, `-`. Spaces are not allowed.
 - `role`: The name of the IAM role to add to the instance profile. Set the value to `aws_iam_role.celerdata_data_cred_role.name`.
 
-#### [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
+#### [`celerdatabyoc_aws_deployment_credential_policy`](../resources/aws_deployment_credential_policy.md)
 
 This resource contains only the following required arguments:
 
 - `bucket`: The name of the AWS S3 bucket. Set this argument to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 - `data_role_arn`: (Forces new resource) The ARN of the IAM role referenced in the deployment credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
 
-#### aws_iam_role (deploy_cred_role)
+#### `aws_iam_role` (deploy_cred_role)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -248,7 +244,7 @@ This resource contains the following required arguments and optional arguments:
   - `name`: The name of the IAM policy that will be attached to the IAM role.
   - `policy`: The IAM policy that will be attached to the IAM role referenced in the deployment credential. Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.json`.
 
-#### [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
+#### [`celerdatabyoc_aws_deployment_role_credential`](../resources/aws_deployment_role_credential.md)
 
 This resource contains the following required arguments and optional arguments:
 
