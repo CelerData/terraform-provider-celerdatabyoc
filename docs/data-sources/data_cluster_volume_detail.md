@@ -42,4 +42,3 @@ This data source exports the following attributes:
 
 - [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
 - [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md)
-- [celerdatabyoc_cluster_modify_volume_detail](../resources/cluster_modify_volume_detail.md)
