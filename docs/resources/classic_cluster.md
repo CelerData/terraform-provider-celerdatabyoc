@@ -58,6 +58,13 @@ resource "celerdatabyoc_classic_cluster" "classic_cluster_1" {
   }
 
   // optional
+  /*
+  global_session_variables = {
+    <key> = <value>
+  }
+  */
+
+  // optional
   scheduling_policy {
     policy_name = "auto-resume-suspend"
     description = "Auto resume/suspend"
@@ -133,7 +140,7 @@ This resource contains the following required arguments and optional arguments:
   - `throughput`: Disk throughput.
 ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a cluster BE is equal to `vol_number` * `vol_size`.
 - `be_configs`: The BE static configuration.
-
+- `global_session_variables`: The global session variables for the cluster.
 - `ldap_ssl_certs`: (Available only for AWS) The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 - `ranger_certs_dir`: (Available only for AWS) The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 

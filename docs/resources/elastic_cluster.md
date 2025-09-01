@@ -134,7 +134,7 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
   - `throughput`: Disk throughput.
     ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a compute node is equal to `vol_number` * `vol_size`.
 - `compute_node_configs`: The compute node static configuration.
-
+- `global_session_variables`: The global session variables for the cluster.
 - `ldap_ssl_certs`: The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 - `ranger_certs_dir`: The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
