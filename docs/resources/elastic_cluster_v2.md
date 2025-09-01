@@ -215,7 +215,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
       ~> To enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
     - `specify_az`:  (Available only for AWS) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
-- `global_session_variables`: The global session variables for the cluster.
+- `global_session_variables`: Global session variables of the cluster. You can find all configurable variables by `select VARIABLE_NAME from information_schema.global_variables;`.
 - `ldap_ssl_certs`: (Available only for AWS) The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
 - `ranger_certs_dir`: (Available only for AWS) The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
