@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"time"
+
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
-	"time"
 )
 
 type IClusterAPI interface {
@@ -77,6 +78,9 @@ type IClusterAPI interface {
 	SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error)
 	ModifyClusterSchedulePolicy(ctx context.Context, req *ModifyClusterSchedulePolicyReq) error
 	DeleteClusterSchedulePolicy(ctx context.Context, req *DeleteClusterSchedulePolicyReq) error
+
+	GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error)
+	SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -611,4 +615,17 @@ func (c *clusterAPI) DeleteClusterSchedulePolicy(ctx context.Context, req *Delet
 		return err
 	}
 	return nil
+}
+
+func (c *clusterAPI) GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error) {
+	resp := &GetClusterTerminationProtectionResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, clusterId), req, nil)
 }
