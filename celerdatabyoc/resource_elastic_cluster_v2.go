@@ -8,11 +8,12 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"time"
+
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/network"
 	"terraform-provider-celerdatabyoc/common"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -402,6 +403,11 @@ func resourceElasticClusterV2() *schema.Resource {
 				},
 			},
 			"run_scripts_parallel": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
+			"enabled_termination_protection": {
 				Type:     schema.TypeBool,
 				Optional: true,
 				Default:  false,
@@ -859,18 +865,19 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	clusterName := d.Get("cluster_name").(string)
 
 	clusterConf := &cluster.ClusterConf{
-		ClusterName:        clusterName,
-		Csp:                d.Get("csp").(string),
-		Region:             d.Get("region").(string),
-		ClusterType:        cluster.ClusterTypeElasic,
-		Password:           d.Get("default_admin_password").(string),
-		SslConnEnable:      true,
-		NetIfaceId:         d.Get("network_id").(string),
-		DeployCredlId:      d.Get("deployment_credential_id").(string),
-		DataCredId:         d.Get("data_credential_id").(string),
-		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
-		QueryPort:          int32(d.Get("query_port").(int)),
-		RunScriptsTimeout:  int32(d.Get("run_scripts_timeout").(int)),
+		ClusterName:                  clusterName,
+		Csp:                          d.Get("csp").(string),
+		Region:                       d.Get("region").(string),
+		ClusterType:                  cluster.ClusterTypeElasic,
+		Password:                     d.Get("default_admin_password").(string),
+		SslConnEnable:                true,
+		NetIfaceId:                   d.Get("network_id").(string),
+		DeployCredlId:                d.Get("deployment_credential_id").(string),
+		DataCredId:                   d.Get("data_credential_id").(string),
+		RunScriptsParallel:           d.Get("run_scripts_parallel").(bool),
+		QueryPort:                    int32(d.Get("query_port").(int)),
+		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
+		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 	}
 
 	netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
@@ -1248,6 +1255,12 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
+	terminationProtection, err := clusterAPI.GetClusterTerminationProtection(ctx, &cluster.GetClusterTerminationProtectionReq{ClusterId: clusterId})
+	if err != nil {
+		log.Printf("[ERROR] get cluster termination protection failed, clusterId:%s err:%+v", clusterId, err)
+		return diag.FromErr(err)
+	}
+
 	d.Set("cluster_state", string(resp.Cluster.ClusterState))
 	d.Set("expected_cluster_state", string(resp.Cluster.ClusterState))
 	d.Set("cluster_name", resp.Cluster.ClusterName)
@@ -1467,6 +1480,8 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		d.Set("scheduling_policy", policies)
 		d.Set("scheduling_policy_extra_info", policyExtraInfo)
 	}
+
+	d.Set("enabled_termination_protection", terminationProtection.Enabled)
 
 	return diags
 }
@@ -1695,6 +1710,16 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		warningDiag := UpsertClusterRangerCert(ctx, clusterAPI, d.Id(), rangerCertsDirPath, true)
 		if warningDiag != nil {
 			return warningDiag
+		}
+	}
+
+	if d.HasChange("enabled_termination_protection") && !d.IsNewResource() {
+		enabled := d.Get("enabled_termination_protection").(bool)
+		err := clusterAPI.SetClusterTerminationProtection(ctx, clusterId, &cluster.SetClusterTerminationProtectionReq{
+			Enabled: enabled,
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to set termination protection: %s", d.Id(), err.Error()))
 		}
 	}
 
