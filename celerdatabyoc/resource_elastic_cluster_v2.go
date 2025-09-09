@@ -484,6 +484,14 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
+			"global_session_variables": {
+				Type:     schema.TypeMap,
+				Optional: true,
+				Elem: &schema.Schema{
+					Type:         schema.TypeString,
+					ValidateFunc: validation.StringIsNotWhiteSpace,
+				},
+			},
 			"ranger_certs_dir": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -836,6 +844,11 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		}
 	}
 
+	if d.HasChange("global_session_variables") && d.Get("expected_cluster_state") != string(cluster.ClusterStateRunning) {
+		o, n := d.GetChange("global_session_variables")
+		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
+	}
+
 	err2 := SchedulingPolicyParamCheck(d)
 	return err2
 }
@@ -1050,6 +1063,13 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if v, ok := d.GetOk("global_session_variables"); ok && len(d.Get("global_session_variables").(map[string]interface{})) > 0 {
+		diagnostics := SetGlobalSqlSessionVariables(ctx, v, clusterAPI, clusterId)
+		if diagnostics != nil {
+			return diagnostics
+		}
+	}
+
 	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
 
 		arr := v.(*schema.Set).List()
@@ -1202,6 +1222,20 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		log.Printf("[ERROR] query cluster custom config failed, err:%+v", err)
 		return diag.FromErr(err)
+	}
+
+	globalSessionVariables := make(map[string]string)
+	if v, ok := d.GetOk("global_session_variables"); ok && len(v.(map[string]interface{})) > 0 {
+		for k, v := range v.(map[string]interface{}) {
+			globalSessionVariables[k] = v.(string)
+		}
+		if stateResp.ClusterState == string(cluster.ClusterStateRunning) {
+			sessionVariablesResp, diagnostics := GetGlobalSqlSessionVariables(ctx, clusterAPI, clusterId, v)
+			if diagnostics != nil {
+				return diagnostics
+			}
+			globalSessionVariables = sessionVariablesResp.Variables
+		}
 	}
 
 	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterId)
@@ -1414,6 +1448,11 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if len(coordinatorNodeConfigsResp.Configs) > 0 {
 		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
 	}
+
+	if len(globalSessionVariables) > 0 {
+		d.Set("global_session_variables", globalSessionVariables)
+	}
+
 	log.Printf("[DEBUG] get cluster, warehouses:%+v", resp.Cluster.Warehouses)
 
 	if len(policies) > 0 {
@@ -1576,6 +1615,13 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	if needResume(d) {
 		o, n := d.GetChange("expected_cluster_state")
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
+	if d.HasChange("global_session_variables") && !d.IsNewResource() {
+		errDiag := HandleChangedGlobalSqlSessionVariables(ctx, clusterAPI, d)
 		if errDiag != nil {
 			return errDiag
 		}

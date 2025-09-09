@@ -279,6 +279,14 @@ func resourceElasticCluster() *schema.Resource {
 				Optional: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 			},
+			"global_session_variables": {
+				Type:     schema.TypeMap,
+				Optional: true,
+				Elem: &schema.Schema{
+					Type:         schema.TypeString,
+					ValidateFunc: validation.StringIsNotWhiteSpace,
+				},
+			},
 			"ranger_certs_dir": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -525,6 +533,11 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		}
 	}
 
+	if d.HasChange("global_session_variables") && d.Get("expected_cluster_state") != string(cluster.ClusterStateRunning) {
+		o, n := d.GetChange("global_session_variables")
+		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
+	}
+
 	err2 := SchedulingPolicyParamCheck(d)
 	return err2
 }
@@ -672,8 +685,9 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 
-	d.SetId(resp.ClusterID)
-	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
+	clusterId := resp.ClusterID
+	d.SetId(clusterId)
+	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterId)
 
 	if v, ok := d.GetOk("coordinator_node_configs"); ok && len(d.Get("coordinator_node_configs").(map[string]interface{})) > 0 {
 		configMap := v.(map[string]interface{})
@@ -682,7 +696,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 			configs[k] = v.(string)
 		}
 		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
-			ClusterID:  resp.ClusterID,
+			ClusterID:  clusterId,
 			ConfigType: cluster.CustomConfigTypeFE,
 			Configs:    configs,
 		})
@@ -698,12 +712,19 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 			configs[k] = v.(string)
 		}
 		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
-			ClusterID:  resp.ClusterID,
+			ClusterID:  clusterId,
 			ConfigType: cluster.CustomConfigTypeBE,
 			Configs:    configs,
 		})
 		if warnDiag != nil {
 			return warnDiag
+		}
+	}
+
+	if v, ok := d.GetOk("global_session_variables"); ok && len(d.Get("global_session_variables").(map[string]interface{})) > 0 {
+		diagnostics := SetGlobalSqlSessionVariables(ctx, v, clusterAPI, clusterId)
+		if diagnostics != nil {
+			return diagnostics
 		}
 	}
 
@@ -741,7 +762,6 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 
 	if d.Get("idle_suspend_interval").(int) > 0 {
 		enable := true
-		clusterId := resp.ClusterID
 		intervalTimeMills := uint64(d.Get("idle_suspend_interval").(int) * 60 * 1000)
 		warningDiag := UpdateClusterIdleConfig(ctx, clusterAPI, clusterId, intervalTimeMills, enable)
 		if warningDiag != nil {
@@ -750,7 +770,6 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	if v, ok := d.GetOk("scheduling_policy"); ok {
-		clusterId := resp.ClusterID
 		policies := v.([]interface{})
 		for _, item := range policies {
 			m := item.(map[string]interface{})
@@ -835,6 +854,20 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 
+	globalSessionVariables := make(map[string]string)
+	if v, ok := d.GetOk("global_session_variables"); ok && len(v.(map[string]interface{})) > 0 {
+		for k, v := range v.(map[string]interface{}) {
+			globalSessionVariables[k] = v.(string)
+		}
+		if stateResp.ClusterState == string(cluster.ClusterStateRunning) {
+			sessionVariablesResp, diagnostics := GetGlobalSqlSessionVariables(ctx, clusterAPI, clusterID, v)
+			if diagnostics != nil {
+				return diagnostics
+			}
+			globalSessionVariables = sessionVariablesResp.Variables
+		}
+	}
+
 	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterID)
 	if err != nil {
 		log.Printf("[ERROR] list cluster schedule policy failed,clusterId:%s err:%+v", clusterID, err)
@@ -915,6 +948,10 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 			}
 			d.Set("compute_node_volume_config", []interface{}{beVolumeConfig})
 		}
+	}
+
+	if len(globalSessionVariables) > 0 {
+		d.Set("global_session_variables", globalSessionVariables)
 	}
 
 	if len(policies) > 0 {
@@ -1079,6 +1116,13 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 	if needResume(d) {
 		o, n := d.GetChange("expected_cluster_state")
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
+	if d.HasChange("global_session_variables") && !d.IsNewResource() {
+		errDiag := HandleChangedGlobalSqlSessionVariables(ctx, clusterAPI, d)
 		if errDiag != nil {
 			return errDiag
 		}
