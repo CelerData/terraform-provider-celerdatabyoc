@@ -121,6 +121,7 @@ const (
 	CustomConfigTypeRanger      CustomConfigType = 2
 	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
 	CustomConfigTypeFE          CustomConfigType = 4
+	CustomConfigTypeRangerV2    CustomConfigType = 7
 
 	RANGER_CONFIG_KEY = "s3_path"
 
@@ -1026,4 +1027,17 @@ type GetClusterTerminationProtectionResp struct {
 
 type SetClusterTerminationProtectionReq struct {
 	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+type ApplyRangerConfigV2Req struct {
+	BizID     string `json:"biz_id" mapstructure:"biz_id"`
+	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type CleanRangerConfigV2Req struct {
+	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type OperateRangerConfigV2Resp struct {
+	InfraActionID string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
