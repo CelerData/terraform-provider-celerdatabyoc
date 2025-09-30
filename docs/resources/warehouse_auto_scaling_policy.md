@@ -96,7 +96,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "multi_az_cluster" {
    (Earliest query pending time exceeds 200s)
 
 **Behavior**:
-- Adds 2 nodes per scaling action (`step_size = 2`)
+- Adds 2 nodes/groups per scaling action (`step_size = 2`)
 
 ### Scale In (Contraction)
 **Trigger Condition**:
@@ -105,13 +105,14 @@ resource "celerdatabyoc_elastic_cluster_v2" "multi_az_cluster" {
 - Must persist for `300 seconds` (5 minutes)
 
 **Behavior**:
-- Removes 1 node per scaling action (`step_size = 1`)
+- Removes 1 node/group per scaling action (`step_size = 1`)
 
 #### Configuration Example
 ```sh
 resource "celerdatabyoc_auto_scaling_policy" "policy_1" {
-  min_size = <max_compute_node_count>
-  max_size = <min_compute_node_count>
+  min_size = <max_compute_node_count|max_compute_node_group_count>
+  max_size = <min_compute_node_count|min_compute_node_group_count>
+  auto_scaling_unit = <"Node"|"Group">
   policy_item {
     step_size = 2
     type      = "SCALE_OUT"

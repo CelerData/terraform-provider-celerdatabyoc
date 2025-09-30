@@ -17,6 +17,8 @@ type ClusterInfraActionState string
 type WhScalingType int32
 type MetricType int32
 type DistributionPolicy string
+type AutoScalingUnit int32
+type AutoScalingUnitDisplay string
 
 var (
 	WeekDays = []string{"SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"}
@@ -48,6 +50,11 @@ var (
 		int32(MetricType_QUERY_QUEUE_LENGTH):             "QUERY_QUEUE_LENGTH",
 		int32(MetricType_EARLIEST_QUERY_PENDING_TIME):    "EARLIEST_QUERY_PENDING_TIME",
 		int32(MetricType_WAREHOUSE_RESOURCE_UTILIZATION): "WAREHOUSE_RESOURCE_UTILIZATION",
+	}
+
+	AutoScalingUnitDisplayToType = map[AutoScalingUnitDisplay]AutoScalingUnit{
+		AutoScalingUnitDisplay_SINGLE:   AutoScalingUnit_SINGLE,
+		AutoScalingUnitDisplay_CN_GROUP: AutoScalingUnit_CN_GROUP,
 	}
 
 	MetricStrGroup = map[string]string{
@@ -131,6 +138,12 @@ const (
 
 	DistributionPolicySpecifyAZ  DistributionPolicy = "specify_az"
 	DistributionPolicyCrossingAZ DistributionPolicy = "crossing_az"
+
+	AutoScalingUnit_SINGLE   AutoScalingUnit = 0
+	AutoScalingUnit_CN_GROUP AutoScalingUnit = 1
+
+	AutoScalingUnitDisplay_SINGLE   AutoScalingUnitDisplay = "Node"
+	AutoScalingUnitDisplay_CN_GROUP AutoScalingUnitDisplay = "Group"
 )
 
 type Kv struct {
@@ -704,10 +717,11 @@ type WearhouseScalingPolicyItem struct {
 }
 
 type WarehouseAutoScalingConfig struct {
-	MinSize    int32                         `json:"min_size" mapstructure:"min_size"`
-	MaxSize    int32                         `json:"max_size" mapstructure:"max_size"`
-	PolicyItem []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
-	State      bool                          `json:"state" mapstructure:"state"`
+	MinSize         int32                         `json:"min_size" mapstructure:"min_size"`
+	MaxSize         int32                         `json:"max_size" mapstructure:"max_size"`
+	PolicyItem      []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
+	State           bool                          `json:"state" mapstructure:"state"`
+	AutoScalingUnit AutoScalingUnit               `json:"auto_scaling_unit" mapstructure:"auto_scaling_unit"`
 }
 
 type GetWarehouseAutoScalingConfigResp struct {
