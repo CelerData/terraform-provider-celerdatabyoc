@@ -138,7 +138,6 @@ func resourceElasticClusterV2() *schema.Resource {
 						"distribution_policy": {
 							Type:     schema.TypeString,
 							Optional: true,
-							Default:  CROSSING_AZ,
 							ValidateFunc: validation.StringInSlice([]string{
 								SPECIFY_AZ,
 								CROSSING_AZ,
@@ -1166,6 +1165,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 
 	clusterId := d.Id()
 	clusterAPI := cluster.NewClustersAPI(c)
+	networkAPI := network.NewNetworkAPI(c)
 	log.Printf("[DEBUG] resourceElasticClusterV2Read cluster id:%s", clusterId)
 	var diags diag.Diagnostics
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
@@ -1206,6 +1206,11 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 			return diags
 		}
 		return diag.FromErr(err)
+	}
+
+	netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("get network (%s): %s", d.Get("network_id").(string), err.Error()))
 	}
 
 	jsonBytes, err := json.Marshal(resp.Cluster)
@@ -1299,7 +1304,11 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap["name"] = warehouseName
 		whMap["compute_node_size"] = v.Module.InstanceType
 		whMap["compute_node_count"] = v.Module.Num
-		whMap["distribution_policy"] = v.DistributionPolicyStr
+		if !netResp.Network.MultiAz {
+			whMap["distribution_policy"] = ""
+		} else {
+			whMap["distribution_policy"] = v.DistributionPolicyStr
+		}
 		whMap["specify_az"] = v.SpecifyAZ
 
 		whModule := v.Module
@@ -1554,6 +1563,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	// Warning or errors can be collected in a slice type
 	clusterId := d.Id()
 	clusterAPI := cluster.NewClustersAPI(c)
+	networkAPI := network.NewNetworkAPI(c)
 	log.Printf("[DEBUG] resourceElasticClusterV2Update cluster id:%s", clusterId)
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
@@ -1864,6 +1874,11 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("get network (%s): %s", d.Get("network_id").(string), err.Error()))
+	}
+
 	if d.HasChange("default_warehouse") {
 		o, n := d.GetChange("default_warehouse")
 		oldWh := o.([]interface{})[0].(map[string]interface{})
@@ -1881,7 +1896,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 			oldParamMap:    oldWh,
 			newParamMap:    newWh,
 			whExternalInfo: whExternalInfo,
-		})
+		}, netResp.Network.MultiAz)
 		if diags != nil {
 			return diags
 		}
@@ -1919,7 +1934,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 					oldParamMap:    oldWh,
 					newParamMap:    newWh,
 					whExternalInfo: whExternalInfo,
-				})
+				}, netResp.Network.MultiAz)
 				if diags != nil {
 					return diags
 				}
@@ -2249,7 +2264,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 	return nil
 }
 
-func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnostics {
+func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool) diag.Diagnostics {
 	clusterAPI := req.clusterAPI
 	clusterId := req.clusterId
 	oldParamMap, newParamMap := req.oldParamMap, req.newParamMap
@@ -2263,7 +2278,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq) diag.Diagnost
 
 	computeNodeDistributionChanged := oldParamMap["distribution_policy"].(string) != newParamMap["distribution_policy"].(string) ||
 		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string))
-	if computeNodeDistributionChanged {
+	if computeNodeDistributionChanged && multiAz {
 		distributionPolicy := newParamMap["distribution_policy"].(string)
 		specifyAz := newParamMap["specify_az"].(string)
 		resp, err := clusterAPI.ChangeWarehouseDistribution(ctx, &cluster.ChangeWarehouseDistributionReq{

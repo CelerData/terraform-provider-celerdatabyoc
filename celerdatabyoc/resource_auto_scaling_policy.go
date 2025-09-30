@@ -22,8 +22,9 @@ func resourceAutoScalingPolicy() *schema.Resource {
 		ReadContext: func(ctx context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
 			minSize := int32(rd.Get("min_size").(int))
 			maxSize := int32(rd.Get("max_size").(int))
+			autoScalingUnit := rd.Get("auto_scaling_unit").(string)
 			policyItemsArr := rd.Get("policy_item").(*schema.Set).List()
-			autoScalingConfig, err := ToAutoScalingConfigStruct(minSize, maxSize, policyItemsArr)
+			autoScalingConfig, err := ToAutoScalingConfigStruct(minSize, maxSize, autoScalingUnit, policyItemsArr)
 			if err != nil {
 				return diag.FromErr(fmt.Errorf("generate auto scaling config failed, errMsg:%s", err.Error()))
 			}
@@ -35,11 +36,11 @@ func resourceAutoScalingPolicy() *schema.Resource {
 			return nil
 		},
 		CreateContext: func(ctx context.Context, rd *schema.ResourceData, i interface{}) diag.Diagnostics {
-
 			minSize := int32(rd.Get("min_size").(int))
 			maxSize := int32(rd.Get("max_size").(int))
+			autoScalingUnit := rd.Get("auto_scaling_unit").(string)
 			policyItemsArr := rd.Get("policy_item").(*schema.Set).List()
-			autoScalingConfig, err := ToAutoScalingConfigStruct(minSize, maxSize, policyItemsArr)
+			autoScalingConfig, err := ToAutoScalingConfigStruct(minSize, maxSize, autoScalingUnit, policyItemsArr)
 			if err != nil {
 				return diag.FromErr(fmt.Errorf("generate auto scaling config failed, errMsg:%s", err.Error()))
 			}
@@ -70,6 +71,12 @@ func resourceAutoScalingPolicy() *schema.Resource {
 				Required:     true,
 				ForceNew:     true,
 				ValidateFunc: validation.IntAtLeast(1),
+			},
+			"auto_scaling_unit": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ForceNew:     true,
+				ValidateFunc: validation.StringInSlice([]string{string(cluster.AutoScalingUnitDisplay_SINGLE), string(cluster.AutoScalingUnitDisplay_CN_GROUP)}, false),
 			},
 			"policy_item": {
 				Type:     schema.TypeSet,
@@ -126,7 +133,7 @@ func resourceAutoScalingPolicy() *schema.Resource {
 			},
 		},
 		CustomizeDiff: func(ctx context.Context, rd *schema.ResourceDiff, i interface{}) error {
-			warehouseAutoScalingConfig, err := ToAutoScalingConfigStruct(int32(rd.Get("min_size").(int)), int32(rd.Get("max_size").(int)), rd.Get("policy_item").(*schema.Set).List())
+			warehouseAutoScalingConfig, err := ToAutoScalingConfigStruct(int32(rd.Get("min_size").(int)), int32(rd.Get("max_size").(int)), rd.Get("auto_scaling_unit").(string), rd.Get("policy_item").(*schema.Set).List())
 			if err != nil {
 				return err
 			}
@@ -136,7 +143,7 @@ func resourceAutoScalingPolicy() *schema.Resource {
 	return resource
 }
 
-func ToAutoScalingConfigStruct(minSize, maxSize int32, policyItemsArr []interface{}) (*cluster.WarehouseAutoScalingConfig, error) {
+func ToAutoScalingConfigStruct(minSize, maxSize int32, autoScalingUnit string, policyItemsArr []interface{}) (*cluster.WarehouseAutoScalingConfig, error) {
 
 	policyItems := make([]*cluster.WearhouseScalingPolicyItem, 0)
 	for _, v := range policyItemsArr {
@@ -185,11 +192,17 @@ func ToAutoScalingConfigStruct(minSize, maxSize int32, policyItemsArr []interfac
 		})
 	}
 
+	unit, ok := cluster.AutoScalingUnitDisplayToType[cluster.AutoScalingUnitDisplay(autoScalingUnit)]
+	if !ok {
+		unit = cluster.AutoScalingUnit_SINGLE
+	}
+
 	return &cluster.WarehouseAutoScalingConfig{
-		MinSize:    minSize,
-		MaxSize:    maxSize,
-		PolicyItem: policyItems,
-		State:      true,
+		MinSize:         minSize,
+		MaxSize:         maxSize,
+		PolicyItem:      policyItems,
+		AutoScalingUnit: unit,
+		State:           true,
 	}, nil
 }
 
