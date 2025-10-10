@@ -226,7 +226,7 @@ func resourceElasticClusterV2() *schema.Resource {
 								} else if whName == DEFAULT_WAREHOUSE_NAME {
 									errors = append(errors, fmt.Errorf("%s`s value is invalid. Normal warehouses can't be named: %s", k, DEFAULT_WAREHOUSE_NAME))
 								} else if strings.Contains(whName, "-") {
-									errors = append(errors, fmt.Errorf("%s`s value is invalid. Warehouse name can contain '-'", k))
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. Warehouse name cannot contain '-'", k))
 								}
 								return warnings, errors
 							},
