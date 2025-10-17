@@ -245,7 +245,6 @@ func resourceElasticClusterV2() *schema.Resource {
 						"distribution_policy": {
 							Type:     schema.TypeString,
 							Optional: true,
-							Default:  CROSSING_AZ,
 							ValidateFunc: validation.StringInSlice([]string{
 								SPECIFY_AZ,
 								CROSSING_AZ,
