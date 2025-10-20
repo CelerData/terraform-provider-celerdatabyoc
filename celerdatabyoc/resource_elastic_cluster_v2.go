@@ -85,11 +85,13 @@ func resourceElasticClusterV2() *schema.Resource {
 							Type:         schema.TypeInt,
 							Optional:     true,
 							ValidateFunc: validation.IntAtLeast(0),
+							Computed:     true,
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
 							Optional:     true,
 							ValidateFunc: validation.IntAtLeast(0),
+							Computed:     true,
 						},
 					},
 				},
@@ -184,11 +186,13 @@ func resourceElasticClusterV2() *schema.Resource {
 										Type:         schema.TypeInt,
 										Optional:     true,
 										ValidateFunc: validation.IntAtLeast(0),
+										Computed:     true,
 									},
 									"throughput": {
 										Type:         schema.TypeInt,
 										Optional:     true,
 										ValidateFunc: validation.IntAtLeast(0),
+										Computed:     true,
 									},
 								},
 							},
@@ -290,11 +294,13 @@ func resourceElasticClusterV2() *schema.Resource {
 										Type:         schema.TypeInt,
 										Optional:     true,
 										ValidateFunc: validation.IntAtLeast(0),
+										Computed:     true,
 									},
 									"throughput": {
 										Type:         schema.TypeInt,
 										Optional:     true,
 										ValidateFunc: validation.IntAtLeast(0),
+										Computed:     true,
 									},
 								},
 							},
@@ -398,6 +404,28 @@ func resourceElasticClusterV2() *schema.Resource {
 						"logs_dir": {
 							Type:     schema.TypeString,
 							Required: true,
+						},
+					},
+				},
+			},
+			"scripts": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Computed: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"script_path": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"logs_dir": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"rerun": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  false,
 						},
 					},
 				},
@@ -853,6 +881,11 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
 	}
 
+	err = MarkScriptReRun(d)
+	if err != nil {
+		return err
+	}
+
 	err2 := SchedulingPolicyParamCheck(d)
 	return err2
 }
@@ -1157,6 +1190,14 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	RunScripts(ctx, RunScriptsReq{
+		ResourceData:       d,
+		ClusterAPI:         clusterAPI,
+		ClusterID:          clusterId,
+		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
+		IsCreate:           true,
+	})
+
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
 		warningDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if warningDiag != nil {
@@ -1405,14 +1446,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		configuredWH := v.([]interface{})[0].(map[string]interface{})
 		if rawVol, ok := configuredWH["compute_node_volume_config"]; !ok || len(rawVol.([]interface{})) == 0 {
 			default_warehouses[0]["compute_node_volume_config"] = nil
-		} else {
-			rawMap := rawVol.([]interface{})[0].(map[string]interface{})
-			if rawMap["iops"] == nil {
-				default_warehouses[0]["compute_node_volume_config"].(map[string]interface{})["iops"] = nil
-			}
-			if rawMap["throughput"] == nil {
-				default_warehouses[0]["compute_node_volume_config"].(map[string]interface{})["throughput"] = nil
-			}
 		}
 	}
 
@@ -1430,13 +1463,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 			whName := wh["name"].(string)
 			if v, ok := configuredWHsMap[whName]; !ok || v == nil {
 				wh["compute_node_volume_config"] = nil
-			} else {
-				if v["iops"] == nil {
-					wh["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})["iops"] = nil
-				}
-				if v["throughput"] == nil {
-					wh["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})["throughput"] = nil
-				}
 			}
 		}
 	}
@@ -1456,12 +1482,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		feVolumeConfig["iops"] = feModule.Iops
 		feVolumeConfig["throughput"] = feModule.Throughput
 		if v, ok := d.GetOk("coordinator_node_volume_config"); ok && v != nil {
-			if v.([]interface{})[0].(map[string]interface{})["iops"] == nil {
-				feVolumeConfig["iops"] = nil
-			}
-			if v.([]interface{})[0].(map[string]interface{})["throughput"] == nil {
-				feVolumeConfig["throughput"] = nil
-			}
 			d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
 		}
 	}
@@ -1476,10 +1496,8 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 
 	log.Printf("[DEBUG] get cluster, warehouses:%+v", resp.Cluster.Warehouses)
 
-	if len(policies) > 0 {
-		d.Set("scheduling_policy", policies)
-		d.Set("scheduling_policy_extra_info", policyExtraInfo)
-	}
+	d.Set("scheduling_policy", policies)
+	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
 
@@ -1988,6 +2006,13 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	RunScripts(ctx, RunScriptsReq{
+		ResourceData:       d,
+		ClusterAPI:         clusterAPI,
+		ClusterID:          clusterId,
+		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
+	})
+
 	if needSuspend(d) {
 		o, n := d.GetChange("expected_cluster_state")
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
@@ -2300,6 +2325,19 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 
 	warehouseName := newParamMap["name"].(string)
 
+	if !isDefaultWarehouse {
+		expectedState := newParamMap["expected_state"].(string)
+		expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
+		if expectedStateChanged {
+			if expectedState == string(cluster.ClusterStateRunning) {
+				resp := ResumeWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
+				if resp != nil {
+					return resp
+				}
+			}
+		}
+	}
+
 	computeNodeDistributionChanged := oldParamMap["distribution_policy"].(string) != newParamMap["distribution_policy"].(string) ||
 		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string))
 	if computeNodeDistributionChanged && multiAz {
@@ -2525,20 +2563,6 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 		newConfigs[k] = v.(string)
 	}
 	srConfigChanged := !cluster.Equal(oldConfigs, newConfigs)
-
-	if !isDefaultWarehouse {
-		expectedState := newParamMap["expected_state"].(string)
-		expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
-		if expectedStateChanged {
-			if expectedState == string(cluster.ClusterStateRunning) {
-				resp := ResumeWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
-				if resp != nil {
-					return resp
-				}
-			}
-		}
-	}
-
 	if srConfigChanged {
 		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
 			ClusterID:   clusterId,
