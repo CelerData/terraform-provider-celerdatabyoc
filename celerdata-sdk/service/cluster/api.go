@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
 )
@@ -80,6 +81,9 @@ type IClusterAPI interface {
 	GetGlobalSqlSessionVariables(ctx context.Context, req *GetGlobalSqlSessionVariablesReq) (*GetGlobalSqlSessionVariablesResp, error)
 	SetGlobalSqlSessionVariables(ctx context.Context, req *SetGlobalSqlSessionVariablesReq) (*SetGlobalSqlSessionVariablesResp, error)
 	ResetGlobalSqlSessionVariables(ctx context.Context, req *ResetGlobalSqlSessionVariablesReq) (*ResetGlobalSqlSessionVariablesResp, error)
+
+	GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error)
+	SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -645,4 +649,17 @@ func (c *clusterAPI) ResetGlobalSqlSessionVariables(ctx context.Context, req *Re
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error) {
+	resp := &GetClusterTerminationProtectionResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, clusterId), req, nil)
 }
