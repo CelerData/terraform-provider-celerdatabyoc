@@ -84,6 +84,14 @@ resource "celerdatabyoc_elastic_cluster" "elastic_cluster_1" {
       logs_dir    = "<log_s3_path>"
       script_path = "<script_s3_path>"
   }
+
+  # Unlike `init_scripts`, when the `rerun` attribute is true, the `scripts` will be executed once every time `terraform apply` is executed 
+  scripts {
+    logs_dir    = "<log_s3_path>"
+    script_path = "<script_s3_path>"
+    rerun = false
+  }
+
   run_scripts_parallel = false
   query_port = 9030
   idle_suspend_interval = 64
@@ -146,6 +154,11 @@ The `celerdatabyoc_elastic_cluster` resource contains the following required arg
 
   - `logs_dir`: The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
   - `script_path`: The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
+
+- `scripts`: (Available only for AWS) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run one-time scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/#ad-hoc-scripts-for-one-time-execution).
+  - `logs_dir`: The path in the AWS S3 bucket where the script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket specified in the `celerdatabyoc_aws_data_credential` resource.
+  - `script_path`: The path in the AWS S3 bucket where the scripts run via Terraform are stored. This S3 bucket must be the one specified in the `celerdatabyoc_aws_data_credential` resource.
+  - `rerun`: If the value is true, the current script will be re-run every time `terraform apply` is executed.
 
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
 

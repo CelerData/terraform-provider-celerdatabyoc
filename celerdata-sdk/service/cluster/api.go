@@ -84,6 +84,8 @@ type IClusterAPI interface {
 
 	GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error)
 	SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error
+
+	RunScripts(ctx context.Context, req *RunScriptsReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -93,6 +95,10 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+func (c *clusterAPI) RunScripts(ctx context.Context, req *RunScriptsReq) error {
+	return c.cli.Patch(ctx, fmt.Sprintf("/api/%s/clusters/%s/run-scripts", c.apiVersion, req.ClusterId), req, nil)
 }
 
 // GetVmInfo implements IClusterAPI.

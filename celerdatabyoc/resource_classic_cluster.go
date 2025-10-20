@@ -79,11 +79,13 @@ func resourceClassicCluster() *schema.Resource {
 							Type:         schema.TypeInt,
 							Optional:     true,
 							ValidateFunc: validation.IntAtLeast(0),
+							Computed:     true,
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
 							Optional:     true,
 							ValidateFunc: validation.IntAtLeast(0),
+							Computed:     true,
 						},
 					},
 				},
@@ -137,11 +139,13 @@ func resourceClassicCluster() *schema.Resource {
 							Type:         schema.TypeInt,
 							Optional:     true,
 							ValidateFunc: validation.IntAtLeast(0),
+							Computed:     true,
 						},
 						"throughput": {
 							Type:         schema.TypeInt,
 							Optional:     true,
 							ValidateFunc: validation.IntAtLeast(0),
+							Computed:     true,
 						},
 					},
 				},
@@ -193,6 +197,28 @@ func resourceClassicCluster() *schema.Resource {
 						"logs_dir": {
 							Type:     schema.TypeString,
 							Required: true,
+						},
+					},
+				},
+			},
+			"scripts": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Computed: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"script_path": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"logs_dir": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"rerun": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  false,
 						},
 					},
 				},
@@ -517,8 +543,31 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
 	}
 
+	err = MarkScriptReRun(d)
+	if err != nil {
+		return err
+	}
+
 	err2 := SchedulingPolicyParamCheck(d)
 	return err2
+}
+
+func MarkScriptReRun(d *schema.ResourceDiff) error {
+	if d.HasChange("scripts") {
+		return nil
+	}
+
+	scripts := d.Get("scripts").(*schema.Set).List()
+	for _, s := range scripts {
+		script := s.(map[string]interface{})
+		if reRun, ok := script["rerun"].(bool); ok && reRun {
+			if err := d.SetNewComputed("scripts"); err != nil {
+				return fmt.Errorf("failed to force diff for scripts: %v", err)
+			}
+			break
+		}
+	}
+	return nil
 }
 
 func SchedulingPolicyParamCheck(d *schema.ResourceDiff) error {
@@ -758,6 +807,14 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
+	RunScripts(ctx, RunScriptsReq{
+		ResourceData:       d,
+		ClusterAPI:         clusterAPI,
+		ClusterID:          clusterId,
+		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
+		IsCreate:           true,
+	})
+
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if errDiag != nil {
@@ -944,12 +1001,6 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		feVolumeConfig["iops"] = feModule.Iops
 		feVolumeConfig["throughput"] = feModule.Throughput
 		if v, ok := d.GetOk("fe_volume_config"); ok && v != nil {
-			if v.([]interface{})[0].(map[string]interface{})["iops"] == nil {
-				feVolumeConfig["iops"] = nil
-			}
-			if v.([]interface{})[0].(map[string]interface{})["throughput"] == nil {
-				feVolumeConfig["throughput"] = nil
-			}
 			d.Set("fe_volume_config", []interface{}{feVolumeConfig})
 		}
 	}
@@ -962,12 +1013,6 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		beVolumeConfig["iops"] = beModule.Iops
 		beVolumeConfig["throughput"] = beModule.Throughput
 		if v, ok := d.GetOk("be_volume_config"); ok && v != nil {
-			if v.([]interface{})[0].(map[string]interface{})["iops"] == nil {
-				beVolumeConfig["iops"] = nil
-			}
-			if v.([]interface{})[0].(map[string]interface{})["throughput"] == nil {
-				beVolumeConfig["throughput"] = nil
-			}
 			d.Set("be_volume_config", []interface{}{beVolumeConfig})
 		}
 	}
@@ -1575,6 +1620,13 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 			return warnDiag
 		}
 	}
+
+	RunScripts(ctx, RunScriptsReq{
+		ResourceData:       d,
+		ClusterAPI:         clusterAPI,
+		ClusterID:          clusterID,
+		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
+	})
 
 	if needSuspend(d) {
 		o, n := d.GetChange("expected_cluster_state")
@@ -2187,7 +2239,7 @@ func UpsertClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, re
 	}
 
 	if err != nil {
-		log.Printf("[WARN] Update cluster config failed, req:%s err:%v", err)
+		log.Printf("[WARN] Update cluster config failed, e:%v", err)
 	}
 	return err
 }
@@ -2634,4 +2686,61 @@ func GetGlobalSqlSessionVariables(ctx context.Context, clusterAPI cluster.IClust
 		return nil, diag.FromErr(err)
 	}
 	return sessionVariablesResp, nil
+}
+
+type RunScriptsReq struct {
+	ResourceData       *schema.ResourceData
+	ClusterAPI         cluster.IClusterAPI
+	ClusterID          string
+	RunScriptsParallel bool
+	IsCreate           bool
+}
+
+func RunScripts(ctx context.Context, req RunScriptsReq) diag.Diagnostics {
+
+	d := req.ResourceData
+	scripts := make([]*cluster.Script, 0)
+	var scriptList []interface{}
+	if req.IsCreate {
+		if v, ok := d.GetOk("scripts"); ok {
+			scriptList = v.(*schema.Set).List()
+		}
+	} else {
+		_, n := d.GetChange("scripts")
+		for _, item := range n.(*schema.Set).List() {
+			m := item.(map[string]interface{})
+			if m["rerun"].(bool) {
+				scriptList = append(scriptList, item)
+			}
+		}
+	}
+
+	for _, v := range scriptList {
+		scriptMap := v.(map[string]interface{})
+		scriptPath := scriptMap["script_path"].(string)
+		logsDir := scriptMap["logs_dir"].(string)
+		if len(scriptPath) == 0 {
+			continue
+		}
+		scripts = append(scripts, &cluster.Script{
+			ScriptPath: scriptPath,
+			LogsDir:    logsDir,
+		})
+	}
+
+	clusterAPI := req.ClusterAPI
+	clusterID := req.ClusterID
+	runScriptsParallel := req.RunScriptsParallel
+	if len(scripts) > 0 {
+		err := clusterAPI.RunScripts(ctx, &cluster.RunScriptsReq{
+			ClusterId:          clusterID,
+			Scripts:            scripts,
+			RunScriptsParallel: runScriptsParallel,
+		})
+		if err != nil {
+			log.Printf("[ERROR] run script failed, err:%+v", err)
+			return diag.FromErr(fmt.Errorf("run script failed, err:%s", err.Error()))
+		}
+	}
+	return nil
 }
