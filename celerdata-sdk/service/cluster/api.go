@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
 )
@@ -72,6 +73,9 @@ type IClusterAPI interface {
 	GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error)
 	UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error
 
+	GetVolumeAutoScalingConfigs(ctx context.Context, req *GetVolumeAutoScalingConfigsReq) (*GetVolumeAutoScalingConfigsResp, error)
+	SetVolumeAutoScalingConfig(ctx context.Context, req *SetVolumeAutoScalingConfigsReq) error
+
 	ListClusterSchedulePolicy(ctx context.Context, req *ListClusterSchedulePolicyReq) (*ListClusterSchedulePolicyResp, error)
 	IsSchedulePolicyNameExist(ctx context.Context, req *CheckClusterSchedulePolicyReq) (*CheckClusterSchedulePolicyResp, error)
 	SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error)
@@ -108,6 +112,19 @@ func (c *clusterAPI) GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmIn
 
 func (c *clusterAPI) UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deployment-scripts", c.apiVersion, req.ClusterId), req, nil)
+}
+
+func (c *clusterAPI) GetVolumeAutoScalingConfigs(ctx context.Context, req *GetVolumeAutoScalingConfigsReq) (*GetVolumeAutoScalingConfigsResp, error) {
+	resp := &GetVolumeAutoScalingConfigsResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/volume/autoscaling", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SetVolumeAutoScalingConfig(ctx context.Context, req *SetVolumeAutoScalingConfigsReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/volume/autoscaling", c.apiVersion, req.ClusterId), req, nil)
 }
 
 func (c *clusterAPI) DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error {
