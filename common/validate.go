@@ -3,8 +3,9 @@ package common
 import (
 	"fmt"
 	"strings"
-	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"time"
+
+	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 
 	"github.com/dlclark/regexp2"
 	"github.com/hashicorp/go-cty/cty"
@@ -34,6 +35,74 @@ func ValidatePassword() schema.SchemaValidateDiagFunc {
 				Summary:  "Invalid value",
 				Detail: "The password is required and should be between 8 and 16 characters in length." +
 					"It is a mix of letters, numbers and symbols. The symbols we now support are !@#$%^&*_",
+			}
+			diags = append(diags, diag)
+		}
+		return diags
+	}
+}
+
+func ValidateVolumeAutoscalingPercentage() schema.SchemaValidateDiagFunc {
+	return func(v interface{}, p cty.Path) diag.Diagnostics {
+		value := v.(int)
+		var diags diag.Diagnostics
+
+		if value < 80 || value > 90 {
+			diag := diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid value",
+				Detail:   fmt.Sprintf("Param `trigger_expansion_percentage` is invalid. The range of values is: [80,90]"),
+			}
+			diags = append(diags, diag)
+		}
+		return diags
+	}
+}
+
+func ValidateVolumeAutoscalingStepBySize() schema.SchemaValidateDiagFunc {
+	return func(v interface{}, p cty.Path) diag.Diagnostics {
+		value := v.(int)
+		var diags diag.Diagnostics
+
+		if value < 10 || value > 32000 {
+			diag := diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid value",
+				Detail:   fmt.Sprintf("Param `expansion_step_per_node` is invalid. The range of values is: [10,32000]"),
+			}
+			diags = append(diags, diag)
+		}
+		return diags
+	}
+}
+
+func ValidateVolumeAutoscalingStepByPercentage() schema.SchemaValidateDiagFunc {
+	return func(v interface{}, p cty.Path) diag.Diagnostics {
+		value := v.(int)
+		var diags diag.Diagnostics
+
+		if value < 10 || value > 100 {
+			diag := diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid value",
+				Detail:   fmt.Sprintf("Param `expansion_percentage_per_node` is invalid. The range of values is: [10,100]"),
+			}
+			diags = append(diags, diag)
+		}
+		return diags
+	}
+}
+
+func ValidateVolumeAutoscalingMax() schema.SchemaValidateDiagFunc {
+	return func(v interface{}, p cty.Path) diag.Diagnostics {
+		value := v.(int)
+		var diags diag.Diagnostics
+
+		if value < 100 || value > 32000 {
+			diag := diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid value",
+				Detail:   fmt.Sprintf("Param `max_size_per_node` is invalid. The range of values is: [10,32000]"),
 			}
 			diags = append(diags, diag)
 		}

@@ -96,6 +96,44 @@ func resourceElasticClusterV2() *schema.Resource {
 					},
 				},
 			},
+			"coordinator_node_volume_autoscaling": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"enable": {
+							Type:     schema.TypeBool,
+							Optional: false,
+							Default:  true,
+						},
+						"trigger_expansion_percentage": {
+							Type:             schema.TypeInt,
+							Optional:         true,
+							Default:          85,
+							ValidateDiagFunc: common.ValidateVolumeAutoscalingPercentage(),
+						},
+						"expansion_step_per_node": {
+							Type:     schema.TypeInt,
+							Optional: true,
+							// no default value, but the user should set one of expansion_step_per_node and expansion_percentage_per_node
+							ValidateDiagFunc: common.ValidateVolumeAutoscalingStepBySize(),
+						},
+						"expansion_percentage_per_node": {
+							Type:     schema.TypeInt,
+							Optional: true,
+							// no default value, but the user should set one of expansion_step_per_node and expansion_percentage_per_node
+							ValidateDiagFunc: common.ValidateVolumeAutoscalingStepByPercentage(),
+						},
+						"max_size_per_node": {
+							Type:             schema.TypeInt,
+							Optional:         true,
+							Default:          500,
+							ValidateDiagFunc: common.ValidateVolumeAutoscalingMax(),
+						},
+					},
+				},
+			},
 			"custom_ami": {
 				Type:     schema.TypeList,
 				Optional: true,
@@ -1052,6 +1090,16 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			PerSize: 150,
 		},
 	}
+	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok {
+		yamlConfig := v.([]interface{})[0].(map[string]interface{})
+		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		autoscalingConfig.ModuleType = cluster.ClusterModuleTypeFE
+		coordinatorItem.VolumeAutoScalingConfig = autoscalingConfig
+	}
+
 	if v, ok := d.GetOk("coordinator_node_volume_config"); ok {
 		volumeConfig := v.([]interface{})[0].(map[string]interface{})
 		diskInfo := coordinatorItem.DiskInfo
@@ -1396,6 +1444,19 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	volumeAutoscalingConfigs, err := clusterAPI.GetVolumeAutoScalingConfigs(ctx, &cluster.GetVolumeAutoScalingConfigsReq{
+		ClusterId: clusterId,
+	})
+	if err != nil {
+		log.Printf("[ERROR] get cluster volume autoscaling config failed, clusterId:%s err:%+v", clusterId, err)
+		return diag.FromErr(err)
+	}
+
+	volumeAutoscalingConfigsMap := make(map[cluster.ClusterModuleType]*cluster.VolumeAutoScalingConfig)
+	for _, v := range volumeAutoscalingConfigs.VolumeAutoscalingConfigs {
+		volumeAutoscalingConfigsMap[v.ModuleType] = v
+	}
+
 	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterId)
 	if err != nil {
 		log.Printf("[ERROR] list cluster schedule policy failed,clusterId:%s err:%+v", clusterId, err)
@@ -1610,6 +1671,20 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		feVolumeConfig["throughput"] = feModule.Throughput
 		if v, ok := d.GetOk("coordinator_node_volume_config"); ok && v != nil {
 			d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
+		}
+	}
+
+	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok && v != nil {
+		if cfg, ok := volumeAutoscalingConfigsMap[cluster.ClusterModuleTypeFE]; ok {
+			d.Set("coordinator_node_volume_autoscaling", []interface{}{
+				map[string]interface{}{
+					"enable":                        cfg.Enable,
+					"trigger_expansion_percentage":  cfg.TriggerExpansionPercentage,
+					"expansion_step_per_node":       cfg.ExpansionStepPerNode,
+					"expansion_percentage_per_node": cfg.ExpansionPercentagePerNode,
+					"max_size_per_node":             cfg.MaxSizePerNode,
+				},
+			})
 		}
 	}
 
@@ -2033,6 +2108,23 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 					},
 				}
 			}
+		}
+	}
+
+	if d.HasChange("coordinator_node_volume_autoscaling") && !d.IsNewResource() {
+		_, v := d.GetChange("coordinator_node_volume_autoscaling")
+		yamlConfig := v.([]interface{})[0].(map[string]interface{})
+		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		autoscalingConfig.ModuleType = cluster.ClusterModuleTypeFE
+		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+			ClusterId:                clusterId,
+			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
 		}
 	}
 
