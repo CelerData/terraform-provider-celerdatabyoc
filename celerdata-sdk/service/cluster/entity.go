@@ -158,15 +158,25 @@ type DiskInfo struct {
 	Throughput uint64 `json:"throughput"`
 }
 
+type VolumeAutoScalingConfig struct {
+	Enable                     bool              `json:"enable"`
+	ModuleType                 ClusterModuleType `json:"module_type"`
+	TriggerExpansionPercentage uint32            `json:"trigger_expansion_percentage"`
+	ExpansionStepPerNode       uint32            `json:"expansion_step_per_node"`
+	ExpansionPercentagePerNode uint32            `json:"expansion_percentage_per_node"`
+	MaxSizePerNode             uint32            `json:"max_size_per_node"`
+}
+
 type ClusterItem struct {
-	Type               ClusterModuleType `json:"type"`
-	Name               string            `json:"name"`
-	Num                uint32            `json:"num"`
-	StorageSizeGB      uint64            `json:"storage_size_gb"` // deprecated
-	InstanceType       string            `json:"instance_type"`
-	DiskInfo           *DiskInfo         `json:"disk_info"`
-	DistributionPolicy string            `json:"distribution_policy"`
-	SpecifyAZ          string            `json:"specify_az"`
+	Type                    ClusterModuleType        `json:"type"`
+	Name                    string                   `json:"name"`
+	Num                     uint32                   `json:"num"`
+	StorageSizeGB           uint64                   `json:"storage_size_gb"` // deprecated
+	InstanceType            string                   `json:"instance_type"`
+	DiskInfo                *DiskInfo                `json:"disk_info"`
+	DistributionPolicy      string                   `json:"distribution_policy"`
+	SpecifyAZ               string                   `json:"specify_az"`
+	VolumeAutoScalingConfig *VolumeAutoScalingConfig `json:"volume_auto_scaling_config"`
 }
 
 type Script struct {
@@ -889,6 +899,21 @@ type ClusterSchedulePolicy struct {
 	SuspendAt       string `json:"suspend_at" mapstructure:"suspend_at"`
 	State           int32  `json:"state" mapstructure:"state"`
 }
+
+type GetVolumeAutoScalingConfigsReq struct {
+	ClusterId string `json:"cluster_id"`
+}
+
+type GetVolumeAutoScalingConfigsResp struct {
+	ClusterId                string                     `json:"cluster_id"`
+	VolumeAutoscalingConfigs []*VolumeAutoScalingConfig `json:"volume_autoscaling_configs"`
+}
+
+type SetVolumeAutoScalingConfigsReq struct {
+	ClusterId                string                     `json:"cluster_id"`
+	VolumeAutoscalingConfigs []*VolumeAutoScalingConfig `json:"volume_autoscaling_configs"`
+}
+
 type CheckClusterSchedulePolicyReq struct {
 	ClusterId  string `json:"cluster_id" mapstructure:"cluster_id"`
 	PolicyName string `json:"policy_name" mapstructure:"policy_name"`
