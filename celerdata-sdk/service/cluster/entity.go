@@ -204,6 +204,8 @@ type ClusterConf struct {
 	QueryPort          int32          `json:"query_port"`
 	RunScriptsTimeout  int32          `json:"run_scripts_timeout"`
 	CustomAmi          *CustomAmi     `json:"custom_ami"`
+	// EnabledTerminationProtection indicates whether termination protection is enabled for the cluster.
+	EnabledTerminationProtection bool `json:"enabled_termination_protection"`
 }
 
 type GetReq struct {
@@ -1006,4 +1008,16 @@ func GetVals[K comparable, V any](m map[K]V) []V {
 func IsValidTimeZoneName(tzName string) bool {
 	_, err := time.LoadLocation(tzName)
 	return err == nil
+}
+
+type GetClusterTerminationProtectionReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type GetClusterTerminationProtectionResp struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+type SetClusterTerminationProtectionReq struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
 }
