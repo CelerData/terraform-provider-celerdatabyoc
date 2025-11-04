@@ -170,8 +170,8 @@ type ClusterItem struct {
 }
 
 type Script struct {
-	ScriptPath string `json:"script_path"`
-	LogsDir    string `json:"logs_dir"`
+	ScriptPath string `json:"script_path" mapstructure:"script_path"`
+	LogsDir    string `json:"logs_dir" mapstructure:"logs_dir"`
 }
 
 type UpdateDeploymentScriptsReq struct {
@@ -961,6 +961,12 @@ type GetGlobalSqlSessionVariablesResp struct {
 
 type SaveClusterSchedulePolicyResp struct {
 	PolicyId string `json:"policy_id" mapstructure:"policy_id"`
+}
+
+type RunScriptsReq struct {
+	ClusterId          string    `json:"cluster_id" mapstructure:"cluster_id"`
+	Scripts            []*Script `json:"scripts" mapstructure:"scripts"`
+	RunScriptsParallel bool      `json:"run_scripts_parallel" mapstructure:"run_scripts_parallel"`
 }
 
 func Equal(a, b interface{}) bool {

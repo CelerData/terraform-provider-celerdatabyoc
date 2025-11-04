@@ -194,6 +194,28 @@ func resourceElasticCluster() *schema.Resource {
 					},
 				},
 			},
+			"scripts": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Computed: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"script_path": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"logs_dir": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"rerun": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  false,
+						},
+					},
+				},
+			},
 			"run_scripts_parallel": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -544,6 +566,11 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
 	}
 
+	err = MarkScriptReRun(d)
+	if err != nil {
+		return err
+	}
+
 	err2 := SchedulingPolicyParamCheck(d)
 	return err2
 }
@@ -760,6 +787,14 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	RunScripts(ctx, RunScriptsReq{
+		ResourceData:       d,
+		ClusterAPI:         clusterAPI,
+		ClusterID:          clusterId,
+		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
+		IsCreate:           true,
+	})
+
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if errDiag != nil {
@@ -934,12 +969,6 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		feVolumeConfig["iops"] = feModule.Iops
 		feVolumeConfig["throughput"] = feModule.Throughput
 		if v, ok := d.GetOk("coordinator_node_volume_config"); ok && v != nil {
-			if v.([]interface{})[0].(map[string]interface{})["iops"] == nil {
-				feVolumeConfig["iops"] = nil
-			}
-			if v.([]interface{})[0].(map[string]interface{})["throughput"] == nil {
-				feVolumeConfig["throughput"] = nil
-			}
 			d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
 		}
 	}
@@ -953,12 +982,6 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		beVolumeConfig["iops"] = beModule.Iops
 		beVolumeConfig["throughput"] = beModule.Throughput
 		if v, ok := d.GetOk("compute_node_volume_config"); ok && v != nil {
-			if v.([]interface{})[0].(map[string]interface{})["iops"] == nil {
-				beVolumeConfig["iops"] = nil
-			}
-			if v.([]interface{})[0].(map[string]interface{})["throughput"] == nil {
-				beVolumeConfig["throughput"] = nil
-			}
 			d.Set("compute_node_volume_config", []interface{}{beVolumeConfig})
 		}
 	}
@@ -967,10 +990,8 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		d.Set("global_session_variables", globalSessionVariables)
 	}
 
-	if len(policies) > 0 {
-		d.Set("scheduling_policy", policies)
-		d.Set("scheduling_policy_extra_info", policyExtraInfo)
-	}
+	d.Set("scheduling_policy", policies)
+	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
 
@@ -1541,6 +1562,13 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 			return warnDiag
 		}
 	}
+
+	RunScripts(ctx, RunScriptsReq{
+		ResourceData:       d,
+		ClusterAPI:         clusterAPI,
+		ClusterID:          clusterID,
+		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
+	})
 
 	if needSuspend(d) {
 		o, n := d.GetChange("expected_cluster_state")
