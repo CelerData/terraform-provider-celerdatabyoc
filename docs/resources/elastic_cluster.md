@@ -58,6 +58,13 @@ resource "celerdatabyoc_elastic_cluster" "elastic_cluster_1" {
   }
 
   // optional
+  /*
+    global_session_variables = {
+      <key> = <value>
+    }
+  */
+
+  // optional
   scheduling_policy {
     policy_name = "auto-resume-suspend"
     description = "Auto resume/suspend"
