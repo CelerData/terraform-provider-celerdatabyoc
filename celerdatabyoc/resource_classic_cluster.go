@@ -1647,6 +1647,19 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
+	if d.HasChange("ranger_config_id") {
+		rangerConfigID := d.Get("ranger_config_id").(string)
+		var warningDiag diag.Diagnostics
+		if rangerConfigID == "" {
+			warningDiag = ClearRangerV2(ctx, clusterAPI, clusterID)
+		} else {
+			warningDiag = ApplyRangerV2(ctx, clusterAPI, clusterID, rangerConfigID)
+		}
+		if warningDiag != nil {
+			return warningDiag
+		}
+	}
+
 	if needSuspend(d) {
 		o, n := d.GetChange("expected_cluster_state")
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
