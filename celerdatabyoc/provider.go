@@ -90,6 +90,7 @@ func Provider() *schema.Provider {
 			"celerdatabyoc_gcp_data_credential":                     gcpResourceDataCredential(),
 			"celerdatabyoc_gcp_deployment_credential":               gcpResourceDeploymentCredential(),
 			"celerdatabyoc_gcp_network":                             gcpResourceNetwork(),
+			"celerdatabyoc_ranger_config":                           resourceRangerConfig(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"celerdatabyoc_aws_data_credential_assume_policy": dataAwsDataCredentialAssumeRolePolicy(),

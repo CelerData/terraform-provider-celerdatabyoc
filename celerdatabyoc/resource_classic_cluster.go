@@ -386,6 +386,11 @@ func resourceClassicCluster() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"ranger_config_id": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringIsNotWhiteSpace,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -849,6 +854,14 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 	}
 
+	if v, ok := d.GetOk("ranger_config_id"); ok {
+		rangerConfigID := v.(string)
+		warningDiag := ApplyRangerV2(ctx, clusterAPI, clusterId, rangerConfigID)
+		if warningDiag != nil {
+			return warningDiag
+		}
+	}
+
 	return resourceClusterRead(ctx, d, m)
 }
 
@@ -948,6 +961,15 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		return diag.FromErr(err)
 	}
 
+	rangerConfigResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
+		ClusterID:  clusterID,
+		ConfigType: cluster.CustomConfigTypeRangerV2,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
 	log.Printf("[DEBUG] get cluster, resp:%+v", resp.Cluster)
 	d.Set("cluster_state", resp.Cluster.ClusterState)
 	d.Set("expected_cluster_state", resp.Cluster.ClusterState)
@@ -1020,6 +1042,10 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("scheduling_policy", policies)
 	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
+
+	if len(rangerConfigResp.Configs) > 0 {
+		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
+	}
 
 	return diags
 }
@@ -1620,13 +1646,6 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 			return warnDiag
 		}
 	}
-
-	RunScripts(ctx, RunScriptsReq{
-		ResourceData:       d,
-		ClusterAPI:         clusterAPI,
-		ClusterID:          clusterID,
-		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
-	})
 
 	if needSuspend(d) {
 		o, n := d.GetChange("expected_cluster_state")
@@ -2740,6 +2759,119 @@ func RunScripts(ctx context.Context, req RunScriptsReq) diag.Diagnostics {
 		if err != nil {
 			log.Printf("[ERROR] run script failed, err:%+v", err)
 			return diag.FromErr(fmt.Errorf("run script failed, err:%s", err.Error()))
+		}
+	}
+	return nil
+}
+
+func ApplyRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID, rangerConfID string) diag.Diagnostics {
+	summary := "Failed to apply ranger config."
+	resp, err := clusterAPI.ApplyRangerConfigV2(ctx, &cluster.ApplyRangerConfigV2Req{
+		ClusterID: clusterID,
+		BizID:     rangerConfID,
+	})
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	log.Printf("[DEBUG] ApplyRangerConfigV2 succeeded, action id:%s, cluster id:%s, rangerConfID:%s", resp.InfraActionID, clusterID, rangerConfID)
+
+	if len(resp.InfraActionID) > 0 {
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterID,
+			actionID:   resp.InfraActionID,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   infraActionResp.ErrMsg,
+				},
+			}
+		}
+	}
+	return nil
+}
+
+func ClearRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterID string) diag.Diagnostics {
+	summary := "Failed to clear ranger config."
+	resp, err := clusterAPI.CleanRangerConfigV2(ctx, &cluster.CleanRangerConfigV2Req{
+		ClusterID: clusterID,
+	})
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if len(resp.InfraActionID) > 0 {
+		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+			clusterAPI: clusterAPI,
+			clusterID:  clusterID,
+			actionID:   resp.InfraActionID,
+			timeout:    30 * time.Minute,
+			pendingStates: []string{
+				string(cluster.ClusterInfraActionStatePending),
+				string(cluster.ClusterInfraActionStateOngoing),
+			},
+			targetStates: []string{
+				string(cluster.ClusterInfraActionStateSucceeded),
+				string(cluster.ClusterInfraActionStateCompleted),
+				string(cluster.ClusterInfraActionStateFailed),
+			},
+		})
+
+		if err != nil {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   err.Error(),
+				},
+			}
+		}
+
+		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  summary,
+					Detail:   infraActionResp.ErrMsg,
+				},
+			}
 		}
 	}
 	return nil

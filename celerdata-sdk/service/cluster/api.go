@@ -86,6 +86,9 @@ type IClusterAPI interface {
 	SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error
 
 	RunScripts(ctx context.Context, req *RunScriptsReq) error
+
+	ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
+	CleanRangerConfigV2(ctx context.Context, req *CleanRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -668,4 +671,22 @@ func (c *clusterAPI) GetClusterTerminationProtection(ctx context.Context, req *G
 
 func (c *clusterAPI) SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, clusterId), req, nil)
+}
+
+func (c *clusterAPI) ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error) {
+	resp := &OperateRangerConfigV2Resp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deploy-ranger-config", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CleanRangerConfigV2(ctx context.Context, req *CleanRangerConfigV2Req) (*OperateRangerConfigV2Resp, error) {
+	resp := &OperateRangerConfigV2Resp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/clean-ranger-config", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }

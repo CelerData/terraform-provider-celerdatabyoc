@@ -587,6 +587,11 @@ func resourceElasticClusterV2() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"ranger_config_id": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringIsNotWhiteSpace,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -1198,6 +1203,14 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		IsCreate:           true,
 	})
 
+	if v, ok := d.GetOk("ranger_config_id"); ok {
+		rangerConfigID := v.(string)
+		warningDiag := ApplyRangerV2(ctx, clusterAPI, clusterId, rangerConfigID)
+		if warningDiag != nil {
+			return warningDiag
+		}
+	}
+
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
 		warningDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if warningDiag != nil {
@@ -1299,6 +1312,15 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	terminationProtection, err := clusterAPI.GetClusterTerminationProtection(ctx, &cluster.GetClusterTerminationProtectionReq{ClusterId: clusterId})
 	if err != nil {
 		log.Printf("[ERROR] get cluster termination protection failed, clusterId:%s err:%+v", clusterId, err)
+		return diag.FromErr(err)
+	}
+
+	rangerConfigResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
+		ClusterID:  clusterId,
+		ConfigType: cluster.CustomConfigTypeRangerV2,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
 		return diag.FromErr(err)
 	}
 
@@ -1500,6 +1522,10 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
+
+	if len(rangerConfigResp.Configs) > 0 {
+		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
+	}
 
 	return diags
 }
@@ -2012,6 +2038,19 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		ClusterID:          clusterId,
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
 	})
+
+	if d.HasChange("ranger_config_id") {
+		rangerConfigID := d.Get("ranger_config_id").(string)
+		var warningDiag diag.Diagnostics
+		if rangerConfigID == "" {
+			warningDiag = ClearRangerV2(ctx, clusterAPI, clusterId)
+		} else {
+			warningDiag = ApplyRangerV2(ctx, clusterAPI, clusterId, rangerConfigID)
+		}
+		if warningDiag != nil {
+			return warningDiag
+		}
+	}
 
 	if needSuspend(d) {
 		o, n := d.GetChange("expected_cluster_state")

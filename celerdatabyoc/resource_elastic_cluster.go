@@ -378,6 +378,11 @@ func resourceElasticCluster() *schema.Resource {
 					Type: schema.TypeString,
 				},
 			},
+			"ranger_config_id": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				ValidateFunc: validation.StringIsNotWhiteSpace,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -828,6 +833,14 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	if v, ok := d.GetOk("ranger_config_id"); ok {
+		rangerConfigID := v.(string)
+		warningDiag := ApplyRangerV2(ctx, clusterAPI, resp.ClusterID, rangerConfigID)
+		if warningDiag != nil {
+			return warningDiag
+		}
+	}
+
 	return resourceElasticClusterRead(ctx, d, m)
 }
 
@@ -922,6 +935,15 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 
+	rangerConfigResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
+		ClusterID:  clusterID,
+		ConfigType: cluster.CustomConfigTypeRangerV2,
+	})
+	if err != nil {
+		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
 	log.Printf("[DEBUG] get cluster, resp:%+v", resp.Cluster)
 	d.Set("cluster_state", string(resp.Cluster.ClusterState))
 	d.Set("expected_cluster_state", string(resp.Cluster.ClusterState))
@@ -994,6 +1016,10 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
+
+	if len(rangerConfigResp.Configs) > 0 {
+		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
+	}
 
 	return diags
 }
@@ -1569,6 +1595,19 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		ClusterID:          clusterID,
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
 	})
+
+	if d.HasChange("ranger_config_id") {
+		rangerConfigID := d.Get("ranger_config_id").(string)
+		var warningDiag diag.Diagnostics
+		if rangerConfigID == "" {
+			warningDiag = ClearRangerV2(ctx, clusterAPI, clusterID)
+		} else {
+			warningDiag = ApplyRangerV2(ctx, clusterAPI, clusterID, rangerConfigID)
+		}
+		if warningDiag != nil {
+			return warningDiag
+		}
+	}
 
 	if needSuspend(d) {
 		o, n := d.GetChange("expected_cluster_state")
