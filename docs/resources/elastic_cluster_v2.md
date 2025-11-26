@@ -112,7 +112,8 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   ldap_ssl_certs = [
     "<ssl_cert_s3_path>"
   ]
-  ranger_certs_dir_path = "<ranger_config_s3_path>" // Example : "s3://your-bucket/ranger_config_dir"
+  ranger_certs_dir_path = "<ranger_config_s3_path>" // Deprecated
+  ranger_config_id = "<ranger_config_ID>"
   resource_tags = {
     celerdata = "<tag_name>"
   }
@@ -233,9 +234,11 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `global_session_variables`: Global session variables of the cluster. You can find all configurable variables by `select VARIABLE_NAME from information_schema.global_variables;`.
 - `ldap_ssl_certs`: (Available only for AWS) The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
-- `ranger_certs_dir`: (Available only for AWS) The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
+- `ranger_certs_dir`: (Deprecated) The parent dir path in the AWS S3 bucket that stores the Ranger SSL certificates. CelerData supports using Ranger over SSL by uploading the Ranger SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 
 ~> You can only upload or delete LDAP or Ranger SSL certificates while the cluster's `expected_cluster_state` is set to `Running`.
+
+- `ranger_config_id`: The ID of the Ranger configuration you want to apply to the cluster. You can set this argument to `celerdatabyoc_ranger_config.<resource_name>.id` or a hard-coded ID value.
 
 - `resource_tags`: The tags to be attached to the cluster (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
