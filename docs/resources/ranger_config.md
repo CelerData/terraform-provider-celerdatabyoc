@@ -10,7 +10,7 @@ description: |-
 
 Defines a Ranger configuration for the integration between CelerData clusters and Apache Ranger.
 
-A Ranger configuration specifies the remote storage paths to the configuration files required to integrate a CelerData cluster to Apache Ranger, which provides a centralized security management framework that allows users to customize access policies through a visual web page. You can apply the configuration when creating or modifying the cluster using [celerdatabyoc_classic_cluster](../resources/classic_cluster.md), [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md), and [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md).
+A Ranger configuration specifies the remote storage paths to the configuration files required to integrate a CelerData cluster to Apache Ranger, which provides a centralized security management framework that allows users to customize access policies through a visual web page. You can apply the configuration when creating or modifying the cluster using [celerdatabyoc_classic_cluster](./classic_cluster.md), [celerdatabyoc_elastic_cluster](./elastic_cluster.md), and [celerdatabyoc_elastic_cluster_v2](./elastic_cluster_v2.md).
 
 ~> Before proceeding, make sure you have prepared the configuration files required by following the instructions provided in [Manage permissions with Apache Ranger - Prepare files](https://docs.celerdata.com/BYOC/docs/administration/user_privs/Column_and_row-level_security/ranger_plugin/).
 
@@ -72,6 +72,6 @@ This resource exports the following attributes:
 
 ## See Also
 
-- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
-- [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md)
-- [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md)
+- [celerdatabyoc_classic_cluster](./classic_cluster.md)
+- [celerdatabyoc_elastic_cluster](./elastic_cluster.md)
+- [celerdatabyoc_elastic_cluster_v2](./elastic_cluster_v2.md)
