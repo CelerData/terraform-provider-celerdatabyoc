@@ -226,6 +226,11 @@ func resourceElasticCluster() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"table_name_case_insensitive": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 			"query_port": {
 				Type:     schema.TypeInt,
 				Optional: true,
@@ -601,6 +606,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		QueryPort:                    int32(d.Get("query_port").(int)),
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
+		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
 	}
 
 	netResp, err := networkAPI.GetNetwork(ctx, clusterConf.NetIfaceId)
@@ -941,6 +947,11 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+	}
+
+	tableNameCaseInsensitive, err := clusterAPI.GetClusterTableNameCaseInsensitive(ctx, &cluster.GetClusterTableNameCaseInsensitiveReq{ClusterId: clusterID})
+	if err != nil {
+		log.Printf("[ERROR] get cluster config[table_name_case_insensitive] failed, clusterId:%s err:%+v", clusterID, err)
 		return diag.FromErr(err)
 	}
 
@@ -1016,6 +1027,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
+	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
 	if len(rangerConfigResp.Configs) > 0 {
 		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
@@ -1260,6 +1272,10 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to set termination protection: %s", d.Id(), err.Error()))
 		}
+	}
+
+	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
+		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
 	}
 
 	if elasticClusterNeedUnlock(d) {
