@@ -62,6 +62,14 @@ func gcpResourceNetwork() *schema.Resource {
 				Required: true,
 				ForceNew: true,
 			},
+			"availability_zones": {
+				Type:     schema.TypeList,
+				Optional: true,
+				ForceNew: true,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -70,6 +78,22 @@ func gcpResourceNetwork() *schema.Resource {
 			subnetName := diff.Get("subnet_name").(string)
 			if subnetName != "" {
 				log.Printf("[WARN] 'subnet_name' is deprecated. Please use 'subnet' instead.")
+			}
+			azs := diff.Get("availability_zones").([]interface{})
+			if len(azs) != 0 && len(azs) != 3 {
+				return fmt.Errorf("'availability_zones' must be empty (single-az) or exactly 3 items (multi-az)")
+			}
+
+			azSet := make(map[string]struct{}, len(azs))
+			for _, v := range azs {
+				z := v.(string)
+				if z == "" {
+					return fmt.Errorf("availability_zones contains empty zone")
+				}
+				if _, ok := azSet[z]; ok {
+					return fmt.Errorf("duplicate zone '%s' in availability_zones", z)
+				}
+				azSet[z] = struct{}{}
 			}
 			return nil
 		},
@@ -88,6 +112,17 @@ func gcpResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m int
 		return diag.FromErr(fmt.Errorf("attribute 'subnet' is required"))
 	}
 
+	rawAzs := d.Get("availability_zones").([]interface{})
+	if len(rawAzs) != 0 && len(rawAzs) != 3 {
+		return diag.FromErr(fmt.Errorf("'availability_zones' must be empty or exactly 3"))
+	}
+	azs := make([]string, 0, len(rawAzs))
+	for _, v := range rawAzs {
+		azs = append(azs, v.(string))
+	}
+
+	multiAz := len(azs) == 3
+
 	req := &network.CreateGcpNetworkReq{
 		DeploymentCredentialID: d.Get("deployment_credential_id").(string),
 		Name:                   d.Get("name").(string),
@@ -95,6 +130,8 @@ func gcpResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m int
 		NetworkTag:             d.Get("network_tag").(string),
 		Subnet:                 subnet,
 		PscConnectionId:        d.Get("psc_connection_id").(string),
+		MultiAz:                multiAz,
+		AvailabilityZones:      azs,
 	}
 
 	resp, err := networkCli.CreateGcpNetwork(ctx, req)

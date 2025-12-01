@@ -49,10 +49,12 @@ type GetNetworkResp struct {
 }
 
 type CreateGcpNetworkReq struct {
-	DeploymentCredentialID string `json:"deployment_credential_id" mapstructure:"deployment_credential_id"`
-	Name                   string `json:"name" mapstructure:"name"`
-	Region                 string `json:"region" mapstructure:"region"`
-	NetworkTag             string `json:"network_tag" mapstructure:"network_tag"`
-	Subnet                 string `json:"subnet" mapstructure:"subnet"`
-	PscConnectionId        string `json:"psc_connection_id" mapstructure:"psc_connection_id"`
+	DeploymentCredentialID string   `json:"deployment_credential_id" mapstructure:"deployment_credential_id"`
+	Name                   string   `json:"name" mapstructure:"name"`
+	Region                 string   `json:"region" mapstructure:"region"`
+	NetworkTag             string   `json:"network_tag" mapstructure:"network_tag"`
+	Subnet                 string   `json:"subnet" mapstructure:"subnet"`
+	PscConnectionId        string   `json:"psc_connection_id" mapstructure:"psc_connection_id"`
+	MultiAz                bool     `json:"multi_az" mapstructure:"multi_az"`
+	AvailabilityZones      []string `json:"availability_zones" mapstructure:"availability_zones"`
 }
