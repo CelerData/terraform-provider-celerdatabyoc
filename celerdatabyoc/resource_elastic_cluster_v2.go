@@ -1268,9 +1268,9 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
-	netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
+	netResp, err := networkAPI.GetNetwork(ctx, resp.Cluster.NetIfaceID)
 	if err != nil {
-		return diag.FromErr(fmt.Errorf("get network (%s): %s", d.Get("network_id").(string), err.Error()))
+		return diag.FromErr(fmt.Errorf("get network (%s): %s", resp.Cluster.NetIfaceID, err.Error()))
 	}
 
 	jsonBytes, err := json.Marshal(resp.Cluster)
