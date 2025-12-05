@@ -207,6 +207,9 @@ type ClusterConf struct {
 	CustomAmi          *CustomAmi     `json:"custom_ami"`
 	// EnabledTerminationProtection indicates whether termination protection is enabled for the cluster.
 	EnabledTerminationProtection bool `json:"enabled_termination_protection"`
+	// table_name_case_insensitive indicates whether cluster will be created with table name case insensitive mode.
+	// this feature is supported starting from sr 4.0.0
+	TableNameCaseInsensitive bool `json:"table_name_case_insensitive"`
 }
 
 type GetReq struct {
@@ -1040,4 +1043,12 @@ type CleanRangerConfigV2Req struct {
 
 type OperateRangerConfigV2Resp struct {
 	InfraActionID string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type GetClusterTableNameCaseInsensitiveReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type GetClusterTableNameCaseInsensitiveResp struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
 }

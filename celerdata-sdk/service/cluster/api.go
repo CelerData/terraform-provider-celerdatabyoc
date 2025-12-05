@@ -85,6 +85,8 @@ type IClusterAPI interface {
 	GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error)
 	SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error
 
+	GetClusterTableNameCaseInsensitive(ctx context.Context, req *GetClusterTableNameCaseInsensitiveReq) (*GetClusterTableNameCaseInsensitiveResp, error)
+
 	RunScripts(ctx context.Context, req *RunScriptsReq) error
 
 	ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
@@ -663,6 +665,15 @@ func (c *clusterAPI) ResetGlobalSqlSessionVariables(ctx context.Context, req *Re
 func (c *clusterAPI) GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error) {
 	resp := &GetClusterTerminationProtectionResp{}
 	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) GetClusterTableNameCaseInsensitive(ctx context.Context, req *GetClusterTableNameCaseInsensitiveReq) (*GetClusterTableNameCaseInsensitiveResp, error) {
+	resp := &GetClusterTableNameCaseInsensitiveResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/table-name-case-insensitive", c.apiVersion, req.ClusterId), nil, resp)
 	if err != nil {
 		return nil, err
 	}

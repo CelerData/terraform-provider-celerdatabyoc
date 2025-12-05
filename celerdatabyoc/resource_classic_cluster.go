@@ -233,6 +233,11 @@ func resourceClassicCluster() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"table_name_case_insensitive": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 			"query_port": {
 				Type:     schema.TypeInt,
 				Optional: true,
@@ -620,6 +625,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		QueryPort:                    int32(d.Get("query_port").(int)),
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
+		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
 	}
 	netResp, err := networkAPI.GetNetwork(ctx, clusterConf.NetIfaceId)
 	if err != nil {
@@ -967,6 +973,11 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+	}
+
+	tableNameCaseInsensitive, err := clusterAPI.GetClusterTableNameCaseInsensitive(ctx, &cluster.GetClusterTableNameCaseInsensitiveReq{ClusterId: clusterID})
+	if err != nil {
+		log.Printf("[ERROR] get cluster config[table_name_case_insensitive] failed, clusterId:%s err:%+v", clusterID, err)
 		return diag.FromErr(err)
 	}
 
@@ -1042,6 +1053,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("scheduling_policy", policies)
 	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
+	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
 	if len(rangerConfigResp.Configs) > 0 {
 		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
@@ -1301,6 +1313,10 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to set termination protection: %s", d.Id(), err.Error()))
 		}
+	}
+
+	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
+		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
 	}
 
 	if needUnlock(d) {
