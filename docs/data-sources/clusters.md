@@ -22,4 +22,4 @@ This data source exports the following attributes:
   - `cluster_id`: The ID of the cluster.
   - `cluster_name`: The name of the cluster.
   - `cluster_version`: The version of the cluster.
-  - `cluster_type`: The type of the cluster (Elastic | Classic).
+  - `cluster_type`: The type of the cluster (Elastic), if you have classic cluster in use the values may be (Elastic|Classic).

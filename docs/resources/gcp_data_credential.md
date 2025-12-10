@@ -44,4 +44,4 @@ This resource exports the following attribute:
 - [Provision CelerData Cloud BYOC on GCP](../guides/gcp_deployment_guide.md)
 - [celerdatabyoc_gcp_deployment_credential](../resources/gcp_deployment_credential.md)
 - [celerdatabyoc_gcp_network](../resources/gcp_network.md)
-- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
+- [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md)

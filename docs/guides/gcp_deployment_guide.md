@@ -294,9 +294,9 @@ See the following documents for more information:
 
 ## Describe infrastructure
 
-This section provides a sample infrastructure configuration that automates the deployment of a classic (shared-nothing) CelerData cluster on GCP to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the GCP objects](#configure-gcp-objects).
+This section provides a sample infrastructure configuration that automates the deployment of an elastic (shared-data) CelerData cluster on GCP to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the GCP objects](#configure-gcp-objects).
 
-To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **`.tf`** file (for example, **`main.tf`**) in which you have configured the providers and GCP objects.
+To create an elastic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **`.tf`** file (for example, **`main.tf`**) in which you have configured the providers and GCP objects.
 
 ### [`celerdatabyoc_gcp_data_credential`](../resources/gcp_data_credential.md)
 
@@ -366,73 +366,45 @@ For information about how to create a PSC Connection, see [Create a Private Serv
   > If you do not specify a PSC Connection, CelerData's VPC communicates with your own VPC over the Internet.
 
 
-### [`celerdatabyoc_classic_cluster`](../resources/classic_cluster.md)
+### Setup CelerData cluster-related resources
 
 ```terraform
-resource "celerdatabyoc_classic_cluster" "demo_cluster" {
+resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
   deployment_credential_id = celerdatabyoc_gcp_deployment_credential.deployment_credential.id
   data_credential_id       = celerdatabyoc_gcp_data_credential.storage_credential.id
   network_id               = celerdatabyoc_gcp_network.network_credential.id
 
   cluster_name = "<cluster_name>"
-  fe_instance_type = "<fe_node_instance_type>"
-  fe_node_count = 1
+  coordinator_node_size = "<coordinator_node_instance_type>"
+  coordinator_node_count = <coordinator_node_number>
 
-  be_instance_type = "<be_node_instance_type>"
-  be_node_count = 1
-  // optional
-  be_volume_config {
-    vol_number = <vol_number>
-    vol_size = <vol_size>
-    iops = <iops>
-    throughput = <throughput>
+  default_warehouse {
+    compute_node_size        = "<compute_node_instance_type>"
+    compute_node_count       = <compute_node_number>
+
+    // optional
+    compute_node_volume_config {
+      vol_number = <vol_number>
+      vol_size = <vol_size>
+      iops = <iops>
+      throughput = <throughput>
+    }
+    // optional
+    compute_node_configs = {
+        <key> = <value>
+    }
   }
 
   default_admin_password = "<SQL_user_initial_password>"
-  expected_cluster_state = "Running"
+  expected_cluster_state = "{Suspended | Running}"
   resource_tags = {
     celerdata = "<tag_name>"
   }
+  idle_suspend_interval = 60
   csp    = "gcp"
   region = "us-central1"
 }
 ```
-
-The `celerdatabyoc_classic_cluster` resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `cluster_name`: (Forces new resource) The desired name for the cluster.
-
-- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)."
-
-- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_gcp_deployment_credential.deployment_credential.id`.
-
-- `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_gcp_data_credential.storage_credential.id`.
-
-- `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_gcp_network.network_credential.id`.
-
-- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)."
-
-- `default_admin_password`: The initial password of the cluster `admin` user.
-
-- `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
-
-- `csp`: The cloud service provider of the cluster. Set this argument to `gcp`.
-
-- `region`: The ID of the GCP region to which the VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#gcp).
-
-**Optional:**
-
-- `fe_node_count`: The number of FE nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
-
-- `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
-
-- `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: `[1,24]`. Default value: `2`.
-
-- `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
-
-- `resource_tags`: The tags to be attached to the cluster.
 
 ## Apply configurations
 

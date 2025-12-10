@@ -10,14 +10,14 @@ description: |-
 
 This topic describes how to resume or suspend a CelerData cluster.
 
-~> The following examples assume that the cluster you want to resume or suspend is a classic cluster, and the ellipses (...) in the following examples refer to the other existing arguments you have specified in the `celerdatabyoc_classic_cluster` resource.
+~> The following examples assume that the cluster you want to resume or suspend is an elastic cluster, and the ellipses (...) in the following examples refer to the other existing arguments you have specified in the `celerdatabyoc_elastic_cluster_v2` resource.
 
 ## Example Usage - Resume Cluster
 
 1. Set the `expected_cluster_state` argument to `Running` in the Terraform configuration, as shown below:
 
    ```terraform
-   resource "celerdatabyoc_classic_cluster" "classic_cluster" {
+   resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
      ...
      expected_cluster_state = "Running" 
    }
@@ -42,7 +42,7 @@ This topic describes how to resume or suspend a CelerData cluster.
 1. Set the `expected_cluster_state` argument to `Suspended` in the Terraform configuration, as shown below:
 
    ```terraform
-   resource "celerdatabyoc_classic_cluster" "classic_cluster" {
+   resource "celerdatabyoc_elatic_cluster_v2" "elastic_cluster" {
      ...
      expected_cluster_state = "Suspended" 
    }
@@ -70,5 +70,4 @@ The argument is described as follows:
 
 ## See Also
 
-- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
 - [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md)

@@ -6,14 +6,14 @@ description: |-
   
 ---
 
-Shows the details of the storage volumes for FE/BE nodes in a classic cluster or Coordinator Nodes in an elastic cluster.
+Shows the details of the storage volumes for FE/BE nodes in an elastic cluster.
 
 ## Example Usage
 
 ```terraform
 data "celerdatabyoc_data_cluster_volume_detail" "volume_detail" {
     cluster_id  = <cluster_resource_id>
-    node_type  = <"FE" | "BE" | "COORDINATOR">
+    node_type  = <"FE" | "BE">
 }
 ```
 
@@ -21,12 +21,11 @@ data "celerdatabyoc_data_cluster_volume_detail" "volume_detail" {
 
 This data source contains the following required arguments:
 
-- `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.
+- `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_elastic_cluster_v2` resource.
 
 - `node_type`: The type of the cluster node. Valid values:
-  - `FE`: FE node in the classic cluster.
-  - `BE`: BE node in the classic cluster.
-  - `COORDINATOR`: Coordinator Node in the elastic cluster.
+  - `BE`: WAREHOUSE node in the elastic cluster.
+  - `FE`: Coordinator Node in the elastic cluster.
 
 ## Attribute Reference
 
@@ -40,5 +39,4 @@ This data source exports the following attributes:
 
 ## See Also
 
-- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
-- [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md)
+- [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md)

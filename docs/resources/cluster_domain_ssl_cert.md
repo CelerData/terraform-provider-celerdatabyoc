@@ -38,9 +38,7 @@ resource "celerdatabyoc_cluster_domain_ssl_cert" "my_ssl_cert" {
 
 This resource contains the following required arguments:
 
-- `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_classic_cluster` or `celerdatabyoc_elastic_cluster` resource.
-  - If the cluster is a classic cluster, set this argument to `celerdatabyoc_classic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
-  - If the cluster is an elastic cluster, set this argument to `celerdatabyoc_elastic_cluster.<cluster_resource_name>.id`, and replace `<cluster_resource_name>` with your cluster resource name.
+- `cluster_id`: (String, Forces new resource) The ID of the `celerdatabyoc_elastic_cluster_v2` resource.
 - `domain`: The domain name you want to customize.
 - `s3_bucket`: The S3 bucket used to store your SSL certificate files. You need to store your certificate files in the bucket referenced in the data credential of your cluster.
 - `s3_key_of_ssl_crt`: The S3 bucket key to your SSL certificate file.

@@ -237,9 +237,9 @@ See the following documents for more information:
 
 ## Describe infrastructure
 
-This section provides a sample infrastructure configuration that automates the deployment of a classic CelerData cluster on Azure to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the Azure objects](#configure-azure-objects).
+This section provides a sample infrastructure configuration that automates the deployment of an elastic (shared-data) CelerData cluster on Azure to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the Azure objects](#configure-azure-objects).
 
-To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers and Azure objects.
+To create an elastic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers and Azure objects.
 
 ### [celerdatabyoc_azure_data_credential](../resources/azure_data_credential.md)
 
@@ -317,32 +317,41 @@ This resource contains the following required arguments and optional arguments:
 
 - `public_accessible`: Whether the cluster can be accessed from public networks. Valid values: `true` and `false`. If you set this argument to `true`, CelerData will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you set this argument to `false`, the cluster is accessible only through a private domain name.
 
-### [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
+### Setup CelerData cluster-related resources
+
 ```terraform
-resource "celerdatabyoc_classic_cluster" "demo_cluster" {
+resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
   deployment_credential_id = celerdatabyoc_azure_deployment_credential.example.id
   data_credential_id       = celerdatabyoc_azure_data_credential.example.id
   network_id               = celerdatabyoc_azure_network.example.id
-  
-  cluster_name = "<cluster_name>"
-  fe_instance_type = "<fe_node_instance_type>"
-  fe_node_count = 1
 
-  be_instance_type = "<be_node_instance_type>"
-  be_node_count = 1
-  // optional
-  be_volume_config {
-    vol_number = <vol_number>
-    vol_size = <vol_size>
-    iops = <iops>
-    throughput = <throughput>
+  cluster_name = "<cluster_name>"
+  coordinator_node_size = "<coordinator_node_instance_type>"
+  coordinator_node_count = <coordinator_node_number>
+
+  default_warehouse {
+    compute_node_size        = "<compute_node_instance_type>"
+    compute_node_count       = <compute_node_number>
+
+    // optional
+    compute_node_volume_config {
+      vol_number = <vol_number>
+      vol_size = <vol_size>
+      iops = <iops>
+      throughput = <throughput>
+    }
+    // optional
+    compute_node_configs = {
+        <key> = <value>
+    }
   }
-  
+
   default_admin_password = "<SQL_user_initial_password>"
-  expected_cluster_state = "Running"
+  expected_cluster_state = "{Suspended | Running}"
   resource_tags = {
     celerdata = "<tag_name>"
   }
+  idle_suspend_interval = 60
   csp    = "azure"
   region = local.cluster_region
   depends_on = [azurerm_role_assignment.assignment_app_roles,azurerm_role_assignment.assignment_identity_roles]
