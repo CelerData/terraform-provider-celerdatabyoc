@@ -2068,14 +2068,6 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if needSuspend(d) {
-		o, n := d.GetChange("expected_cluster_state")
-		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
-		if errDiag != nil {
-			return errDiag
-		}
-	}
-
 	if d.HasChange("custom_ami") && !d.IsNewResource() {
 		o, _ := d.GetChange("custom_ami")
 		if len(o.([]interface{})) == 0 {
@@ -2124,6 +2116,14 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 			if err != nil {
 				return diag.FromErr(err)
 			}
+		}
+	}
+
+	if needSuspend(d) {
+		o, n := d.GetChange("expected_cluster_state")
+		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
 		}
 	}
 

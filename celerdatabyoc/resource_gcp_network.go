@@ -47,6 +47,14 @@ func gcpResourceNetwork() *schema.Resource {
 				ForceNew:      true,
 				ConflictsWith: []string{"subnet_name"},
 			},
+			"zones": {
+				Type:     schema.TypeList,
+				Optional: true,
+				ForceNew: true,
+				MaxItems: 3,
+				MinItems: 3,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+			},
 			"network_tag": {
 				Type:     schema.TypeString,
 				Required: true,
@@ -88,6 +96,13 @@ func gcpResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m int
 		return diag.FromErr(fmt.Errorf("attribute 'subnet' is required"))
 	}
 
+	zones := []string{}
+	if v, ok := d.GetOk("zones"); ok {
+		for _, zone := range v.([]any) {
+			zones = append(zones, zone.(string))
+		}
+	}
+
 	req := &network.CreateGcpNetworkReq{
 		DeploymentCredentialID: d.Get("deployment_credential_id").(string),
 		Name:                   d.Get("name").(string),
@@ -95,6 +110,7 @@ func gcpResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m int
 		NetworkTag:             d.Get("network_tag").(string),
 		Subnet:                 subnet,
 		PscConnectionId:        d.Get("psc_connection_id").(string),
+		Zones:                  zones,
 	}
 
 	resp, err := networkCli.CreateGcpNetwork(ctx, req)
