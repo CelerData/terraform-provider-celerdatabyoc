@@ -27,10 +27,10 @@ import (
 func resourceClassicCluster() *schema.Resource {
 	return &schema.Resource{
 		DeprecationMessage: "This resource is about to be deprecated. For create new clusters, it is recommended to use `celerdatabyoc_elastic_cluster_v2`",
-		CreateContext: resourceClusterCreate,
-		ReadContext:   resourceClusterRead,
-		DeleteContext: resourceClusterDelete,
-		UpdateContext: resourceClusterUpdate,
+		CreateContext:      resourceClusterCreate,
+		ReadContext:        resourceClusterRead,
+		DeleteContext:      resourceClusterDelete,
+		UpdateContext:      resourceClusterUpdate,
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:     schema.TypeString,
