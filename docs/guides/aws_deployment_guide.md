@@ -112,9 +112,9 @@ The parameters you need to specify are as follows:
 
 ## Describe infrastructure
 
-This section provides a sample infrastructure configuration that automates the deployment of a classic CelerData cluster on AWS to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations) and have [configured the providers](#configure-providers).
+This section provides a sample infrastructure configuration that automates the deployment of an elastic (shared-data) CelerData cluster on AWS to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations) and have [configured the providers](#configure-providers).
 
-To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **`.tf`** file (for example, **`main.tf`**) in which you have configured the providers.
+To create an elastic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **`.tf`** file (for example, **`main.tf`**) in which you have configured the providers.
 
 ### Data credential-related resources
 
@@ -286,31 +286,40 @@ The [`celerdatabyoc_aws_network`](../resources/aws_network.md) resource contains
 - `vpc_endpoint_id`: (Optional) The ID of your endpoint within your VPC. Set this argument if you need to achieve a more stringent network communication method.
 
 ### CelerData cluster-related resources
+
 ```terraform
-resource "celerdatabyoc_classic_cluster" "demo_cluster" {
+resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
   deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
   data_credential_id = celerdatabyoc_aws_data_credential.data_credential.id
   network_id = celerdatabyoc_aws_network.network.id
   
   cluster_name = "<cluster_name>"
-  fe_instance_type = "<fe_node_instance_type>"
-  fe_node_count = 1
+  coordinator_node_size = "<coordinator_node_instance_type>"
+  coordinator_node_count = <coordinator_node_number>
 
-  be_instance_type = "<be_node_instance_type>"
-  be_node_count = 1
-  // optional
-  be_volume_config {
-    vol_number = <vol_number>
-    vol_size = <vol_size>
-    iops = <iops>
-    throughput = <throughput>
+  default_warehouse {
+    compute_node_size        = "<compute_node_instance_type>"
+    compute_node_count       = <compute_node_number>
+
+    // optional
+    compute_node_volume_config {
+      vol_number = <vol_number>
+      vol_size = <vol_size>
+      iops = <iops>
+      throughput = <throughput>
+    }
+    // optional
+    compute_node_configs = {
+        <key> = <value>
+    }
   }
-  
+
   default_admin_password = "<SQL_user_initial_password>"
-  expected_cluster_state = "Running"
+  expected_cluster_state = "{Suspended | Running}"
   resource_tags = {
     celerdata = "<tag_name>"
   }
+  idle_suspend_interval = 60
   csp = "aws"
   region = "<AWS_VPC_region>"
 }

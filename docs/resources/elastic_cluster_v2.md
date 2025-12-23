@@ -121,14 +121,14 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   region = "<cloud_provider_region>"
 
   init_scripts {
-      logs_dir    = "<log_s3_path>"
-      script_path = "<script_s3_path>"
+      logs_dir    = "{<log_s3_path>|<log_sub_path_of_azure_storage_container>|<log_gs_path>}"
+      script_path = "{<script_s3_path>|<script_sub_path_of_azure_storage_container>|<script_gs_path>}"
   }
 
   # Unlike `init_scripts`, when the `rerun` attribute is true, the `scripts` will be executed once every time `terraform apply` is executed
   scripts {
-    logs_dir    = "<log_s3_path>"
-    script_path = "<script_s3_path>"
+    logs_dir    = "{<log_s3_path>|<log_azure_storage_container_path>|<log_gs_path>}"
+    script_path = "{<script_s3_path>|<script_azure_storage_container_path>|<script_gs_path>}"
     rerun = false
   }
 
@@ -242,14 +242,14 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 - `resource_tags`: The tags to be attached to the cluster (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
-- `init_scripts`: (Available only for AWS) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
-    - `logs_dir`: The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the
+- `init_scripts`: (Available for AWS/Azure/GCP) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/).
+    - `logs_dir`: The path which script execution results are stored. This can be the same as or different from the path you specify in the
       `celerdatabyoc_aws_data_credential` resource.
-    - `script_path`: The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
+    - `script_path`: The path that stores the scripts to run via Terraform. This path must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
 
-- `scripts`: (Available only for AWS) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run one-time scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/#ad-hoc-scripts-for-one-time-execution).
-    - `logs_dir`: The path in the AWS S3 bucket where the script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket specified in the `celerdatabyoc_aws_data_credential` resource.
-    - `script_path`: The path in the AWS S3 bucket where the scripts run via Terraform are stored. This S3 bucket must be the one specified in the `celerdatabyoc_aws_data_credential` resource.
+- `scripts`: (Available for AWS/Azure/GCP) The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run one-time scripts](https://docs.celerdata.com/BYOC/docs/run_scripts/#ad-hoc-scripts-for-one-time-execution).
+    - `logs_dir`: The path where the script execution results are stored. This path can be the same as or different from the path specified in the `celerdatabyoc_aws_data_credential` resource.
+    - `script_path`: The path where the scripts run via Terraform are stored. This path must be the one specified in the `celerdatabyoc_aws_data_credential` resource.
     - `rerun`: If the value is true, the current script will be re-run every time `terraform apply` is executed.
 
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.

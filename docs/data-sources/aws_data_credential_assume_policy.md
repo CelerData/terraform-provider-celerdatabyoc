@@ -24,5 +24,4 @@ This data source exports the following attributes:
 ## See Also
 
 - [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
-- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
-- [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md)
+- [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md)

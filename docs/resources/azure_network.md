@@ -69,4 +69,4 @@ This resource exports the following attributes:'
 - [Provision CelerData Cloud BYOC on Azure](../guides/azure_deployment_guide.md)
 - [celerdatabyoc_azure_data_credential](../resources/azure_data_credential.md)
 - [celerdatabyoc_azure_deployment_credential](../resources/azure_deployment_credential.md)
-- [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
+- [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md)

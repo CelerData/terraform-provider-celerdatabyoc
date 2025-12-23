@@ -82,8 +82,6 @@ func Provider() *schema.Provider {
 			"celerdatabyoc_azure_data_credential":                   azureResourceDataCredential(),
 			"celerdatabyoc_azure_deployment_credential":             azureResourceDeploymentCredential(),
 			"celerdatabyoc_azure_network":                           azureResourceNetwork(),
-			"celerdatabyoc_cluster_custom_config":                   resourceClusterCustomConfig(),
-			"celerdatabyoc_cluster_apply_custom_config":             resourceClusterApplyCustomConfig(),
 			"celerdatabyoc_cluster_modify_volume_detail":            resourceClusterModifyVolume(),
 			"celerdatabyoc_elastic_cluster_v2":                      resourceElasticClusterV2(),
 			"celerdatabyoc_auto_scaling_policy":                     resourceAutoScalingPolicy(),
