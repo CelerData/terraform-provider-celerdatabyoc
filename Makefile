@@ -3,7 +3,7 @@ HOSTNAME=celerdata.com
 NAMESPACE=celerdata
 NAME=celerdatabyoc
 BINARY=terraform-provider-${NAME}
-VERSION=0.8.3
+VERSION=0.8.4
 OS_ARCH=linux_amd64
 
 default: install
