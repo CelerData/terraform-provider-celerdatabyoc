@@ -168,7 +168,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `compute_node_count`: (Optional) The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
 
     - `compute_node_volume_config`: The compute nodes volume configuration.
-        - `vol_number`: (Not allowed to modify) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`.
+        - `vol_number`: The number of disks for each compute node. Valid values: [1,16]. Default value: `2`.
         - `vol_size`: The size per disk for each compute node. Unit: GB. Default value: `100`. You can only increase the value of this parameter.
         - `iops`: (Available only for AWS) Disk IOPS.
         - `throughput`: (Available only for AWS) Disk throughput.
@@ -213,7 +213,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
 
     - `compute_node_volume_config`: The compute nodes volume configuration.
-        - `vol_number`: (Not allowed to modify) The number of disks for each compute node. Valid values: [1,24]. Default value: `2`.
+        - `vol_number`: The number of disks for each compute node. Valid values: [1,16]. Default value: `2`.
         - `vol_size`: The size per disk for each compute node. Unit: GB. Default value: `100`. You can only increase the value of this parameter.
         - `iops`: (Available only for AWS) Disk IOPS.
         - `throughput`: (Available only for AWS) Disk throughput.
