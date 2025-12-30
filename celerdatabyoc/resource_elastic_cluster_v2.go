@@ -440,6 +440,11 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"enabled_arrow_flight": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 			"table_name_case_insensitive": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -1112,6 +1117,17 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	enabled := d.Get("enabled_arrow_flight").(bool)
+	if enabled {
+		diagnostics := configArrowFlight(ctx, clusterAPI, &cluster.SetClusterArrowFlightReq{
+			ClusterId: clusterId,
+			Enabled:   enabled,
+		})
+		if diagnostics != nil {
+			return diagnostics
+		}
+	}
+
 	if v, ok := d.GetOk("global_session_variables"); ok && len(d.Get("global_session_variables").(map[string]interface{})) > 0 {
 		diagnostics := SetGlobalSqlSessionVariables(ctx, v, clusterAPI, clusterId)
 		if diagnostics != nil {
@@ -1319,6 +1335,11 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		log.Printf("[ERROR] get cluster termination protection failed, clusterId:%s err:%+v", clusterId, err)
 		return diag.FromErr(err)
+	}
+
+	arrowFlight, err := clusterAPI.GetClusterArrowFlight(ctx, &cluster.GetClusterArrowFlightReq{ClusterId: clusterId})
+	if err != nil {
+		return diag.Errorf("Failed to get cluster arrow flight, errMsg:%s", err.Error())
 	}
 
 	rangerConfigResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
@@ -1533,6 +1554,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
+	d.Set("enabled_arrow_flight", arrowFlight.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
 	if len(rangerConfigResp.Configs) > 0 {
@@ -1776,6 +1798,17 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to set termination protection: %s", d.Id(), err.Error()))
+		}
+	}
+
+	if d.HasChange("enabled_arrow_flight") && !d.IsNewResource() {
+		enabled := d.Get("enabled_arrow_flight").(bool)
+		diagnostics := configArrowFlight(ctx, clusterAPI, &cluster.SetClusterArrowFlightReq{
+			ClusterId: clusterId,
+			Enabled:   enabled,
+		})
+		if diagnostics != nil {
+			return diagnostics
 		}
 	}
 
@@ -2858,4 +2891,59 @@ type UpdateWarehouseReq struct {
 	oldParamMap    map[string]interface{}
 	newParamMap    map[string]interface{}
 	whExternalInfo *cluster.WarehouseExternalInfo
+}
+
+func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.SetClusterArrowFlightReq) diag.Diagnostics {
+	summary := "Failed to config arrow flight."
+
+	resp, err := clusterAPI.SetClusterArrowFlight(ctx, req)
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	log.Printf("[DEBUG] configArrowFlight, req:%v resp:%+v", req, resp)
+
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  req.ClusterId,
+		actionID:   resp.ActionID,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterInfraActionStatePending),
+			string(cluster.ClusterInfraActionStateOngoing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterInfraActionStateSucceeded),
+			string(cluster.ClusterInfraActionStateCompleted),
+			string(cluster.ClusterInfraActionStateFailed),
+		},
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   infraActionResp.ErrMsg,
+			},
+		}
+	}
+
+	return nil
 }

@@ -1052,3 +1052,20 @@ type GetClusterTableNameCaseInsensitiveReq struct {
 type GetClusterTableNameCaseInsensitiveResp struct {
 	Enabled bool `json:"enabled" mapstructure:"enabled"`
 }
+
+type GetClusterArrowFlightReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type GetClusterArrowFlightResp struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+type SetClusterArrowFlightReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+	Enabled   bool   `json:"enabled" mapstructure:"enabled"`
+}
+
+type SetClusterArrowFlightResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
+}

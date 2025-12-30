@@ -85,6 +85,9 @@ type IClusterAPI interface {
 	GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error)
 	SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error
 
+	GetClusterArrowFlight(ctx context.Context, req *GetClusterArrowFlightReq) (*GetClusterArrowFlightResp, error)
+	SetClusterArrowFlight(ctx context.Context, req *SetClusterArrowFlightReq) (*SetClusterArrowFlightResp, error)
+
 	GetClusterTableNameCaseInsensitive(ctx context.Context, req *GetClusterTableNameCaseInsensitiveReq) (*GetClusterTableNameCaseInsensitiveResp, error)
 
 	RunScripts(ctx context.Context, req *RunScriptsReq) error
@@ -682,6 +685,24 @@ func (c *clusterAPI) GetClusterTableNameCaseInsensitive(ctx context.Context, req
 
 func (c *clusterAPI) SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, clusterId), req, nil)
+}
+
+func (c *clusterAPI) GetClusterArrowFlight(ctx context.Context, req *GetClusterArrowFlightReq) (*GetClusterArrowFlightResp, error) {
+	resp := &GetClusterArrowFlightResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/arrow-flight", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SetClusterArrowFlight(ctx context.Context, req *SetClusterArrowFlightReq) (*SetClusterArrowFlightResp, error) {
+	resp := &SetClusterArrowFlightResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/arrow-flight", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (c *clusterAPI) ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error) {
