@@ -87,7 +87,11 @@ func resourceClusterModifyVolumeCreate(ctx context.Context, d *schema.ResourceDa
 		ClusterId: clusterId,
 		Type:      nodeType,
 	}
-
+	if nodeType != cluster.ClusterModuleTypeFE {
+		if v, ok := d.GetOk("vol_number"); ok {
+			req.VmVolNum = int32(v.(int))
+		}
+	}
 	if v, ok := d.GetOk("vol_cate"); ok {
 		req.VmVolCate = v.(string)
 	}

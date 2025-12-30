@@ -119,8 +119,8 @@ func resourceElasticCluster() *schema.Resource {
 									return warnings, errors
 								}
 
-								if v < 1 || v > 24 {
-									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+								if v < 1 || v > 16 {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,16]", k))
 								}
 								return warnings, errors
 							},
@@ -543,9 +543,12 @@ func customizeElDiff(ctx context.Context, d *schema.ResourceDiff, m interface{})
 			newVolumeConfig = n.([]interface{})[0].(map[string]interface{})
 		}
 
-		oldVolumeNumber, newVolumeNumber := oldVolumeConfig["vol_number"].(int), newVolumeConfig["vol_number"].(int)
-		if newVolumeNumber != oldVolumeNumber {
-			return fmt.Errorf("the compute node `vol_number` is not allowed to be modified")
+		newVolumeNumber := newVolumeConfig["vol_number"].(int)
+		if newVolumeNumber > int(newCnVmInfoResp.VmInfo.MaxDataDiskCount) {
+			return fmt.Errorf("the maximum allowed `vol_number` for this VM type is: %d", newCnVmInfoResp.VmInfo.MaxDataDiskCount)
+		}
+		if newVolumeNumber < 1 {
+			return fmt.Errorf("the minimum allowed `vol_number` is: 1")
 		}
 
 		oldVolumeSize, newVolumeSize := oldVolumeConfig["vol_size"].(int), newVolumeConfig["vol_size"].(int)
@@ -1531,7 +1534,9 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 			ClusterId: clusterID,
 			Type:      nodeType,
 		}
-
+		if v, ok := newVolumeConfig["vol_number"]; ok && v != oldVolumeConfig["vol_number"] {
+			req.VmVolNum = int32(v.(int))
+		}
 		if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
 			req.VmVolSize = int64(v.(int))
 		}
