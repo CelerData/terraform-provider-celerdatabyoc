@@ -65,6 +65,7 @@ type IClusterAPI interface {
 	ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error)
 	GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error)
 	UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error
+	SetWarehouseResumeWithCluster(ctx context.Context, req *SetWarehouseResumeWithClusterReq) error
 	GetWarehouseAutoScalingConfig(ctx context.Context, req *GetWarehouseAutoScalingConfigReq) (*GetWarehouseAutoScalingConfigResp, error)
 	SaveWarehouseAutoScalingConfig(ctx context.Context, req *SaveWarehouseAutoScalingConfigReq) (*SaveWarehouseAutoScalingConfigResp, error)
 	DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error
@@ -153,6 +154,10 @@ func (c *clusterAPI) GetWarehouseAutoScalingConfig(ctx context.Context, req *Get
 
 func (c *clusterAPI) UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/idle-conf", c.apiVersion, req.WarehouseId), req, nil)
+}
+
+func (c *clusterAPI) SetWarehouseResumeWithCluster(ctx context.Context, req *SetWarehouseResumeWithClusterReq) error {
+	return c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/resume-with-cluster", c.apiVersion, req.WarehouseId), req, nil)
 }
 
 func (c *clusterAPI) GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error) {

@@ -150,6 +150,12 @@ func resourceElasticClusterV2() *schema.Resource {
 							Type:     schema.TypeString,
 							Optional: true,
 						},
+						"resource_tags": {
+							Type:        schema.TypeMap,
+							Optional:    true,
+							Elem:        &schema.Schema{Type: schema.TypeString},
+							Description: "A map of tags to assign to the resource. For AWS, these are tags; for GCP, these are labels.",
+						},
 						"compute_node_volume_config": {
 							Type:     schema.TypeList,
 							Optional: true,
@@ -258,6 +264,12 @@ func resourceElasticClusterV2() *schema.Resource {
 						"specify_az": {
 							Type:     schema.TypeString,
 							Optional: true,
+						},
+						"resource_tags": {
+							Type:        schema.TypeMap,
+							Optional:    true,
+							Elem:        &schema.Schema{Type: schema.TypeString},
+							Description: "A map of tags to assign to the resource. For AWS, these are tags; for GCP, these are labels.",
 						},
 						"compute_node_volume_config": {
 							Type:     schema.TypeList,
@@ -634,6 +646,10 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		return fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, n.(string))
 	}
 
+	warehouses := make([]interface{}, 0)
+	warehouses = append(warehouses, d.Get("default_warehouse").([]interface{})[0])
+	warehouses = append(warehouses, d.Get("warehouse").([]interface{})...)
+
 	if len(d.Get("network_id").(string)) > 0 {
 		netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
 		if err != nil {
@@ -645,14 +661,26 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			_, n := d.GetChange("coordinator_node_count")
 			coordinatorNodeCount = n.(int)
 		}
-		if netResp.Network.MultiAz && coordinatorNodeCount < 3 {
-			return errors.New("in multi-AZ deployment mode, the number of coordinator nodes should be greater than or equal to 3")
+
+		if netResp.Network.MultiAz {
+			if coordinatorNodeCount < 3 {
+				return errors.New("in multi-AZ deployment mode, the number of coordinator nodes should be greater than or equal to 3")
+			}
+			for _, v := range warehouses {
+				vMap := v.(map[string]interface{})
+				if len(vMap["distribution_policy"].(string)) == 0 {
+					return errors.New("in multi-AZ deployment mode, the distribution_policy parameter of warehouse can not be empty")
+				}
+			}
+		} else {
+			for _, v := range warehouses {
+				vMap := v.(map[string]interface{})
+				if len(vMap["distribution_policy"].(string)) > 0 {
+					return errors.New("in single-AZ deployment mode, the distribution_policy parameter of warehouse must be empty")
+				}
+			}
 		}
 	}
-
-	warehouses := make([]interface{}, 0)
-	warehouses = append(warehouses, d.Get("default_warehouse").([]interface{})[0])
-	warehouses = append(warehouses, d.Get("warehouse").([]interface{})...)
 
 	for _, v := range warehouses {
 		vMap := v.(map[string]interface{})
@@ -891,6 +919,55 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
 	}
 
+	clusterTagSet := make(map[string]bool)
+	if v, ok := d.GetOk("resource_tags"); ok {
+		for k := range v.(map[string]interface{}) {
+			if IsInternalTagKeys(csp, k) {
+				return fmt.Errorf("cluster tag key %s is reserved for internal use and cannot be set", k)
+			}
+
+			clusterTagSet[k] = true
+		}
+	}
+
+	whTagSet := make(map[string]bool)
+	if v, ok := d.GetOk("default_warehouse"); ok {
+		defArr := v.([]interface{})
+		if len(defArr) > 0 {
+			defWh := defArr[0].(map[string]interface{})
+			if rt, ok := defWh["resource_tags"]; ok && rt != nil {
+				for k := range rt.(map[string]interface{}) {
+					if IsInternalTagKeys(csp, k) {
+						return fmt.Errorf("default warehouse tag key %s is reserved for internal use and cannot be set", k)
+					}
+					whTagSet[k] = true
+				}
+			}
+		}
+	}
+
+	if v, ok := d.GetOk("warehouse"); ok {
+		for _, item := range v.([]interface{}) {
+			wh := item.(map[string]interface{})
+			whName := strings.TrimSpace(wh["name"].(string))
+			if rt, ok := wh["resource_tags"]; ok && rt != nil {
+				for k := range rt.(map[string]interface{}) {
+					if IsInternalTagKeys(csp, k) {
+						return fmt.Errorf("warehouse:%s tag key %s is reserved for internal use and cannot be set", whName, k)
+					}
+
+					whTagSet[k] = true
+				}
+			}
+		}
+	}
+
+	for k := range whTagSet {
+		if clusterTagSet[k] {
+			return fmt.Errorf("tag key %s is duplicated between cluster tags and warehouse tags", k)
+		}
+	}
+
 	err = MarkScriptReRun(d)
 	if err != nil {
 		return err
@@ -906,7 +983,6 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	clusterAPI := cluster.NewClustersAPI(c)
 	networkAPI := network.NewNetworkAPI(c)
 	clusterName := d.Get("cluster_name").(string)
-
 	clusterConf := &cluster.ClusterConf{
 		ClusterName:                  clusterName,
 		Csp:                          d.Get("csp").(string),
@@ -1002,6 +1078,16 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		normalWhMaps = append(normalWhMaps, whMap)
 	}
 
+	var defaultWHTags []*cluster.Kv
+	if v, ok := defaultWhMap["resource_tags"]; ok {
+		rTags := v.(map[string]interface{})
+		tags := make([]*cluster.Kv, 0, len(rTags))
+		for k, v := range rTags {
+			tags = append(tags, &cluster.Kv{Key: k, Value: v.(string)})
+		}
+		defaultWHTags = tags
+	}
+
 	defaultWarehouseItem := &cluster.ClusterItem{
 		Type:               cluster.ClusterModuleTypeWarehouse,
 		Name:               defaultWhMap["name"].(string),
@@ -1009,6 +1095,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		InstanceType:       defaultWhMap["compute_node_size"].(string),
 		DistributionPolicy: defaultWhMap["distribution_policy"].(string),
 		SpecifyAZ:          defaultWhMap["specify_az"].(string),
+		Tags:               defaultWHTags,
 		DiskInfo: &cluster.DiskInfo{
 			Number:  2,
 			PerSize: 100,
@@ -1386,10 +1473,17 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		warehouseName := v.Name
 		isDefaultWarehouse := v.IsDefaultWarehouse
 
+		whTags := make(map[string]string)
+		for k, v := range v.Tags {
+			if !IsInternalTagKeys(csp, k) {
+				whTags[k] = v
+			}
+		}
 		whMap := make(map[string]interface{}, 0)
 		whMap["name"] = warehouseName
 		whMap["compute_node_size"] = v.Module.InstanceType
 		whMap["compute_node_count"] = v.Module.Num
+		whMap["resource_tags"] = whTags
 		if !netResp.Network.MultiAz {
 			whMap["distribution_policy"] = ""
 		} else {
@@ -2203,6 +2297,16 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		}
 	}
 
+	var whTags []*cluster.Kv
+	if v, ok := whParamMap["resource_tags"]; ok {
+		rTags := v.(map[string]interface{})
+		tags := make([]*cluster.Kv, 0, len(rTags))
+		for k, v := range rTags {
+			tags = append(tags, &cluster.Kv{Key: k, Value: v.(string)})
+		}
+		whTags = tags
+	}
+
 	req := &cluster.CreateWarehouseReq{
 		ClusterId:          clusterId,
 		Name:               warehouseName,
@@ -2214,6 +2318,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		Throughput:         int64(throughput),
 		DistributionPolicy: whParamMap["distribution_policy"].(string),
 		SpecifyAZ:          whParamMap["specify_az"].(string),
+		Tags:               whTags,
 	}
 
 	log.Printf("[DEBUG] Create warehouse, req:%+v", req)
@@ -2627,6 +2732,30 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 		})
 		if warnDiag != nil {
 			return warnDiag
+		}
+	}
+
+	oldTagMap := oldParamMap["resource_tags"].(map[string]interface{})
+	oldTags := make(map[string]string, len(oldTagMap))
+	for k, v := range oldTagMap {
+		oldTags[k] = v.(string)
+	}
+
+	newTagMap := newParamMap["resource_tags"].(map[string]interface{})
+	newTags := make(map[string]string, len(newTagMap))
+	for k, v := range newTagMap {
+		newTags[k] = v.(string)
+	}
+
+	tagsChanged := !cluster.Equal(oldTags, newTags)
+	if tagsChanged {
+		err := clusterAPI.UpdateResourceTags(ctx, &cluster.UpdateResourceTagsReq{
+			ClusterId:   clusterId,
+			WarehouseId: warehouseId,
+			Tags:        newTags,
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("warehouse (%s) failed to update resource tags: %s", warehouseId, err.Error()))
 		}
 	}
 

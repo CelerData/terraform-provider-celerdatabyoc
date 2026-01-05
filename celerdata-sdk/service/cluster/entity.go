@@ -168,6 +168,7 @@ type ClusterItem struct {
 	DiskInfo           *DiskInfo         `json:"disk_info"`
 	DistributionPolicy string            `json:"distribution_policy"`
 	SpecifyAZ          string            `json:"specify_az"`
+	Tags               []*Kv             `json:"tags"`
 }
 
 type Script struct {
@@ -281,15 +282,18 @@ type Module struct {
 }
 
 type Warehouse struct {
-	Id                    string       `json:"id" mapstructure:"id"`
-	Name                  string       `json:"name" mapstructure:"name"`
-	State                 ClusterState `json:"state" mapstructure:"state"`
-	Module                *Module      `json:"module" mapstructure:"module"`
-	Deleted               bool         `json:"deleted" mapstructure:"deleted"`
-	IsDefaultWarehouse    bool         `json:"is_default_warehouse" mapstructure:"is_default_warehouse"`
-	CreatedAt             int64        `json:"created_at" mapstructure:"created_at"`
-	DistributionPolicyStr string       `json:"distribution_policy_str" mapstructure:"distribution_policy_str"`
-	SpecifyAZ             string       `json:"specify_az" mapstructure:"specify_az"`
+	Id                    string            `json:"id" mapstructure:"id"`
+	Name                  string            `json:"name" mapstructure:"name"`
+	State                 ClusterState      `json:"state" mapstructure:"state"`
+	Module                *Module           `json:"module" mapstructure:"module"`
+	Deleted               bool              `json:"deleted" mapstructure:"deleted"`
+	IsDefaultWarehouse    bool              `json:"is_default_warehouse" mapstructure:"is_default_warehouse"`
+	CreatedAt             int64             `json:"created_at" mapstructure:"created_at"`
+	DistributionPolicyStr string            `json:"distribution_policy_str" mapstructure:"distribution_policy_str"`
+	SpecifyAZ             string            `json:"specify_az" mapstructure:"specify_az"`
+	SpecifiedAZs          []string          `json:"specified_azs" mapstructure:"specified_azs"`
+	ResumeWithCluster     bool              `json:"resume_with_cluster" mapstructure:"resume_with_cluster"`
+	Tags                  map[string]string `json:"tags" mapstructure:"tags"`
 }
 
 type WarehouseExternalInfo struct {
@@ -637,11 +641,18 @@ type CreateWarehouseReq struct {
 	SpecifyAZ          string `json:"specify_az" mapstructure:"specify_az"`
 	Iops               int64  `json:"iops" mapstructure:"iops"`
 	Throughput         int64  `json:"throughput" mapstructure:"throughput"`
+	ResumeWithCluster  bool   `json:"resume_with_cluster" mapstructure:"resume_with_cluster"`
+	Tags               []*Kv  `json:"tags" mapstructure:"tags"`
 }
 
 type CreateWarehouseResp struct {
 	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
 	ActionID    string `json:"action_id" mapstructure:"action_id"`
+}
+
+type SetWarehouseResumeWithClusterReq struct {
+	ResumeWithCluster *bool  `json:"resume_with_cluster"  mapstructure:"resume_with_cluster"`
+	WarehouseId       string `json:"warehouse_id" mapstructure:"warehouse_id"`
 }
 
 type ScaleWarehouseNumReq struct {

@@ -27,10 +27,10 @@ import (
 func resourceClassicCluster() *schema.Resource {
 	return &schema.Resource{
 		DeprecationMessage: "This resource is about to be deprecated. For create new clusters, it is recommended to use `celerdatabyoc_elastic_cluster_v2`",
-		CreateContext: resourceClusterCreate,
-		ReadContext:   resourceClusterRead,
-		DeleteContext: resourceClusterDelete,
-		UpdateContext: resourceClusterUpdate,
+		CreateContext:      resourceClusterCreate,
+		ReadContext:        resourceClusterRead,
+		DeleteContext:      resourceClusterDelete,
+		UpdateContext:      resourceClusterUpdate,
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:     schema.TypeString,
@@ -2573,24 +2573,59 @@ func VolumeParamVerify(ctx context.Context, req *VolumeParamVerifyReq) error {
 }
 
 func IsInternalTagKeys(csp, key string) bool {
-
-	if csp != cluster.CSP_GOOGLE {
-		return AwsAzureInternalTagKeys[key]
+	switch csp {
+	case cluster.CSP_AWS:
+		return AwsInternalTagKeys[key]
+	case cluster.CSP_AZURE:
+		return AzureInternalTagKeys[key]
+	case cluster.CSP_GOOGLE:
+		return GcpInternalTagKeys[key]
+	default:
+		return AwsInternalTagKeys[key] || AzureInternalTagKeys[key] || GcpInternalTagKeys[key]
 	}
-	return GcpInternalTagKeys[key]
 }
 
-var AwsAzureInternalTagKeys = map[string]bool{
-	"Vendor":             true,
-	"Creator":            true,
-	"ClusterName":        true,
-	"ServiceAccountName": true,
-	"ServiceAccountID":   true,
+var AwsInternalTagKeys = map[string]bool{
+	"Vendor":                  true,
+	"Creator":                 true,
+	"ClusterName":             true,
+	"WarehouseName":           true,
+	"CelerdataManaged":        true,
+	"Name":                    true,
+	"ProcessType":             true,
+	"CelerDataCloudAccountID": true,
+	"ActionID":                true,
+	"Workspace":               true,
+	"ServiceAccountName":      true,
+	"ServiceAccountID":        true,
+}
+
+var AzureInternalTagKeys = map[string]bool{
+	"Vendor":                  true,
+	"Creator":                 true,
+	"ClusterName":             true,
+	"WarehouseName":           true,
+	"CelerdataManaged":        true,
+	"ProcessType":             true,
+	"CelerDataCloudAccountID": true,
+	"ServiceAccountName":      true,
+	"ServiceAccountID":        true,
 }
 
 var GcpInternalTagKeys = map[string]bool{
-	"vendor":       true,
-	"cluster-name": true,
+	"vendor":                         true,
+	"creator":                        true,
+	"cluster-id":                     true,
+	"cluster-name":                   true,
+	"warehouse-name":                 true,
+	"celerdata-managed":              true,
+	"name":                           true,
+	"process-type":                   true,
+	"celerdata-cloud-account-id":     true,
+	"celerdata-action-id":            true,
+	"celerdata-workspace":            true,
+	"celerdata-service-account-name": true,
+	"celerdata-service-account-id":   true,
 }
 
 func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.IClusterAPI, d *schema.ResourceData) diag.Diagnostics {
