@@ -27,10 +27,10 @@ import (
 func resourceClassicCluster() *schema.Resource {
 	return &schema.Resource{
 		DeprecationMessage: "This resource is about to be deprecated. For create new clusters, it is recommended to use `celerdatabyoc_elastic_cluster_v2`",
-		CreateContext: resourceClusterCreate,
-		ReadContext:   resourceClusterRead,
-		DeleteContext: resourceClusterDelete,
-		UpdateContext: resourceClusterUpdate,
+		CreateContext:      resourceClusterCreate,
+		ReadContext:        resourceClusterRead,
+		DeleteContext:      resourceClusterDelete,
+		UpdateContext:      resourceClusterUpdate,
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:     schema.TypeString,
@@ -122,8 +122,8 @@ func resourceClassicCluster() *schema.Resource {
 
 								if v <= 0 {
 									errors = append(errors, fmt.Errorf("%s`s value is invalid", k))
-								} else if v > 24 {
-									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+								} else if v > 16 {
+									errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,16]", k))
 								}
 
 								return warnings, errors
@@ -512,8 +512,16 @@ func classicCustomizeElDiff(ctx context.Context, d *schema.ResourceDiff, m inter
 		oldVolumeNum, oldVolumeSize = oldVolumeConfig["vol_number"].(int), oldVolumeConfig["vol_size"].(int)
 		newVolumeNum, newVolumeSize = newVolumeConfig["vol_number"].(int), newVolumeConfig["vol_size"].(int)
 
-		if oldVolumeNum != newVolumeNum {
-			return fmt.Errorf("the be `vol_number` is not allowed to be modified")
+		if newVolumeNum < oldVolumeNum {
+			return fmt.Errorf("the be `vol_number` is not allowed to be decreased for classic clusters")
+		}
+
+		if newVolumeNum > int(beVmInfoResp.VmInfo.MaxDataDiskCount) {
+			return fmt.Errorf("the maximum allowed `vol_number` for this VM type is: %d", beVmInfoResp.VmInfo.MaxDataDiskCount)
+		}
+
+		if newVolumeNum < 1 {
+			return fmt.Errorf("the minimum allowed `vol_number` is: 1")
 		}
 
 		if newVolumeSize < oldVolumeSize {
@@ -1589,7 +1597,9 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 			ClusterId: clusterID,
 			Type:      nodeType,
 		}
-
+		if v, ok := newVolumeConfig["vol_number"]; ok && v != oldVolumeConfig["vol_number"] {
+			req.VmVolNum = int32(v.(int))
+		}
 		if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
 			req.VmVolSize = int64(v.(int))
 		}
