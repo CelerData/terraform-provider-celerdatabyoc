@@ -168,8 +168,8 @@ func resourceElasticClusterV2() *schema.Resource {
 												return warnings, errors
 											}
 
-											if v < 1 || v > 24 {
-												errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+											if v < 1 || v > 16 {
+												errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,16]", k))
 											}
 
 											return warnings, errors
@@ -277,8 +277,8 @@ func resourceElasticClusterV2() *schema.Resource {
 												return warnings, errors
 											}
 
-											if v < 1 || v > 24 {
-												errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,24]", k))
+											if v < 1 || v > 16 {
+												errors = append(errors, fmt.Errorf("%s`s value is invalid. The range of values is: [1,16]", k))
 											}
 
 											return warnings, errors
@@ -2369,6 +2369,8 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 }
 
 func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool) diag.Diagnostics {
+	csp := req.d.Get("csp").(string)
+	region := req.d.Get("region").(string)
 	clusterAPI := req.clusterAPI
 	clusterId := req.clusterId
 	oldParamMap, newParamMap := req.oldParamMap, req.newParamMap
@@ -2511,12 +2513,30 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 	}
 
 	if !computeNodeIsInstanceStore && VolumeConfigChanged {
-		if oldVolumeConfig["vol_number"].(int) != newVolumeConfig["vol_number"].(int) {
-			return diag.FromErr(fmt.Errorf("the compute node `vol_number` is not allowed to be modified"))
+		beVmCate := oldParamMap["compute_node_size"].(string)
+		if computeNodeSizeChanged {
+			beVmCate = newParamMap["compute_node_size"].(string)
+		}
+		beVmInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+			Csp:         csp,
+			Region:      region,
+			ProcessType: string(cluster.ClusterModuleTypeBE),
+			VmCate:      beVmCate,
+		})
+		if err != nil {
+			log.Printf("[ERROR] query instance type failed, csp:%s region:%s instance type:%s err:%+v", csp, region, beVmCate, err)
+			return diag.FromErr(fmt.Errorf("query instance type failed, csp:%s region:%s instance type:%s errMsg:%s", csp, region, beVmCate, err.Error()))
+		}
+		if beVmInfoResp.VmInfo == nil {
+			return diag.FromErr(fmt.Errorf("instance type not exists, csp:%s region:%s instance type:%s", csp, region, beVmCate))
 		}
 
-		if oldVolumeConfig["vol_size"].(int) > newVolumeConfig["vol_size"].(int) {
-			return diag.FromErr(fmt.Errorf("the compute node `vol_size` does not support decrease"))
+		if newVolumeConfig["vol_number"].(int) > int(beVmInfoResp.VmInfo.MaxDataDiskCount) {
+			return diag.FromErr(fmt.Errorf("the maximum allowed `vol_number` for this VM type is: %d", beVmInfoResp.VmInfo.MaxDataDiskCount))
+		}
+
+		if newVolumeConfig["vol_number"].(int) < 1 {
+			return diag.FromErr(fmt.Errorf("the minimum allowed `vol_number` is: 1"))
 		}
 
 		req := &cluster.ModifyClusterVolumeReq{
@@ -2524,7 +2544,9 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 			WarehouseID: warehouseId,
 			Type:        cluster.ClusterModuleTypeWarehouse,
 		}
-
+		if v, ok := newVolumeConfig["vol_number"]; ok && v != oldVolumeConfig["vol_number"] {
+			req.VmVolNum = int32(v.(int))
+		}
 		if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
 			req.VmVolSize = int64(v.(int))
 		}

@@ -779,11 +779,12 @@ type VmVolumeInfo struct {
 }
 
 type VMInfo struct {
-	ProcessType     string          `json:"process_type" mapstructure:"process_type"` // FE/BE
-	VmCate          string          `json:"vm_cate" mapstructure:"vm_cate"`
-	Arch            string          `json:"arch" mapstructure:"arch"`
-	IsInstanceStore bool            `json:"is_instance_store" mapstructure:"is_instance_store"`
-	VmVolumeInfos   []*VmVolumeInfo `json:"vm_volume_infos" mapstructure:"vm_volume_infos"`
+	ProcessType      string          `json:"process_type" mapstructure:"process_type"` // FE/BE
+	VmCate           string          `json:"vm_cate" mapstructure:"vm_cate"`
+	Arch             string          `json:"arch" mapstructure:"arch"`
+	IsInstanceStore  bool            `json:"is_instance_store" mapstructure:"is_instance_store"`
+	MaxDataDiskCount uint32          `json:"max_data_disk_count" mapstructure:"max_data_disk_count"`
+	VmVolumeInfos    []*VmVolumeInfo `json:"vm_volume_infos" mapstructure:"vm_volume_infos"`
 }
 
 type GetVmInfoResp struct {
