@@ -317,7 +317,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
   default_admin_password = "<SQL_user_initial_password>"
   expected_cluster_state = "{Suspended | Running}"
   resource_tags = {
-    celerdata = "<tag_name>"
+    <tag_key> = "<tag_name>"
   }
   idle_suspend_interval = 60
   csp = "aws"

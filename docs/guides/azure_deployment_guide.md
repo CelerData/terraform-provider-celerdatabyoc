@@ -342,14 +342,14 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
     }
     // optional
     compute_node_configs = {
-        <key> = <value>
+      <key> = <value>
     }
   }
 
   default_admin_password = "<SQL_user_initial_password>"
   expected_cluster_state = "{Suspended | Running}"
   resource_tags = {
-    celerdata = "<tag_name>"
+    <tag_key> = "<tag_name>"
   }
   idle_suspend_interval = 60
   csp    = "azure"

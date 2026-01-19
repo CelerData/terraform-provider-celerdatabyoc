@@ -36,7 +36,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   }
   // optional
   coordinator_node_configs = {
-     <key> = <value>
+    <key> = <value>
   }
   
   // The configuration for “default_warehouse” is required.
@@ -53,7 +53,11 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     }
     // optional
     compute_node_configs = {
-        <key> = <value>
+      <key> = <value>
+    }
+    // optional 
+    resource_tags = {
+      <tag_key> = "<tag_name>"
     }
   }
 
@@ -79,7 +83,11 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     }
     // optional
     compute_node_configs = {
-        <key> = <value>
+      <key> = <value>
+    }
+    // optional
+    resource_tags = {
+      <tag_key> = "<tag_name>"
     }
    }
 
@@ -115,7 +123,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   ranger_certs_dir_path = "<ranger_config_s3_path>" // Deprecated
   ranger_config_id = "<ranger_config_ID>"
   resource_tags = {
-    celerdata = "<tag_name>"
+    <tag_key> = "<tag_name>"
   }
   csp = "{aws | azure}"
   region = "<cloud_provider_region>"
@@ -174,6 +182,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
         - `throughput`: (Available only for AWS) Disk throughput.
           ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a compute node is equal to `vol_number` * `vol_size`.
     - `compute_node_configs`: The static configuration items you want to customize for the compute nodes in the warehouse.
+    - `resource_tags`: The tags to be attached to the warehouse (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of compute nodes, based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#compute-autoscaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
     - `distribution_policy`: (Optional, available only for AWS) The compute node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
@@ -219,6 +228,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
         - `throughput`: (Available only for AWS) Disk throughput.
           ~> You can use the `vol_number` and `vol_size` arguments to specify the disk space. The total disk space provisioned to a compute node is equal to `vol_number` * `vol_size`.
     - `compute_node_configs`: The compute node static configuration.
+    - `resource_tags`: The tags to be attached to the warehouse (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
     - `expected_state`: When creating non-default warehouse, you can declare the status of the warehouse. Warehouse states are categorized as `Suspended` and `Running`. If you want the warehouse to start after provisioning, set this argument to `Running`. If you set this argument to `Suspended`, the warehouse will be suspended after provisioning.
 
