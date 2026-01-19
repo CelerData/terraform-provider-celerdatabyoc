@@ -310,7 +310,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
     }
     // optional
     compute_node_configs = {
-        <key> = <value>
+      <key> = <value>
     }
   }
 
