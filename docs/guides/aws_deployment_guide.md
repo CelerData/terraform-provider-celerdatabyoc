@@ -8,7 +8,7 @@ description: |-
 
 # Provision CelerData Cloud BYOC on AWS
 
-This article walks you through the following steps necessary to deploy a CelerData Cloud BYOC cluster on AWS:
+Deploy a CelerData Cloud BYOC cluster on AWS step by step:
 
 - [Preparations](#preparations)
 - [Configure providers](#configure-providers)
@@ -21,9 +21,7 @@ Read this article before you start a Terraform configuration for your cluster de
 
 Before using the CelerData Cloud BYOC provider to create infrastructure at the AWS account level for the first time, you must complete the following preparations:
 
-### For AWS
-
-For AWS, you need to:
+### AWS prerequisites
 
 1. Have an AWS account with administrative privileges.
 2. Have an AWS S3 bucket.
@@ -58,13 +56,11 @@ For AWS, you need to:
    }
    ```
 
-### For CelerData
+### CelerData prrerequisites
 
-For CelerData, you need to obtain the credentials with which you can authenticate into the CelerData Cloud BYOC platform. For details, see [Authentication](../index.md#authentication).
+Obtain the credentials with which you can authenticate into the CelerData Cloud BYOC platform. For details, see [Authentication](../index.md#authentication).
 
-### For Terraform
-
-For Terraform, you need to:
+### Terraform prerequisites
 
 1. Install [Terraform](https://developer.hashicorp.com/terraform/downloads) in your terminal.
 
@@ -74,7 +70,7 @@ For Terraform, you need to:
 
 This section assumes that you have [completed the preparations](#preparations).
 
-Create a **.tf** file (for example, **main.tf**) in your Terraform project. Then, add the following code snippet to the **.tf** file:
+Create a **`.tf`** file (for example, **`main.tf`**) in your Terraform project. Then, add the following code snippet to the **`.tf`** file:
 
 ```terraform
 terraform {
@@ -108,17 +104,17 @@ locals {
 
 The parameters you need to specify are as follows:
 
-- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
+- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version, for example `version = "1.0.2"`. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See "[For CelerData](#preparations)."
-- `region_name`: Enter the ID of the AWS region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#aws).
+- `region_name`: Enter the ID of the AWS region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#aws).
 - `access_key` and `secret_key`: Enter the access key ID ("access key" for short) and secret access key ("secret key" for short) of your access key pair. See "[For AWS](#preparations)." For security purposes, you can set the access key and secret key as [environment variables](https://registry.terraform.io/providers/hashicorp/aws/latest/docs#provider-configuration).
 - `s3_bucket`: Enter the name of your S3 bucket. This way, the bucket element is set as a local value, and you can then directly set the argument for the bucket element in your Terraform configuration to `local.s3_bucket` to save time. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
 ## Describe infrastructure
 
-This section provides a sample infrastructure configuration that automates the deployment of a classic CelerData cluster on AWS to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations) and have [configured the providers](#configure-providers).
+This section provides a sample infrastructure configuration that automates the deployment of an elastic (shared-data) CelerData cluster on AWS to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations) and have [configured the providers](#configure-providers).
 
-To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers.
+To create an elastic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **`.tf`** file (for example, **`main.tf`**) in which you have configured the providers.
 
 ### Data credential-related resources
 
@@ -148,13 +144,13 @@ resource "celerdatabyoc_aws_data_credential" "data_credential" {
 }
 ```
 
-#### [celerdatabyoc_aws_data_credential_policy](../resources/aws_data_credential_policy.md)
+#### [`celerdatabyoc_aws_data_credential_policy`](../resources/aws_data_credential_policy.md)
 
 This resource contains only the following required argument:
 
 - `bucket`: (Forces new resource) The name of the AWS S3 bucket for which to generate the JSON policy document and that stores query profiles. Set this argument to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 
-#### aws_iam_role (celerdata_data_cred_role)
+#### `aws_iam_role` (celerdata_data_cred_role)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -170,7 +166,7 @@ This resource contains the following required arguments and optional arguments:
   - `name`: The name of the IAM policy that will be attached to the IAM role referenced in the data credential.
   - `policy`: The IAM policy that will be attached to the IAM role. Set the value to `celerdatabyoc_aws_data_credential_policy.role_policy.json`.
 
-#### [celerdatabyoc_aws_data_credential](../resources/aws_data_credential.md)
+#### [`celerdatabyoc_aws_data_credential`](../resources/aws_data_credential.md)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -218,21 +214,21 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 }
 ```
 
-#### aws_iam_instance_profile
+#### `aws_iam_instance_profile`
 
 This resource contains only the following optional arguments:
 
 - `name`: (Forces new resource) The name of the instance profile. Enter a unique name. If omitted, Terraform will assign a random, unique name. This argument conflicts with `name_prefix`. The value of this argument can be a string of characters consisting of upper and lowercase alphanumeric characters and these special characters: `_`, `+`, `=`, `,`, `.`, `@`, `-`. Spaces are not allowed.
 - `role`: The name of the IAM role to add to the instance profile. Set the value to `aws_iam_role.celerdata_data_cred_role.name`.
 
-#### [celerdatabyoc_aws_deployment_credential_policy](../resources/aws_deployment_credential_policy.md)
+#### [`celerdatabyoc_aws_deployment_credential_policy`](../resources/aws_deployment_credential_policy.md)
 
 This resource contains only the following required arguments:
 
 - `bucket`: The name of the AWS S3 bucket. Set this argument to `local.s3_bucket`, as we recommend that you set the bucket element as a local value `s3_bucket` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
 - `data_role_arn`: (Forces new resource) The ARN of the IAM role referenced in the deployment credential. Set the value to `aws_iam_role.celerdata_data_cred_role.arn`.
 
-#### aws_iam_role (deploy_cred_role)
+#### `aws_iam_role` (deploy_cred_role)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -248,7 +244,7 @@ This resource contains the following required arguments and optional arguments:
   - `name`: The name of the IAM policy that will be attached to the IAM role.
   - `policy`: The IAM policy that will be attached to the IAM role referenced in the deployment credential. Set the value to `celerdatabyoc_aws_deployment_credential_policy.role_policy.json`.
 
-#### [celerdatabyoc_aws_deployment_role_credential](../resources/aws_deployment_role_credential.md)
+#### [`celerdatabyoc_aws_deployment_role_credential`](../resources/aws_deployment_role_credential.md)
 
 This resource contains the following required arguments and optional arguments:
 
@@ -282,7 +278,7 @@ The [`celerdatabyoc_aws_network`](../resources/aws_network.md) resource contains
 - `name`: (Forces new resource) The name of the AWS VPC hosting the cluster. Enter a unique name.
 - `subnet_id`: (Forces new resource) The ID of the subnet within the AWS VPC.
 - `security_group_id`: (Forces new resource) The ID of the security group within the AWS VPC.
-- `region`: (Forces new resource) The ID of the AWS region to which the AWS VPC belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#aws).
+- `region`: (Forces new resource) The ID of the AWS region to which the AWS VPC belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#aws).
 - `deployment_credential_id`: (Forces new resource) The ID of the deployment credential.  Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
 
 **Optional:**
@@ -292,64 +288,42 @@ The [`celerdatabyoc_aws_network`](../resources/aws_network.md) resource contains
 ### CelerData cluster-related resources
 
 ```terraform
-resource "celerdatabyoc_classic_cluster" "demo_cluster" {
-  cluster_name = "<cluster_name>"
-  fe_instance_type = "<fe_node_instance_type>"
-  fe_node_count = 1
+resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
   deployment_credential_id = celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id
   data_credential_id = celerdatabyoc_aws_data_credential.data_credential.id
   network_id = celerdatabyoc_aws_network.network.id
-  be_instance_type = "<be_node_instance_type>"
-  be_node_count = 1
-  be_disk_number = 2
-  be_disk_per_size = 100
-  default_admin_password = "<SQL_user_initial_password>"
+  
+  cluster_name = "<cluster_name>"
+  coordinator_node_size = "<coordinator_node_instance_type>"
+  coordinator_node_count = <coordinator_node_number>
 
-  expected_cluster_state = "Running"
-  resource_tags = {
-    celerdata = "<tag_name>"
+  default_warehouse {
+    compute_node_size        = "<compute_node_instance_type>"
+    compute_node_count       = <compute_node_number>
+
+    // optional
+    compute_node_volume_config {
+      vol_number = <vol_number>
+      vol_size = <vol_size>
+      iops = <iops>
+      throughput = <throughput>
+    }
+    // optional
+    compute_node_configs = {
+      <key> = <value>
+    }
   }
+
+  default_admin_password = "<SQL_user_initial_password>"
+  expected_cluster_state = "{Suspended | Running}"
+  resource_tags = {
+    <tag_key> = "<tag_name>"
+  }
+  idle_suspend_interval = 60
   csp = "aws"
   region = "<AWS_VPC_region>"
-
-  init_scripts {
-      logs_dir    = "<log_s3_path>"
-      script_path = "<script_s3_path>"
-  }
-  run_scripts_parallel = false
-  query_port = 9030
 }
 ```
-
-The [`celerdatabyoc_classic_cluster`](../resources/classic_cluster.md) resource contains the following required arguments and optional arguments:
-
-~> For information about the resource used to deploy an elastic CelerData cluster on AWS through Terraform, see [celerdatabyoc_elastic_cluster](../resources/elastic_cluster.md) (single-warehouse elastic cluster) and [celerdatabyoc_elastic_cluster_v2](../resources/elastic_cluster_v2.md) (multi-warehouse elastic cluster).
-
-**Required:**
-
-- `cluster_name`: (Forces new resource) The desired name for the cluster.
-- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
-- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_aws_deployment_role_credential.deployment_role_credential.id`.
-- `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_aws_data_credential.data_credential.id`.
-- `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_aws_network.network.id`.
-- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
-- `default_admin_password`: The initial password of the cluster `admin` user.
-- `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
-- `csp`: The cloud service provider of the cluster. Set this argument to `aws`.
-- `region`: The ID of the AWS region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#aws).
-
-**Optional:**
-
-- `fe_node_count`: The number of FE nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
-- `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
-- `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
-- `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
-- `resource_tags`: The tags to be attached to the cluster.
-- `init_scripts`: The configuration block to specify the paths to which scripts and script execution results are stored. The maximum number of executable scripts is 20. For information about the formats supported by these arguments, see `scripts.logs_dir` and `scripts.script_path` in [Run scripts](https://docs.celerdata.com/byoc/main/run_scripts).
-  - `logs_dir`: (Forces new resource) The path in the AWS S3 bucket to which script execution results are stored. This S3 bucket can be the same as or different from the S3 bucket you specify in the `celerdatabyoc_aws_data_credential` resource.
-  - `script_path`: (Forces new resource) The path in the AWS S3 bucket that stores the scripts to run via Terraform. This S3 bucket must be the one you specify in the `celerdatabyoc_aws_data_credential` resource.
-- `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
-- `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port 9030. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 
 ## Apply configurations
 
@@ -357,13 +331,13 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 1. Initialize and install the providers defined in the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform init
    ```
 
 2. Verify that your Terraform project has been properly configured:
 
-   ```SQL
+   ```sh
    terraform plan
    ```
 
@@ -371,7 +345,7 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 3. Apply the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform apply
    ```
 

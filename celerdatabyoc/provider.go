@@ -20,9 +20,9 @@ func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"host": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Default:     "https://cloud-api.celerdata.com",
+				Type:     schema.TypeString,
+				Optional: true,
+				// Default:     "https://cloud-api.celerdata.com",
 				DefaultFunc: schema.EnvDefaultFunc("CELERDATA_HOST", DEFAULT_CELERDATA_HOST),
 				ValidateFunc: func(i interface{}, k string) (_ []string, errors []error) {
 					v, ok := i.(string)
@@ -82,11 +82,13 @@ func Provider() *schema.Provider {
 			"celerdatabyoc_azure_data_credential":                   azureResourceDataCredential(),
 			"celerdatabyoc_azure_deployment_credential":             azureResourceDeploymentCredential(),
 			"celerdatabyoc_azure_network":                           azureResourceNetwork(),
-			"celerdatabyoc_cluster_custom_config":                   resourceClusterCustomConfig(),
-			"celerdatabyoc_cluster_apply_custom_config":             resourceClusterApplyCustomConfig(),
 			"celerdatabyoc_cluster_modify_volume_detail":            resourceClusterModifyVolume(),
 			"celerdatabyoc_elastic_cluster_v2":                      resourceElasticClusterV2(),
 			"celerdatabyoc_auto_scaling_policy":                     resourceAutoScalingPolicy(),
+			"celerdatabyoc_gcp_data_credential":                     gcpResourceDataCredential(),
+			"celerdatabyoc_gcp_deployment_credential":               gcpResourceDeploymentCredential(),
+			"celerdatabyoc_gcp_network":                             gcpResourceNetwork(),
+			"celerdatabyoc_ranger_config":                           resourceRangerConfig(),
 		},
 		DataSourcesMap: map[string]*schema.Resource{
 			"celerdatabyoc_aws_data_credential_assume_policy": dataAwsDataCredentialAssumeRolePolicy(),

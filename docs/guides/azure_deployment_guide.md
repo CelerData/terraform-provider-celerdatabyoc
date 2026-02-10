@@ -78,9 +78,9 @@ locals {
 
 The parameters you need to specify are as follows:
 
-- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
+- `provider_version`: Enter the CelerData provider version of your choice. We recommend that you select the latest provider version, for example `version = "1.0.2"`. You can view the provider versions offered by CelerData Cloud BYOC from the [CelerData Cloud BYOC provider](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs) page.
 - `client_id` and `client_secret`: Enter the **Client ID** and **Secret** of your application key. See [For CelerData](#for-celerdata).
-- `cluster_region` and `azure_region`: Enter the ID (for example, `eastus`) and name (for example, `East US`), respectively, of the Azure region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#azure). The Azure region you specify here must be the same as the Azure region of the resource group you create in [Configure Azure objects](#configure-azure-objects). By setting these region elements as local values, you can then directly set the arguments for these region elements in your Terraform configuration to `local.cluster_region` and `local.azure_region` to save time.
+- `cluster_region` and `azure_region`: Enter the ID (for example, `eastus`) and name (for example, `East US`), respectively, of the Azure region in which you want your CelerData cluster to run. See [Supported cloud platforms and regions](https://docs.celerdata.com/BYOC/docs/get_started/cloud_platforms_and_regions/#azure). The Azure region you specify here must be the same as the Azure region of the resource group you create in [Configure Azure objects](#configure-azure-objects). By setting these region elements as local values, you can then directly set the arguments for these region elements in your Terraform configuration to `local.cluster_region` and `local.azure_region` to save time.
 
 ## Configure Azure objects
 
@@ -237,9 +237,9 @@ See the following documents for more information:
 
 ## Describe infrastructure
 
-This section provides a sample infrastructure configuration that automates the deployment of a classic CelerData cluster on Azure to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the Azure objects](#configure-azure-objects).
+This section provides a sample infrastructure configuration that automates the deployment of an elastic (shared-data) CelerData cluster on Azure to help you understand how you can work with the CelerData Cloud BYOC provider. It assumes that you have [completed the preparations](#preparations), [configured the providers](#configure-providers), and [configured the Azure objects](#configure-azure-objects).
 
-To create a classic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers and Azure objects.
+To create an elastic CelerData cluster, you need to declare the following resources, which represent the infrastructure to be built, in the **.tf** file (for example, **main.tf**) in which you have configured the providers and Azure objects.
 
 ### [celerdatabyoc_azure_data_credential](../resources/azure_data_credential.md)
 
@@ -317,69 +317,46 @@ This resource contains the following required arguments and optional arguments:
 
 - `public_accessible`: Whether the cluster can be accessed from public networks. Valid values: `true` and `false`. If you set this argument to `true`, CelerData will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you set this argument to `false`, the cluster is accessible only through a private domain name.
 
-### [celerdatabyoc_classic_cluster](../resources/classic_cluster.md)
+### Setup CelerData cluster-related resources
 
 ```terraform
-resource "celerdatabyoc_classic_cluster" "azure_terraform_test" {
-  cluster_name             = "<cluster_name>"
-  fe_instance_type         = "<fe_node_instance_type>"
-  fe_node_count            = 1
+resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster" {
   deployment_credential_id = celerdatabyoc_azure_deployment_credential.example.id
   data_credential_id       = celerdatabyoc_azure_data_credential.example.id
   network_id               = celerdatabyoc_azure_network.example.id
-  be_instance_type         = "<be_node_instance_type>"
-  be_node_count            = 2
-  be_disk_number           = 2
-  be_disk_per_size         = 100
-  default_admin_password   = "<SQL_user_initial_password>"
 
-  expected_cluster_state = "Running"
-  resource_tags = {
-    flag = "terraform-test"
+  cluster_name = "<cluster_name>"
+  coordinator_node_size = "<coordinator_node_instance_type>"
+  coordinator_node_count = <coordinator_node_number>
+
+  default_warehouse {
+    compute_node_size        = "<compute_node_instance_type>"
+    compute_node_count       = <compute_node_number>
+
+    // optional
+    compute_node_volume_config {
+      vol_number = <vol_number>
+      vol_size = <vol_size>
+      iops = <iops>
+      throughput = <throughput>
+    }
+    // optional
+    compute_node_configs = {
+      <key> = <value>
+    }
   }
+
+  default_admin_password = "<SQL_user_initial_password>"
+  expected_cluster_state = "{Suspended | Running}"
+  resource_tags = {
+    <tag_key> = "<tag_name>"
+  }
+  idle_suspend_interval = 60
   csp    = "azure"
   region = local.cluster_region
   depends_on = [azurerm_role_assignment.assignment_app_roles,azurerm_role_assignment.assignment_identity_roles]
 }
 ```
-
-The `celerdatabyoc_classic_cluster` resource contains the following required arguments and optional arguments:
-
-**Required:**
-
-- `cluster_name`: (Forces new resource) The desired name for the cluster.
-
-- `fe_instance_type`: The instance type for FE nodes in the cluster. Select an FE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
-
-- `deployment_credential_id`: (Forces new resource) The ID of the deployment credential. Set the value to `celerdatabyoc_azure_deployment_credential.example.id`.
-
-- `data_credential_id`: (Forces new resource) The ID of the data credential. Set the value to `celerdatabyoc_azure_data_credential.example.id`.
-
-- `network_id`: (Forces new resource) The ID of the network configuration. Set the value to `celerdatabyoc_azure_network.example.id`.
-
-- `be_instance_type`: The instance type for BE nodes in the cluster. Select a BE instance type from the table "[Supported instance types](../resources/classic_cluster.md#supported-instance-types)".
-
-- `default_admin_password`: The initial password of the cluster `admin` user.
-
-- `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
-
-- `csp`: The cloud service provider of the cluster. Set this argument to `azure`.
-
-- `region`: The ID of the Azure region to which the AWS VPC hosting the cluster belongs. See [Supported cloud platforms and regions](https://docs.celerdata.com/byoc/main/get_started/cloud_platforms_and_regions#aws). Set this argument to `local.cluster_region`, as we recommend that you set the bucket element as a local value `cluster_region` in your Terraform configuration. See [Local Values](https://developer.hashicorp.com/terraform/language/values/locals).
-
-- `depends_on`: This argument creates a dependency between resources. If you want to deploy an Azure cluster, you must ensure that the resources used to declare the privileges of the resource group and managed identity are destroyed only after the cluster is released. To achieve this, you need to add this dependency.
-
-**Optional:**
-
-- `fe_node_count`: The number of FE nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`.
-
-- `be_node_count`: The number of BE nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
-
-- `be_disk_number`: (Forces new resource) The maximum number of disks that are allowed for each BE. Valid values: [1,24]. Default value: `2`.
-
-- `be_disk_per_size`: The size per disk for each BE. Unit: GB. Maximum value: `16000`. Default value: `100`. You can only increase the value of this parameter, and the time interval between two value changes must be greater than 6 hours.
-
-- `resource_tags`: The tags to be attached to the cluster.
 
 ## Apply configurations
 
@@ -387,13 +364,13 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 1. Initialize and install the providers defined in the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform init
    ```
 
 2. Verify that your Terraform project has been properly configured:
 
-   ```SQL
+   ```sh
    terraform plan
    ```
 
@@ -401,7 +378,7 @@ After you finish [configuring the providers](#configure-providers) and [describi
 
 3. Apply the Terraform configuration:
 
-   ```SQL
+   ```sh
    terraform apply
    ```
 

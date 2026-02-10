@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
+	"sync"
+
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/version"
 )
@@ -39,9 +42,16 @@ type IClusterAPI interface {
 	ApplyCustomConfig(ctx context.Context, req *ApplyCustomConfigReq) (*ApplyCustomConfigResp, error)
 	UpsertClusterLdapSSLCert(ctx context.Context, req *UpsertLDAPSSLCertsReq) (*UpsertLDAPSSLCertsResp, error)
 	CleanCustomConfig(ctx context.Context, req *CleanCustomConfigReq) (*CleanCustomConfigResp, error)
+	UpsertClusterConfig(ctx context.Context, req *UpsertClusterConfigReq) (*UpsertClusterConfigResp, error)
+	RemoveClusterConfig(ctx context.Context, req *RemoveClusterConfigReq) (*RemoveClusterConfigResp, error)
+
+	CheckRangerCert(ctx context.Context, req *CheckRangerCertsReq) error
+	UpsertClusterRangerCert(ctx context.Context, req *UpsertRangerCertsReq) (*UpsertRangerCertsResp, error)
+	RemoveClusterRangerCert(ctx context.Context, req *RemoveRangerCertsReq) (*RemoveRangerCertsResp, error)
 
 	GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error)
 	ModifyClusterVolume(ctx context.Context, req *ModifyClusterVolumeReq) (*ModifyClusterVolumeResp, error)
+	VolumeParamVerification(ctx context.Context, req *ModifyClusterVolumeReq) error
 	UpdateResourceTags(ctx context.Context, req *UpdateResourceTagsReq) error
 
 	ListCluster(ctx context.Context) (*ListClusterResp, error)
@@ -55,12 +65,33 @@ type IClusterAPI interface {
 	ReleaseWarehouse(ctx context.Context, req *ReleaseWarehouseReq) (*ReleaseWarehouseResp, error)
 	GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error)
 	UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error
+	SetWarehouseResumeWithCluster(ctx context.Context, req *SetWarehouseResumeWithClusterReq) error
 	GetWarehouseAutoScalingConfig(ctx context.Context, req *GetWarehouseAutoScalingConfigReq) (*GetWarehouseAutoScalingConfigResp, error)
 	SaveWarehouseAutoScalingConfig(ctx context.Context, req *SaveWarehouseAutoScalingConfigReq) (*SaveWarehouseAutoScalingConfigResp, error)
 	DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error
 	ChangeWarehouseDistribution(ctx context.Context, req *ChangeWarehouseDistributionReq) (*ChangeWarehouseDistributionResp, error)
 
 	GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error)
+	UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error
+
+	ListClusterSchedulePolicy(ctx context.Context, req *ListClusterSchedulePolicyReq) (*ListClusterSchedulePolicyResp, error)
+	IsSchedulePolicyNameExist(ctx context.Context, req *CheckClusterSchedulePolicyReq) (*CheckClusterSchedulePolicyResp, error)
+	SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error)
+	ModifyClusterSchedulePolicy(ctx context.Context, req *ModifyClusterSchedulePolicyReq) error
+	DeleteClusterSchedulePolicy(ctx context.Context, req *DeleteClusterSchedulePolicyReq) error
+	GetGlobalSqlSessionVariables(ctx context.Context, req *GetGlobalSqlSessionVariablesReq) (*GetGlobalSqlSessionVariablesResp, error)
+	SetGlobalSqlSessionVariables(ctx context.Context, req *SetGlobalSqlSessionVariablesReq) (*SetGlobalSqlSessionVariablesResp, error)
+	ResetGlobalSqlSessionVariables(ctx context.Context, req *ResetGlobalSqlSessionVariablesReq) (*ResetGlobalSqlSessionVariablesResp, error)
+
+	GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error)
+	SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error
+
+	GetClusterTableNameCaseInsensitive(ctx context.Context, req *GetClusterTableNameCaseInsensitiveReq) (*GetClusterTableNameCaseInsensitiveResp, error)
+
+	RunScripts(ctx context.Context, req *RunScriptsReq) error
+
+	ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
+	CleanRangerConfigV2(ctx context.Context, req *CleanRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -70,6 +101,10 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+func (c *clusterAPI) RunScripts(ctx context.Context, req *RunScriptsReq) error {
+	return c.cli.Patch(ctx, fmt.Sprintf("/api/%s/clusters/%s/run-scripts", c.apiVersion, req.ClusterId), req, nil)
 }
 
 // GetVmInfo implements IClusterAPI.
@@ -85,6 +120,10 @@ func (c *clusterAPI) GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmIn
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deployment-scripts", c.apiVersion, req.ClusterId), req, nil)
 }
 
 func (c *clusterAPI) DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error {
@@ -115,6 +154,10 @@ func (c *clusterAPI) GetWarehouseAutoScalingConfig(ctx context.Context, req *Get
 
 func (c *clusterAPI) UpdateWarehouseIdleConfig(ctx context.Context, req *UpdateWarehouseIdleConfigReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/idle-conf", c.apiVersion, req.WarehouseId), req, nil)
+}
+
+func (c *clusterAPI) SetWarehouseResumeWithCluster(ctx context.Context, req *SetWarehouseResumeWithClusterReq) error {
+	return c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/resume-with-cluster", c.apiVersion, req.WarehouseId), req, nil)
 }
 
 func (c *clusterAPI) GetWarehouseIdleConfig(ctx context.Context, req *GetWarehouseIdleConfigReq) (*GetWarehouseIdleConfigResp, error) {
@@ -216,7 +259,12 @@ func (c *clusterAPI) ChangeWarehouseDistribution(ctx context.Context, req *Chang
 	return resp, nil
 }
 
+var mu sync.Mutex
+
 func (c *clusterAPI) Deploy(ctx context.Context, req *DeployReq) (*DeployResp, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	resp := &DeployResp{}
 	req.SourceFrom = "terraform"
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters", c.apiVersion), req, resp)
@@ -472,6 +520,50 @@ func (c *clusterAPI) CleanCustomConfig(ctx context.Context, req *CleanCustomConf
 	return resp, nil
 }
 
+func (c *clusterAPI) UpsertClusterConfig(ctx context.Context, req *UpsertClusterConfigReq) (*UpsertClusterConfigResp, error) {
+
+	resp := &UpsertClusterConfigResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/configs", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) RemoveClusterConfig(ctx context.Context, req *RemoveClusterConfigReq) (*RemoveClusterConfigResp, error) {
+
+	resp := &RemoveClusterConfigResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/remove-configs", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CheckRangerCert(ctx context.Context, req *CheckRangerCertsReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs/check", c.apiVersion, req.ClusterId), req, nil)
+}
+
+func (c *clusterAPI) UpsertClusterRangerCert(ctx context.Context, req *UpsertRangerCertsReq) (*UpsertRangerCertsResp, error) {
+
+	resp := &UpsertRangerCertsResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) RemoveClusterRangerCert(ctx context.Context, req *RemoveRangerCertsReq) (*RemoveRangerCertsResp, error) {
+
+	resp := &RemoveRangerCertsResp{}
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/clusters/%s/ranger-certs", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (c *clusterAPI) GetClusterVolumeDetail(ctx context.Context, req *GetClusterVolumeDetailReq) (*GetClusterVolumeDetailResp, error) {
 
 	resp := &GetClusterVolumeDetailResp{}
@@ -485,6 +577,130 @@ func (c *clusterAPI) ModifyClusterVolume(ctx context.Context, req *ModifyCluster
 
 	resp := &ModifyClusterVolumeResp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/volume", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) VolumeParamVerification(ctx context.Context, req *ModifyClusterVolumeReq) error {
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/volume/param-verification", c.apiVersion), req, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *clusterAPI) ListClusterSchedulePolicy(ctx context.Context, req *ListClusterSchedulePolicyReq) (*ListClusterSchedulePolicyResp, error) {
+	var schedulePolicies []*ClusterSchedulePolicy
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies", c.apiVersion, req.ClusterId), nil, &schedulePolicies)
+	if err != nil {
+		return nil, err
+	}
+	return &ListClusterSchedulePolicyResp{
+		SchedulePolicies: schedulePolicies,
+	}, nil
+}
+
+func (c *clusterAPI) IsSchedulePolicyNameExist(ctx context.Context, req *CheckClusterSchedulePolicyReq) (*CheckClusterSchedulePolicyResp, error) {
+	resp := &CheckClusterSchedulePolicyResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies/check-name", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error) {
+	resp := &SaveClusterSchedulePolicyResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ModifyClusterSchedulePolicy(ctx context.Context, req *ModifyClusterSchedulePolicyReq) error {
+	err := c.cli.Put(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies/%s", c.apiVersion, req.ClusterId, req.PolicyId), req, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *clusterAPI) DeleteClusterSchedulePolicy(ctx context.Context, req *DeleteClusterSchedulePolicyReq) error {
+	err := c.cli.Delete(ctx, fmt.Sprintf("/api/%s/clusters/%s/scheduling-policies/%s", c.apiVersion, req.ClusterId, req.PolicyId), nil, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *clusterAPI) GetGlobalSqlSessionVariables(ctx context.Context, req *GetGlobalSqlSessionVariablesReq) (*GetGlobalSqlSessionVariablesResp, error) {
+	variables := make(map[string]string)
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/global/sql-session/variables", c.apiVersion, req.ClusterId), map[string]string{
+		"variables": strings.Join(req.Variables, ","),
+	}, &variables)
+	if err != nil {
+		return nil, err
+	}
+	return &GetGlobalSqlSessionVariablesResp{
+		Variables: variables,
+	}, nil
+}
+
+func (c *clusterAPI) SetGlobalSqlSessionVariables(ctx context.Context, req *SetGlobalSqlSessionVariablesReq) (*SetGlobalSqlSessionVariablesResp, error) {
+	resp := &SetGlobalSqlSessionVariablesResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/global/sql-session/variables", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ResetGlobalSqlSessionVariables(ctx context.Context, req *ResetGlobalSqlSessionVariablesReq) (*ResetGlobalSqlSessionVariablesResp, error) {
+	resp := &ResetGlobalSqlSessionVariablesResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/global/sql-session/variables/reset", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error) {
+	resp := &GetClusterTerminationProtectionResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) GetClusterTableNameCaseInsensitive(ctx context.Context, req *GetClusterTableNameCaseInsensitiveReq) (*GetClusterTableNameCaseInsensitiveResp, error) {
+	resp := &GetClusterTableNameCaseInsensitiveResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/table-name-case-insensitive", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, clusterId), req, nil)
+}
+
+func (c *clusterAPI) ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error) {
+	resp := &OperateRangerConfigV2Resp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deploy-ranger-config", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CleanRangerConfigV2(ctx context.Context, req *CleanRangerConfigV2Req) (*OperateRangerConfigV2Resp, error) {
+	resp := &OperateRangerConfigV2Resp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/clean-ranger-config", c.apiVersion, req.ClusterID), req, resp)
 	if err != nil {
 		return nil, err
 	}

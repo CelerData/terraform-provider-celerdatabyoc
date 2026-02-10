@@ -3,6 +3,9 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 type ClusterModuleType string
@@ -11,18 +14,80 @@ type ClusterType string
 type DomainAllocateState int32
 type CustomConfigType int
 type ClusterInfraActionState string
-type WearhouseScalingType int32
-type WearhouseScalingConditionType int32
+type WhScalingType int32
+type MetricType int32
 type DistributionPolicy string
+type AutoScalingUnit int32
+type AutoScalingUnitDisplay string
 
 var (
-	SupportedConfigType                     = []string{"FE", "BE", "RANGER"}
-	ClusterNodeType                         = []string{"FE", "BE", "COORDINATOR"}
-	WarehouseAutoScalingPolicyType          = []string{"SCALE_OUT", "SCALE_IN"}
-	WarehouseAutoScalingPolicyConditionType = []string{"AVERAGE_CPU_UTILIZATION"}
+	WeekDays = []string{"SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"}
+
+	SupportedConfigType = []string{"FE", "BE", "RANGER"}
+	ClusterNodeType     = []string{"FE", "BE", "COORDINATOR"}
+
+	WhScaleTypeArr = []string{"SCALE_OUT", "SCALE_IN"}
+
+	ScaleTypeArr = []int32{
+		int32(WhScalingType_SCALE_OUT),
+		int32(WhScalingType_SCALE_IN),
+	}
+
+	ScaleTypeToStr = map[int32]string{
+		int32(WhScalingType_SCALE_OUT): "SCALE_OUT",
+		int32(WhScalingType_SCALE_IN):  "SCALE_IN",
+	}
+
+	MetricArr = []int32{
+		int32(MetricType_AVERAGE_CPU_UTILIZATION),
+		int32(MetricType_QUERY_QUEUE_LENGTH),
+		int32(MetricType_EARLIEST_QUERY_PENDING_TIME),
+		int32(MetricType_WAREHOUSE_RESOURCE_UTILIZATION),
+	}
+
+	MetricToStr = map[int32]string{
+		int32(MetricType_AVERAGE_CPU_UTILIZATION):        "AVERAGE_CPU_UTILIZATION",
+		int32(MetricType_QUERY_QUEUE_LENGTH):             "QUERY_QUEUE_LENGTH",
+		int32(MetricType_EARLIEST_QUERY_PENDING_TIME):    "EARLIEST_QUERY_PENDING_TIME",
+		int32(MetricType_WAREHOUSE_RESOURCE_UTILIZATION): "WAREHOUSE_RESOURCE_UTILIZATION",
+	}
+
+	AutoScalingUnitDisplayToType = map[AutoScalingUnitDisplay]AutoScalingUnit{
+		AutoScalingUnitDisplay_SINGLE:   AutoScalingUnit_SINGLE,
+		AutoScalingUnitDisplay_CN_GROUP: AutoScalingUnit_CN_GROUP,
+	}
+
+	MetricStrGroup = map[string]string{
+		"AVERAGE_CPU_UTILIZATION":        AutoScalingMetricType_CPU,
+		"QUERY_QUEUE_LENGTH":             AutoScalingMetricType_QUERY_QUEUE,
+		"EARLIEST_QUERY_PENDING_TIME":    AutoScalingMetricType_QUERY_QUEUE,
+		"WAREHOUSE_RESOURCE_UTILIZATION": AutoScalingMetricType_QUERY_QUEUE,
+	}
+
+	CpuBasedMetric = map[string][]string{
+		"SCALE_OUT": {
+			"AVERAGE_CPU_UTILIZATION",
+		},
+		"SCALE_IN": {
+			"AVERAGE_CPU_UTILIZATION",
+		},
+	}
+
+	QueryQueueBasedMetric = map[string][]string{
+		"SCALE_OUT": {
+			"QUERY_QUEUE_LENGTH", "EARLIEST_QUERY_PENDING_TIME",
+		},
+		"SCALE_IN": {
+			"WAREHOUSE_RESOURCE_UTILIZATION",
+		},
+	}
 )
 
 const (
+	CSP_AWS    = "aws"
+	CSP_AZURE  = "azure"
+	CSP_GOOGLE = "gcp"
+
 	ClusterTypeClassic         = ClusterType("CLASSIC")
 	ClusterTypeElasic          = ClusterType("ELASTIC")
 	ClusterModuleTypeUnknown   = ClusterModuleType("Unknown")
@@ -55,17 +120,31 @@ const (
 	CustomConfigTypeBE          CustomConfigType = 1
 	CustomConfigTypeRanger      CustomConfigType = 2
 	CustomConfigTypeLDAPSSLCert CustomConfigType = 3
-	CustomConfigTypeFe          CustomConfigType = 4
+	CustomConfigTypeFE          CustomConfigType = 4
+	CustomConfigTypeRangerV2    CustomConfigType = 7
 
 	RANGER_CONFIG_KEY = "s3_path"
 
-	WearhouseScalingType_SCALE_IN  WearhouseScalingType = 1
-	WearhouseScalingType_SCALE_OUT WearhouseScalingType = 2
+	WhScalingType_SCALE_IN  WhScalingType = 1
+	WhScalingType_SCALE_OUT WhScalingType = 2
 
-	WearhouseScalingConditionType_AVERAGE_CPU_UTILIZATION WearhouseScalingConditionType = 1
+	MetricType_UNKNOWN                        MetricType = 0
+	MetricType_AVERAGE_CPU_UTILIZATION        MetricType = 1
+	MetricType_QUERY_QUEUE_LENGTH             MetricType = 2
+	MetricType_EARLIEST_QUERY_PENDING_TIME    MetricType = 3
+	MetricType_WAREHOUSE_RESOURCE_UTILIZATION MetricType = 4
+
+	AutoScalingMetricType_CPU         = "CPU-based"
+	AutoScalingMetricType_QUERY_QUEUE = "queue-based"
 
 	DistributionPolicySpecifyAZ  DistributionPolicy = "specify_az"
 	DistributionPolicyCrossingAZ DistributionPolicy = "crossing_az"
+
+	AutoScalingUnit_SINGLE   AutoScalingUnit = 0
+	AutoScalingUnit_CN_GROUP AutoScalingUnit = 1
+
+	AutoScalingUnitDisplay_SINGLE   AutoScalingUnitDisplay = "Node"
+	AutoScalingUnitDisplay_CN_GROUP AutoScalingUnitDisplay = "Group"
 )
 
 type Kv struct {
@@ -74,8 +153,10 @@ type Kv struct {
 }
 
 type DiskInfo struct {
-	Number  uint32 `json:"number"`
-	PerSize uint64 `json:"per_size"` // unit:GB
+	Number     uint32 `json:"number"`
+	PerSize    uint64 `json:"per_size"` // unit:GB
+	Iops       uint64 `json:"iops"`
+	Throughput uint64 `json:"throughput"`
 }
 
 type ClusterItem struct {
@@ -87,11 +168,19 @@ type ClusterItem struct {
 	DiskInfo           *DiskInfo         `json:"disk_info"`
 	DistributionPolicy string            `json:"distribution_policy"`
 	SpecifyAZ          string            `json:"specify_az"`
+	Tags               []*Kv             `json:"tags"`
 }
 
 type Script struct {
-	ScriptPath string `json:"script_path"`
-	LogsDir    string `json:"logs_dir"`
+	ScriptPath string `json:"script_path" mapstructure:"script_path"`
+	LogsDir    string `json:"logs_dir" mapstructure:"logs_dir"`
+}
+
+type UpdateDeploymentScriptsReq struct {
+	ClusterId string    `json:"cluster_id"`
+	Scripts   []*Script `json:"scripts"`
+	Parallel  bool      `json:"parallel"`
+	Timeout   int32     `json:"timeout"`
 }
 
 type CustomAmi struct {
@@ -118,6 +207,11 @@ type ClusterConf struct {
 	RunScriptsTimeout  int32          `json:"run_scripts_timeout"`
 	CustomAmi          *CustomAmi     `json:"custom_ami"`
 	Timezone           string         `json:"timezone"`
+	// EnabledTerminationProtection indicates whether termination protection is enabled for the cluster.
+	EnabledTerminationProtection bool `json:"enabled_termination_protection"`
+	// table_name_case_insensitive indicates whether cluster will be created with table name case insensitive mode.
+	// this feature is supported starting from sr 4.0.0
+	TableNameCaseInsensitive bool `json:"table_name_case_insensitive"`
 }
 
 type GetReq struct {
@@ -182,18 +276,25 @@ type Module struct {
 	VmVolSizeGB     int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
 	VmVolNum        int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+	Iops            int64  `json:"iops" mapstructure:"iops"`
+	Throughput      int64  `json:"throughput" mapstructure:"throughput"`
+	Arch            string `json:"arch" mapstructure:"arch"`
+	Os              string `json:"os" mapstructure:"os"`
 }
 
 type Warehouse struct {
-	Id                    string       `json:"id" mapstructure:"id"`
-	Name                  string       `json:"name" mapstructure:"name"`
-	State                 ClusterState `json:"state" mapstructure:"state"`
-	Module                *Module      `json:"module" mapstructure:"module"`
-	Deleted               bool         `json:"deleted" mapstructure:"deleted"`
-	IsDefaultWarehouse    bool         `json:"is_default_warehouse" mapstructure:"is_default_warehouse"`
-	CreatedAt             int64        `json:"created_at" mapstructure:"created_at"`
-	DistributionPolicyStr string       `json:"distribution_policy_str" mapstructure:"distribution_policy_str"`
-	SpecifyAZ             string       `json:"specify_az" mapstructure:"specify_az"`
+	Id                    string            `json:"id" mapstructure:"id"`
+	Name                  string            `json:"name" mapstructure:"name"`
+	State                 ClusterState      `json:"state" mapstructure:"state"`
+	Module                *Module           `json:"module" mapstructure:"module"`
+	Deleted               bool              `json:"deleted" mapstructure:"deleted"`
+	IsDefaultWarehouse    bool              `json:"is_default_warehouse" mapstructure:"is_default_warehouse"`
+	CreatedAt             int64             `json:"created_at" mapstructure:"created_at"`
+	DistributionPolicyStr string            `json:"distribution_policy_str" mapstructure:"distribution_policy_str"`
+	SpecifyAZ             string            `json:"specify_az" mapstructure:"specify_az"`
+	SpecifiedAZs          []string          `json:"specified_azs" mapstructure:"specified_azs"`
+	ResumeWithCluster     bool              `json:"resume_with_cluster" mapstructure:"resume_with_cluster"`
+	Tags                  map[string]string `json:"tags" mapstructure:"tags"`
 }
 
 type WarehouseExternalInfo struct {
@@ -221,9 +322,11 @@ type Cluster struct {
 	QueryPort           int32             `json:"query_port" mapstructure:"query_port"`
 	IdleSuspendInterval int32             `json:"idle_suspend_interval" mapstructure:"idle_suspend_interval"`
 	LdapSslCerts        []string          `json:"ldap_ssl_certs"  mapstructure:"ldap_ssl_certs"`
+	RangerCertsDirPath  string            `json:"ranger_certs_dir_path" mapstructure:"ranger_certs_dir_path"`
 	Warehouses          []*Warehouse      `json:"warehouses" mapstructure:"warehouses"`
 	IsMultiWarehouse    bool              `json:"is_multi_warehouse" mapstructure:"is_multi_warehouse"`
 	Tags                map[string]string `json:"tags" mapstructure:"tags"`
+	CustomAmi           *CustomAmi        `json:"custom_ami"`
 }
 
 type ScaleInReq struct {
@@ -272,9 +375,11 @@ type IncrStorageSizeResp struct {
 }
 
 type EndpointsInfo struct {
-	NetworkMethod string `json:"network_method" mapstructure:"network_method"`
-	Host          string `json:"host" mapstructure:"host"`
-	Port          int64  `json:"port" mapstructure:"port"`
+	NetworkMethod   string `json:"network_method" mapstructure:"network_method"`
+	Host            string `json:"host" mapstructure:"host"`
+	Port            int64  `json:"port" mapstructure:"port"`
+	NLBEndpoint     string `json:"nlb_endpoint" mapstructure:"nlb_endpoint"`
+	NlbEndpointType string `json:"nlb_endpoint_type" mapstructure:"nlb_endpoint_type"`
 }
 
 type GetClusterEndpointsReq struct {
@@ -429,6 +534,28 @@ type UpsertLDAPSSLCertsResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
+type CheckRangerCertsReq struct {
+	ClusterId string `json:"cluster_id"`
+	DirPath   string `json:"dir_path"`
+}
+
+type UpsertRangerCertsReq struct {
+	ClusterId string `json:"cluster_id"`
+	DirPath   string `json:"dir_path"`
+}
+
+type UpsertRangerCertsResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type RemoveRangerCertsReq struct {
+	ClusterId string `json:"cluster_id"`
+}
+
+type RemoveRangerCertsResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
 type CleanCustomConfigReq struct {
 	ClusterID   string           `json:"cluster_id" mapstructure:"cluster_id"`
 	ConfigType  CustomConfigType `json:"config_type" mapstructure:"config_type"`
@@ -470,8 +597,10 @@ type ModifyClusterVolumeResp struct {
 }
 
 type ClusterInfo struct {
-	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
-	ClusterName string `json:"cluster_name" mapstructure:"cluster_name"`
+	ClusterId      string `json:"cluster_id" mapstructure:"cluster_id"`
+	ClusterName    string `json:"cluster_name" mapstructure:"cluster_name"`
+	ClusterVersion string `json:"cluster_version" mapstructure:"cluster_version"`
+	ClusterType    string `json:"cluster_type" mapstructure:"cluster_type"`
 }
 
 type ListClusterResp struct {
@@ -511,11 +640,20 @@ type CreateWarehouseReq struct {
 	VolumeNum          int32  `json:"volume_num" mapstructure:"volume_num"`
 	DistributionPolicy string `json:"distribution_policy" mapstructure:"distribution_policy"`
 	SpecifyAZ          string `json:"specify_az" mapstructure:"specify_az"`
+	Iops               int64  `json:"iops" mapstructure:"iops"`
+	Throughput         int64  `json:"throughput" mapstructure:"throughput"`
+	ResumeWithCluster  bool   `json:"resume_with_cluster" mapstructure:"resume_with_cluster"`
+	Tags               []*Kv  `json:"tags" mapstructure:"tags"`
 }
 
 type CreateWarehouseResp struct {
 	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
 	ActionID    string `json:"action_id" mapstructure:"action_id"`
+}
+
+type SetWarehouseResumeWithClusterReq struct {
+	ResumeWithCluster *bool  `json:"resume_with_cluster"  mapstructure:"resume_with_cluster"`
+	WarehouseId       string `json:"warehouse_id" mapstructure:"warehouse_id"`
 }
 
 type ScaleWarehouseNumReq struct {
@@ -597,10 +735,11 @@ type WearhouseScalingPolicyItem struct {
 }
 
 type WarehouseAutoScalingConfig struct {
-	MinSize    int32                         `json:"min_size" mapstructure:"min_size"`
-	MaxSize    int32                         `json:"max_size" mapstructure:"max_size"`
-	PolicyItem []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
-	State      bool                          `json:"state" mapstructure:"state"`
+	MinSize         int32                         `json:"min_size" mapstructure:"min_size"`
+	MaxSize         int32                         `json:"max_size" mapstructure:"max_size"`
+	PolicyItem      []*WearhouseScalingPolicyItem `json:"policyItem" mapstructure:"policyItem"`
+	State           bool                          `json:"state" mapstructure:"state"`
+	AutoScalingUnit AutoScalingUnit               `json:"auto_scaling_unit" mapstructure:"auto_scaling_unit"`
 }
 
 type GetWarehouseAutoScalingConfigResp struct {
@@ -639,11 +778,25 @@ type GetVmInfoReq struct {
 	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
 }
 
+type VmVolumeInfo struct {
+	BizId              string `json:"biz_id" mapstructure:"biz_id"`
+	VolumeCateId       string `json:"volume_cate_id" mapstructure:"volume_cate_id"`
+	SizeGb             int64  `json:"size_gb" mapstructure:"size_gb"`
+	IsInstanceStore    bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+	InstanceStoreCount int32  `json:"instance_store_count" mapstructure:"instance_store_count"`
+	Available          bool   `json:"available" mapstructure:"available"`
+	VmCate             string `json:"vm_cate" mapstructure:"vm_cate"`
+	VolumeCate         string `json:"volume_cate" mapstructure:"volume_cate"`
+	Arch               string `json:"arch" mapstructure:"arch"`
+}
+
 type VMInfo struct {
-	ProcessType     string `json:"process_type" mapstructure:"process_type"` // FE/BE
-	VmCate          string `json:"vm_cate" mapstructure:"vm_cate"`
-	Arch            string `json:"arch" mapstructure:"arch"`
-	IsInstanceStore bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
+	ProcessType      string          `json:"process_type" mapstructure:"process_type"` // FE/BE
+	VmCate           string          `json:"vm_cate" mapstructure:"vm_cate"`
+	Arch             string          `json:"arch" mapstructure:"arch"`
+	IsInstanceStore  bool            `json:"is_instance_store" mapstructure:"is_instance_store"`
+	MaxDataDiskCount uint32          `json:"max_data_disk_count" mapstructure:"max_data_disk_count"`
+	VmVolumeInfos    []*VmVolumeInfo `json:"vm_volume_infos" mapstructure:"vm_volume_infos"`
 }
 
 type GetVmInfoResp struct {
@@ -680,7 +833,7 @@ func ConvertStrToCustomConfigType(val string) CustomConfigType {
 	var customConfigType CustomConfigType
 	switch val {
 	case "FE":
-		customConfigType = CustomConfigTypeFe
+		customConfigType = CustomConfigTypeFE
 	case "BE":
 		customConfigType = CustomConfigTypeBE
 	case "RANGER":
@@ -693,7 +846,7 @@ func ConvertIntToCustomConfigType(val int) CustomConfigType {
 	customConfigType := CustomConfigTypeUnknown
 	switch val {
 	case 4:
-		customConfigType = CustomConfigTypeFe
+		customConfigType = CustomConfigTypeFE
 	case 1:
 		customConfigType = CustomConfigTypeBE
 	case 2:
@@ -713,4 +866,202 @@ func ConvertStrToClusterModuleType(val string) ClusterModuleType {
 		nodeType = ClusterModuleTypeWarehouse
 	}
 	return nodeType
+}
+
+type UpsertClusterConfigReq struct {
+	ClusterID   string            `json:"cluster_id" mapstructure:"cluster_id"`
+	ConfigType  CustomConfigType  `json:"config_type" mapstructure:"config_type"`
+	WarehouseID string            `json:"warehouse_id" mapstructure:"warehouse_id"`
+	Configs     map[string]string `json:"configs" mapstructure:"configs"`
+}
+
+type UpsertClusterConfigResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type RemoveClusterConfigReq struct {
+	ClusterID   string           `json:"cluster_id" mapstructure:"cluster_id"`
+	ConfigType  CustomConfigType `json:"config_type" mapstructure:"config_type"`
+	WarehouseID string           `json:"warehouse_id" mapstructure:"warehouse_id"`
+}
+
+type RemoveClusterConfigResp struct {
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type ListClusterSchedulePolicyReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type ListClusterSchedulePolicyResp struct {
+	SchedulePolicies []*ClusterSchedulePolicy `json:"schedule_policies" mapstructure:"schedule_policies"`
+}
+
+type ClusterSchedulePolicy struct {
+	PolicyId        string `json:"policy_id" mapstructure:"policy_id"`
+	ClusterId       string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyName      string `json:"policy_name" mapstructure:"policy_name"`
+	Description     string `json:"description" mapstructure:"description"`
+	TimeZone        string `json:"time_zone" mapstructure:"time_zone"`
+	ActiveDateValue string `json:"active_date_value" mapstructure:"active_date_value"`
+	ResumeAt        string `json:"resume_at" mapstructure:"resume_at"`
+	SuspendAt       string `json:"suspend_at" mapstructure:"suspend_at"`
+	State           int32  `json:"state" mapstructure:"state"`
+}
+type CheckClusterSchedulePolicyReq struct {
+	ClusterId  string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyName string `json:"policy_name" mapstructure:"policy_name"`
+}
+
+type CheckClusterSchedulePolicyResp struct {
+	Exist bool `json:"exist" mapstructure:"exist"`
+}
+
+type DeleteClusterSchedulePolicyReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyId  string `json:"policy_id" mapstructure:"policy_id"`
+}
+
+type ModifyClusterSchedulePolicyReq struct {
+	PolicyId    string `json:"policy_id" mapstructure:"policy_id"`
+	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyName  string `json:"policy_name" mapstructure:"policy_name"`
+	Description string `json:"description" mapstructure:"description"`
+	TimeZone    string `json:"time_zone" mapstructure:"time_zone"`
+	ActiveDays  string `json:"active_days" mapstructure:"active_days"`
+	ResumeAt    string `json:"resume_at" mapstructure:"resume_at"`
+	SuspendAt   string `json:"suspend_at" mapstructure:"suspend_at"`
+	State       bool   `json:"state" mapstructure:"state"`
+}
+
+type SaveClusterSchedulePolicyReq struct {
+	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
+	PolicyName  string `json:"policy_name" mapstructure:"policy_name"`
+	Description string `json:"description" mapstructure:"description"`
+	TimeZone    string `json:"time_zone" mapstructure:"time_zone"`
+	ActiveDays  string `json:"active_days" mapstructure:"active_days"`
+	ResumeAt    string `json:"resume_at" mapstructure:"resume_at"`
+	SuspendAt   string `json:"suspend_at" mapstructure:"suspend_at"`
+	State       bool   `json:"state" mapstructure:"state"`
+}
+
+type ResetGlobalSqlSessionVariablesResp struct {
+	HasFailed       bool     `json:"has_failed" mapstructure:"has_failed"`
+	FailedVariables []string `json:"failed_variables" mapstructure:"failed_variables"`
+	ErrMsgArr       []string `json:"err_msg_arr" mapstructure:"err_msg_arr"`
+}
+
+type ResetGlobalSqlSessionVariablesReq struct {
+	ClusterId string   `json:"cluster_id" mapstructure:"cluster_id"`
+	Variables []string `json:"variables" mapstructure:"variables"`
+}
+
+type SetGlobalSqlSessionVariablesResp struct {
+	HasFailed       bool     `json:"has_failed" mapstructure:"has_failed"`
+	FailedVariables []string `json:"failed_variables" mapstructure:"failed_variables"`
+	ErrMsgArr       []string `json:"err_msg_arr" mapstructure:"err_msg_arr"`
+}
+
+type SetGlobalSqlSessionVariablesReq struct {
+	ClusterId string            `json:"cluster_id" mapstructure:"cluster_id"`
+	Variables map[string]string `json:"variables" mapstructure:"variables"`
+}
+
+type GetGlobalSqlSessionVariablesReq struct {
+	ClusterId string   `json:"cluster_id" mapstructure:"cluster_id"`
+	Variables []string `json:"variables" mapstructure:"variables"`
+}
+
+type GetGlobalSqlSessionVariablesResp struct {
+	Variables map[string]string `json:"variables" mapstructure:"variables"`
+}
+
+type SaveClusterSchedulePolicyResp struct {
+	PolicyId string `json:"policy_id" mapstructure:"policy_id"`
+}
+
+type RunScriptsReq struct {
+	ClusterId          string    `json:"cluster_id" mapstructure:"cluster_id"`
+	Scripts            []*Script `json:"scripts" mapstructure:"scripts"`
+	RunScriptsParallel bool      `json:"run_scripts_parallel" mapstructure:"run_scripts_parallel"`
+}
+
+func Equal(a, b interface{}) bool {
+	return cmp.Equal(a, b)
+}
+
+func DefaultFeVolumeMap() map[string]interface{} {
+	volumeConfig := make(map[string]interface{})
+	volumeConfig["vol_size"] = 150
+	return volumeConfig
+}
+
+func DefaultBeVolumeMap() map[string]interface{} {
+	volumeConfig := make(map[string]interface{})
+	volumeConfig["vol_number"] = 2
+	volumeConfig["vol_size"] = 100
+	return volumeConfig
+}
+
+func Contains[T comparable](arr []T, target T) bool {
+	for _, v := range arr {
+		if v == target {
+			return true
+		}
+	}
+	return false
+}
+
+func GetKeys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func GetVals[K comparable, V any](m map[K]V) []V {
+	vals := make([]V, 0, len(m))
+	for _, v := range m {
+		vals = append(vals, v)
+	}
+	return vals
+}
+
+func IsValidTimeZoneName(tzName string) bool {
+	_, err := time.LoadLocation(tzName)
+	return err == nil
+}
+
+type GetClusterTerminationProtectionReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type GetClusterTerminationProtectionResp struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+type SetClusterTerminationProtectionReq struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+type ApplyRangerConfigV2Req struct {
+	BizID     string `json:"biz_id" mapstructure:"biz_id"`
+	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type CleanRangerConfigV2Req struct {
+	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type OperateRangerConfigV2Resp struct {
+	InfraActionID string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type GetClusterTableNameCaseInsensitiveReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type GetClusterTableNameCaseInsensitiveResp struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
 }

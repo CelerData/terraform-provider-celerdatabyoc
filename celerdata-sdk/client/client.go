@@ -153,7 +153,7 @@ func (c *CelerdataClient) Do(ctx context.Context, method, path string,
 		return errors.New(resp.Message)
 	}
 
-	if response == nil {
+	if response == nil || resp.Data == nil {
 		return nil
 	}
 

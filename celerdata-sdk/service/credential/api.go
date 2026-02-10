@@ -23,6 +23,9 @@ type ICredentialAPI interface {
 	RotateAkSkCredential(ctx context.Context, req *RotateAkSkCredentialReq) error
 	DeleteDeploymentAkSkCredential(ctx context.Context, credID string) error
 	CreateAzureDataCredential(ctx context.Context, req *CreateAzureDataCredReq) (*CreateDataCredResp, error)
+
+	CreateGcpDataCredential(ctx context.Context, req *CreateGcpDataCredReq) (*CreateDataCredResp, error)
+	CreateGcpDeploymentCredential(ctx context.Context, req *CreateGcpDeployCredReq) (*CreateDeployRoleCredResp, error)
 }
 
 func NewCredentialAPI(cli *client.CelerdataClient) ICredentialAPI {
@@ -144,4 +147,34 @@ func (c *credentialAPI) GetDataCredential(ctx context.Context, credID string) (*
 
 func (c *credentialAPI) DeleteDataCredential(ctx context.Context, credID string) error {
 	return c.cli.Delete(ctx, fmt.Sprintf("/api/%s/data-credentials/%s", c.apiVersion, credID), nil, nil)
+}
+
+// CreateGcpDataCredential implements ICredentialAPI.
+func (c *credentialAPI) CreateGcpDataCredential(ctx context.Context, req *CreateGcpDataCredReq) (*CreateDataCredResp, error) {
+	resp := &CreateDataCredResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/gcp-data-credentials", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.CheckErrMsg) > 0 {
+		return nil, errors.New(resp.CheckErrMsg)
+	}
+
+	return resp, nil
+}
+
+// CreateGcpDeploymentCredential implements ICredentialAPI.
+func (c *credentialAPI) CreateGcpDeploymentCredential(ctx context.Context, req *CreateGcpDeployCredReq) (*CreateDeployRoleCredResp, error) {
+	resp := &CreateDeployRoleCredResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/gcp-deployment-credentials", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.CheckErrMsg) > 0 {
+		return nil, errors.New(resp.CheckErrMsg)
+	}
+
+	return resp, nil
 }

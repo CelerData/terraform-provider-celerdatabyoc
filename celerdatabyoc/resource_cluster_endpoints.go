@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"log"
 	"strconv"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func resourceClusterEndpoints() *schema.Resource {
@@ -42,6 +43,14 @@ func resourceClusterEndpoints() *schema.Resource {
 						},
 						"port": {
 							Type:     schema.TypeInt,
+							Computed: true,
+						},
+						"nlb_endpoint": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"nlb_endpoint_type": {
+							Type:     schema.TypeString,
 							Computed: true,
 						},
 					},
@@ -128,11 +137,6 @@ func resourceClusterEndpointsRead(ctx context.Context, d *schema.ResourceData, m
 	})
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) change complete: %s", d.Id(), err))
-	}
-
-	if stateResp.State != cluster.DomainAllocateStateSucceeded {
-		d.SetId("")
-		return diag.FromErr(errors.New("failed to get cluster endpoints"))
 	}
 
 	d.Set("endpoints", stateResp.List)

@@ -109,3 +109,15 @@ type DeploymentAkSkCredential struct {
 	SshKey       string `json:"ssh_key" mapstructure:"ssh_key"`
 	Unverified   bool   `json:"unverified" mapstructure:"unverified"`
 }
+
+type CreateGcpDataCredReq struct {
+	Name           string `json:"name" mapstructure:"name"`
+	BucketName     string `json:"bucket_name" mapstructure:"bucket_name"`
+	ServiceAccount string `json:"service_account" mapstructure:"service_account"`
+}
+
+type CreateGcpDeployCredReq struct {
+	Name           string `json:"name" mapstructure:"name"`
+	ServiceAccount string `json:"service_account" mapstructure:"service_account"`
+	ProjectId      string `json:"project_id" mapstructure:"project_id"`
+}

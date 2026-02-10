@@ -28,6 +28,14 @@ func dataSourceClusters() *schema.Resource {
 							Type:     schema.TypeString,
 							Computed: true,
 						},
+						"cluster_version": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
+						"cluster_type": {
+							Type:     schema.TypeString,
+							Computed: true,
+						},
 					},
 				},
 			},

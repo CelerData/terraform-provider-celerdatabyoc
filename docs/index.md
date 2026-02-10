@@ -10,8 +10,9 @@ description: Terraform provider for the celerdatabyoc cloud
 
 The CelerData Cloud BYOC provider is used to configure the infrastructure that hosts your CelerData resources. You must configure the provider with proper credentials before you can use it. Currently the provider supports deployments on both AWS and Azure:
 
-- On AWS, you can deploy cluster or elastic clusters. See [Provision CelerData Cloud BYOC on AWS](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/guides/aws_deployment_guide).
-- On Azure, you can deploy only classic clusters. See [Provision CelerData Cloud BYOC on Azure](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/guides/azure_deployment_guide).
+- On AWS, you can deploy CelerData clusters. See [Provision CelerData Cloud BYOC on AWS](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/guides/aws_deployment_guide).
+- On Azure, you can deploy CelerData clusters. See [Provision CelerData Cloud BYOC on Azure](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/guides/azure_deployment_guide).
+- On GCP, you can deploy CelerData clusters. See [Provision CelerData Cloud BYOC on GCP](https://registry.terraform.io/providers/CelerData/celerdatabyoc/latest/docs/guides/gcp_deployment_guide).
 
 To learn more about the basics of Terraform using this provider, follow the hands-on tutorials provided in "Guides" in the navigation to the left.
 
@@ -39,7 +40,7 @@ Create an application key by following these steps:
 
 The CelerData Cloud BYOC provider will use the **Secret** and **Client ID** of your application key to provision and manage CelerData resources.
 
-For more information about managing application keys, see [Application keys](https://docs.celerdata.com/byoc/main/security/application_keys).
+For more information about managing application keys, see [Application keys](https://docs.celerdata.com/BYOC/docs/security/application_keys/).
 
 ### Authenticate with a service account
 
@@ -63,13 +64,13 @@ Create a service account by following these steps:
 
 The CelerData Cloud BYOC provider will use the **Secret** and **Client ID** of your service account to provision and manage CelerData resources.
 
-For more information about managing service accounts, see [Service accounts](https://docs.celerdata.com/byoc/main/security/service_accounts).
+For more information about managing service accounts, see [Service accounts](https://docs.celerdata.com/BYOC/docs/security/service_accounts/).
 
 ## Privileges
 
 Cluster deployments require the cloud settings management privilege.
 
 - If you use application keys for authentication, make sure that the CelerData cloud account you used to create the application key for the cluster deployments through Terraform has the privilege.
-- If you use service accounts for authentication, make sure that you have [assigned the privilege](https://docs.celerdata.com/byoc/main/security/service_accounts#assign-roles-to-a-service-account) to the service account used for the cluster deployments through Terraform.
+- If you use service accounts for authentication, make sure that you have [assigned the privilege](https://docs.celerdata.com/BYOC/docs/security/service_accounts/#assign-roles-to-a-service-account) to the service account used for the cluster deployments through Terraform.
 
-See [Privileges](https://docs.celerdata.com/byoc/main/security/cloud_access_control/cloud_access_control_overview#privileges) for more information.
+See [Privileges](https://docs.celerdata.com/BYOC/docs/security/cloud_access_control/cloud_access_control_overview/#privileges) for more information.

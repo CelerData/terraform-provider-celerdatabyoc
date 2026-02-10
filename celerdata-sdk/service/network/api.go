@@ -11,6 +11,7 @@ import (
 type INetworkAPI interface {
 	CreateNetwork(ctx context.Context, req *CreateNetworkReq) (*CreateNetworkResp, error)
 	CreateAzureNetwork(ctx context.Context, req *CreateAzureNetworkReq) (*CreateNetworkResp, error)
+	CreateGcpNetwork(ctx context.Context, req *CreateGcpNetworkReq) (*CreateNetworkResp, error)
 	GetNetwork(ctx context.Context, netID string) (*GetNetworkResp, error)
 	DeleteNetwork(ctx context.Context, netID string) error
 }
@@ -65,4 +66,19 @@ func (c *networkAPI) GetNetwork(ctx context.Context, netID string) (*GetNetworkR
 
 func (c *networkAPI) DeleteNetwork(ctx context.Context, netID string) error {
 	return c.cli.Delete(ctx, fmt.Sprintf("/api/%s/networks/%s", c.apiVersion, netID), nil, nil)
+}
+
+// CreateGcpNetwork implements INetworkAPI.
+func (c *networkAPI) CreateGcpNetwork(ctx context.Context, req *CreateGcpNetworkReq) (*CreateNetworkResp, error) {
+	resp := &CreateNetworkResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/gcp-networks", c.apiVersion), req, resp)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.CheckErrMsg) > 0 {
+		return nil, errors.New(resp.CheckErrMsg)
+	}
+
+	return resp, nil
 }
