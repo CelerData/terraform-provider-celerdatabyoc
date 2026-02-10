@@ -117,6 +117,7 @@ type ClusterConf struct {
 	QueryPort          int32          `json:"query_port"`
 	RunScriptsTimeout  int32          `json:"run_scripts_timeout"`
 	CustomAmi          *CustomAmi     `json:"custom_ami"`
+	Timezone           string         `json:"timezone"`
 }
 
 type GetReq struct {

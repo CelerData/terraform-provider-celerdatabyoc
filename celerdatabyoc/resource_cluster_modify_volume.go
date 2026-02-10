@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"time"
@@ -105,6 +106,22 @@ func resourceClusterModifyVolumeCreate(ctx context.Context, d *schema.ResourceDa
 	resp, err := clusterAPI.ModifyClusterVolume(ctx, req)
 	if err != nil {
 		log.Printf("[ERROR] modify cluster volume detail failed, err:%+v", err)
+		// If the error is due to same params (state drift), treat as warning instead of error
+		// to allow other changes to proceed
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "same params") || strings.Contains(errMsg, "no need to update") {
+			log.Printf("[WARN] Volume modification skipped - actual volume size matches desired size")
+			// Generate a pseudo action ID for state tracking
+			d.SetId("no-op-" + clusterId)
+			d.Set("result", "Succeeded")
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("%s node volume already at desired size", nodeTypeStr),
+					Detail:   fmt.Sprintf("The volume is already at the desired size. This may indicate state drift. Consider running 'terraform refresh' to sync state. Original error: %s", errMsg),
+				},
+			}
+		}
 		return diag.FromErr(err)
 	}
 
