@@ -25,10 +25,10 @@ import (
 func resourceElasticCluster() *schema.Resource {
 	return &schema.Resource{
 		DeprecationMessage: "This resource is deprecated. For create new clusters, please use `celerdatabyoc_elastic_cluster_v2`",
-		CreateContext: resourceElasticClusterCreate,
-		ReadContext:   resourceElasticClusterRead,
-		DeleteContext: resourceElasticClusterDelete,
-		UpdateContext: resourceElasticClusterUpdate,
+		CreateContext:      resourceElasticClusterCreate,
+		ReadContext:        resourceElasticClusterRead,
+		DeleteContext:      resourceElasticClusterDelete,
+		UpdateContext:      resourceElasticClusterUpdate,
 		Schema: map[string]*schema.Schema{
 			"id": {
 				Type:     schema.TypeString,
@@ -302,6 +302,12 @@ func resourceElasticCluster() *schema.Resource {
 				Optional:     true,
 				Default:      3600,
 				ValidateFunc: validation.IntAtMost(int(common.DeployOrScaleClusterTimeout.Seconds())),
+			},
+			"timezone": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Specifies the timezone for the cluster.",
+				Default:     "Etc/UTC",
 			},
 			"coordinator_node_configs": {
 				Type:     schema.TypeMap,
@@ -609,6 +615,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		RunScriptsParallel:           d.Get("run_scripts_parallel").(bool),
 		QueryPort:                    int32(d.Get("query_port").(int)),
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
+		Timezone:                     d.Get("timezone").(string),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
 	}
