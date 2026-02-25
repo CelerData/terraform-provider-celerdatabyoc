@@ -1090,16 +1090,6 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			PerSize: 150,
 		},
 	}
-	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok {
-		yamlConfig := v.([]interface{})[0].(map[string]interface{})
-		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
-		coordinatorItem.VolumeAutoScalingConfig = autoscalingConfig
-	}
-
 	if v, ok := d.GetOk("coordinator_node_volume_config"); ok {
 		volumeConfig := v.([]interface{})[0].(map[string]interface{})
 		diskInfo := coordinatorItem.DiskInfo
@@ -1213,6 +1203,22 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
+
+	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok {
+		yamlConfig := v.([]interface{})[0].(map[string]interface{})
+		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("[DEBUG] failed to parse coordinator node volume autoscaling config, err:%s", err.Error()))
+		}
+		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
+		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+			ClusterId:                clusterId,
+			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
+		}
+	}
 
 	if v, ok := d.GetOk("coordinator_node_configs"); ok && len(d.Get("coordinator_node_configs").(map[string]interface{})) > 0 {
 		configMap := v.(map[string]interface{})
@@ -1453,11 +1459,8 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	volumeAutoscalingConfigsMap := make(map[cluster.ModuleTypeNumber]*cluster.VolumeAutoScalingConfig)
-	jsonBytes, _ = json.Marshal(volumeAutoscalingConfigs)
-	log.Printf("[DEBUG] get volume autoscaling configs, clusterId:%s, data:%s", clusterId, string(jsonBytes))
 	for _, v := range volumeAutoscalingConfigs.VolumeAutoscalingConfigs {
 		volumeAutoscalingConfigsMap[v.ModuleType] = v
-		log.Printf("[DEBUG] volume autoscaling config, clusterId:%s moduleType:%s config:%+v", clusterId, v.ModuleType, *v)
 	}
 
 	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterId)

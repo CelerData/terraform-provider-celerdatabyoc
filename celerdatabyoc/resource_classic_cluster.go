@@ -754,14 +754,6 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 			PerSize: 150,
 		},
 	}
-	if v, ok := d.GetOk("fe_volume_autoscaling"); ok {
-		yamlConfig := v.([]interface{})[0].(map[string]interface{})
-		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		feItem.VolumeAutoScalingConfig = autoscalingConfig
-	}
 
 	if v, ok := d.GetOk("fe_volume_config"); ok {
 		volumeConfig := v.([]interface{})[0].(map[string]interface{})
@@ -786,15 +778,6 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 			Number:  uint32(2),
 			PerSize: uint64(100),
 		},
-	}
-
-	if v, ok := d.GetOk("be_volume_autoscaling"); ok {
-		yamlConfig := v.([]interface{})[0].(map[string]interface{})
-		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
-		if err != nil {
-			return diag.FromErr(err)
-		}
-		beItem.VolumeAutoScalingConfig = autoscalingConfig
 	}
 
 	if v, ok := d.GetOk("be_volume_config"); ok {
@@ -854,6 +837,37 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	clusterId := resp.ClusterID
 	d.SetId(clusterId)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterId)
+
+	if v, ok := d.GetOk("fe_volume_autoscaling"); ok {
+		yamlConfig := v.([]interface{})[0].(map[string]interface{})
+		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
+		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+			ClusterId:                clusterId,
+			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
+		}
+	}
+	if v, ok := d.GetOk("be_volume_autoscaling"); ok {
+		yamlConfig := v.([]interface{})[0].(map[string]interface{})
+		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
+		if err != nil {
+			return diag.FromErr(err)
+		}
+		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_BE
+		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+			ClusterId:                clusterId,
+			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
+		}
+	}
 
 	if v, ok := d.GetOk("fe_configs"); ok && len(d.Get("fe_configs").(map[string]interface{})) > 0 {
 		configMap := v.(map[string]interface{})
@@ -1065,7 +1079,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 		return diag.FromErr(err)
 	}
 
-	var volumeAutoscalingConfigsMap map[cluster.ModuleTypeNumber]*cluster.VolumeAutoScalingConfig
+	volumeAutoscalingConfigsMap := map[cluster.ModuleTypeNumber]*cluster.VolumeAutoScalingConfig{}
 	for _, v := range volumeAutoscalingConfigs.VolumeAutoscalingConfigs {
 		volumeAutoscalingConfigsMap[v.ModuleType] = v
 	}
