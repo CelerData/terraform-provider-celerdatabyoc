@@ -104,7 +104,7 @@ func resourceElasticClusterV2() *schema.Resource {
 					Schema: map[string]*schema.Schema{
 						"enable": {
 							Type:     schema.TypeBool,
-							Optional: false,
+							Optional: true,
 							Default:  true,
 						},
 						"trigger_expansion_percentage": {
@@ -1096,7 +1096,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		if err != nil {
 			return diag.FromErr(err)
 		}
-		autoscalingConfig.ModuleType = cluster.ClusterModuleTypeFE
+		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
 		coordinatorItem.VolumeAutoScalingConfig = autoscalingConfig
 	}
 
@@ -1452,9 +1452,12 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
-	volumeAutoscalingConfigsMap := make(map[cluster.ClusterModuleType]*cluster.VolumeAutoScalingConfig)
+	volumeAutoscalingConfigsMap := make(map[cluster.ModuleTypeNumber]*cluster.VolumeAutoScalingConfig)
+	jsonBytes, _ = json.Marshal(volumeAutoscalingConfigs)
+	log.Printf("[DEBUG] get volume autoscaling configs, clusterId:%s, data:%s", clusterId, string(jsonBytes))
 	for _, v := range volumeAutoscalingConfigs.VolumeAutoscalingConfigs {
 		volumeAutoscalingConfigsMap[v.ModuleType] = v
+		log.Printf("[DEBUG] volume autoscaling config, clusterId:%s moduleType:%s config:%+v", clusterId, v.ModuleType, *v)
 	}
 
 	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterId)
@@ -1675,7 +1678,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok && v != nil {
-		if cfg, ok := volumeAutoscalingConfigsMap[cluster.ClusterModuleTypeFE]; ok {
+		if cfg, ok := volumeAutoscalingConfigsMap[cluster.ModuleTypeNumber_MODULE_TYPE_FE]; ok {
 			d.Set("coordinator_node_volume_autoscaling", []interface{}{
 				map[string]interface{}{
 					"enable":                        cfg.Enable,
@@ -2113,12 +2116,22 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 	if d.HasChange("coordinator_node_volume_autoscaling") && !d.IsNewResource() {
 		_, v := d.GetChange("coordinator_node_volume_autoscaling")
-		yamlConfig := v.([]interface{})[0].(map[string]interface{})
-		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
-		if err != nil {
-			return diag.FromErr(err)
+		vList := v.([]interface{})
+		var autoscalingConfig *cluster.VolumeAutoScalingConfig
+		if len(vList) > 0 {
+			yamlConfig := vList[0].(map[string]interface{})
+			var err error
+			autoscalingConfig, err = getVolumeAutoscalingFromYaml(yamlConfig)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		} else {
+			autoscalingConfig = &cluster.VolumeAutoScalingConfig{
+				Enable: false,
+			}
 		}
-		autoscalingConfig.ModuleType = cluster.ClusterModuleTypeFE
+
+		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
 		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
 			ClusterId:                clusterId,
 			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},

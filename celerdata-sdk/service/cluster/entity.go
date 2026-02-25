@@ -159,25 +159,34 @@ type DiskInfo struct {
 	Throughput uint64 `json:"throughput"`
 }
 
+type ModuleTypeNumber int32
+
+const (
+	ModuleTypeNumber_MODULE_TYPE_UNKNOWN   ModuleTypeNumber = 0
+	ModuleTypeNumber_MODULE_TYPE_FE        ModuleTypeNumber = 1
+	ModuleTypeNumber_MODULE_TYPE_BE        ModuleTypeNumber = 2
+	ModuleTypeNumber_MODULE_TYPE_WAREHOUSE ModuleTypeNumber = 3
+)
+
 type VolumeAutoScalingConfig struct {
-	Enable                     bool              `json:"enable"`
-	ModuleType                 ClusterModuleType `json:"module_type"`
-	TriggerExpansionPercentage uint32            `json:"trigger_expansion_percentage"`
-	ExpansionStepPerNode       uint32            `json:"expansion_step_per_node"`
-	ExpansionPercentagePerNode uint32            `json:"expansion_percentage_per_node"`
-	MaxSizePerNode             uint32            `json:"max_size_per_node"`
+	Enable                     bool             `json:"enable" mapstructure:"enable"`
+	ModuleType                 ModuleTypeNumber `json:"module_type" mapstructure:"module_type"`
+	TriggerExpansionPercentage uint32           `json:"trigger_expansion_percentage" mapstructure:"trigger_expansion_percentage"`
+	ExpansionStepPerNode       uint32           `json:"expansion_step_per_node" mapstructure:"expansion_step_per_node"`
+	ExpansionPercentagePerNode uint32           `json:"expansion_percentage_per_node" mapstructure:"expansion_percentage_per_node"`
+	MaxSizePerNode             uint32           `json:"max_size_per_node" mapstructure:"max_size_per_node"`
 }
 
 type ClusterItem struct {
-	Type               ClusterModuleType `json:"type"`
-	Name               string            `json:"name"`
-	Num                uint32            `json:"num"`
-	StorageSizeGB      uint64            `json:"storage_size_gb"` // deprecated
-	InstanceType       string            `json:"instance_type"`
-	DiskInfo           *DiskInfo         `json:"disk_info"`
-	DistributionPolicy string            `json:"distribution_policy"`
-	SpecifyAZ          string            `json:"specify_az"`
-	Tags               []*Kv             `json:"tags"`
+	Type                    ClusterModuleType        `json:"type"`
+	Name                    string                   `json:"name"`
+	Num                     uint32                   `json:"num"`
+	StorageSizeGB           uint64                   `json:"storage_size_gb"` // deprecated
+	InstanceType            string                   `json:"instance_type"`
+	DiskInfo                *DiskInfo                `json:"disk_info"`
+	DistributionPolicy      string                   `json:"distribution_policy"`
+	SpecifyAZ               string                   `json:"specify_az"`
+	Tags                    []*Kv                    `json:"tags"`
 	VolumeAutoScalingConfig *VolumeAutoScalingConfig `json:"volume_auto_scaling_config"`
 }
 
@@ -919,17 +928,17 @@ type ClusterSchedulePolicy struct {
 }
 
 type GetVolumeAutoScalingConfigsReq struct {
-	ClusterId string `json:"cluster_id"`
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
 }
 
 type GetVolumeAutoScalingConfigsResp struct {
-	ClusterId                string                     `json:"cluster_id"`
-	VolumeAutoscalingConfigs []*VolumeAutoScalingConfig `json:"volume_autoscaling_configs"`
+	ClusterId                string                     `json:"cluster_id" mapstructure:"cluster_id"`
+	VolumeAutoscalingConfigs []*VolumeAutoScalingConfig `json:"volume_autoscaling_configs" mapstructure:"volume_autoscaling_configs"`
 }
 
 type SetVolumeAutoScalingConfigsReq struct {
-	ClusterId                string                     `json:"cluster_id"`
-	VolumeAutoscalingConfigs []*VolumeAutoScalingConfig `json:"volume_autoscaling_configs"`
+	ClusterId                string                     `json:"cluster_id" mapstructure:"cluster_id"`
+	VolumeAutoscalingConfigs []*VolumeAutoScalingConfig `json:"volume_autoscaling_configs" mapstructure:"volume_autoscaling_configs"`
 }
 
 type CheckClusterSchedulePolicyReq struct {
