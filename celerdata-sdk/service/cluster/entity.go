@@ -178,16 +178,15 @@ type VolumeAutoScalingConfig struct {
 }
 
 type ClusterItem struct {
-	Type                    ClusterModuleType        `json:"type"`
-	Name                    string                   `json:"name"`
-	Num                     uint32                   `json:"num"`
-	StorageSizeGB           uint64                   `json:"storage_size_gb"` // deprecated
-	InstanceType            string                   `json:"instance_type"`
-	DiskInfo                *DiskInfo                `json:"disk_info"`
-	DistributionPolicy      string                   `json:"distribution_policy"`
-	SpecifyAZ               string                   `json:"specify_az"`
-	Tags                    []*Kv                    `json:"tags"`
-	VolumeAutoScalingConfig *VolumeAutoScalingConfig `json:"volume_auto_scaling_config"`
+	Type               ClusterModuleType `json:"type"`
+	Name               string            `json:"name"`
+	Num                uint32            `json:"num"`
+	StorageSizeGB      uint64            `json:"storage_size_gb"` // deprecated
+	InstanceType       string            `json:"instance_type"`
+	DiskInfo           *DiskInfo         `json:"disk_info"`
+	DistributionPolicy string            `json:"distribution_policy"`
+	SpecifyAZ          string            `json:"specify_az"`
+	Tags               []*Kv             `json:"tags"`
 }
 
 type Script struct {

@@ -195,7 +195,7 @@ func resourceClassicCluster() *schema.Resource {
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-						"enabled": {
+						"enable": {
 							Type:     schema.TypeBool,
 							Optional: true,
 							Default:  true,
@@ -850,7 +850,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
 		})
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update FE node volume autoscaling config: %w", d.Id(), err))
 		}
 	}
 	if v, ok := d.GetOk("be_volume_autoscaling"); ok {
@@ -865,7 +865,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
 		})
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update BE node volume autoscaling config: %w", d.Id(), err))
 		}
 	}
 
@@ -1476,7 +1476,7 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
 		})
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update fe volume autoscaling config: %s", d.Id(), err.Error()))
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update FE volume autoscaling config: %w", d.Id(), err))
 		}
 	}
 	if d.HasChange("be_volume_autoscaling") && !d.IsNewResource() {
@@ -1502,7 +1502,7 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
 		})
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update be volume autoscaling config: %s", d.Id(), err.Error()))
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update BE volume autoscaling config: %w", d.Id(), err))
 		}
 	}
 

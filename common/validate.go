@@ -51,7 +51,7 @@ func ValidateVolumeAutoscalingPercentage() schema.SchemaValidateDiagFunc {
 			diag := diag.Diagnostic{
 				Severity: diag.Error,
 				Summary:  "Invalid value",
-				Detail:   fmt.Sprintf("Param `trigger_expansion_percentage` is invalid. The range of values is: [80,90]"),
+				Detail:   "Param `trigger_expansion_percentage` is invalid. The range of values is: [80,90]",
 			}
 			diags = append(diags, diag)
 		}
@@ -64,11 +64,11 @@ func ValidateVolumeAutoscalingStepBySize() schema.SchemaValidateDiagFunc {
 		value := v.(int)
 		var diags diag.Diagnostics
 
-		if value < 10 || value > 32000 {
+		if value < 5 || value > 16000 {
 			diag := diag.Diagnostic{
 				Severity: diag.Error,
 				Summary:  "Invalid value",
-				Detail:   fmt.Sprintf("Param `expansion_step_per_node` is invalid. The range of values is: [10,32000]"),
+				Detail:   "Param `expansion_step_per_node` is invalid. The range of values is: [5,16000]",
 			}
 			diags = append(diags, diag)
 		}
@@ -85,7 +85,7 @@ func ValidateVolumeAutoscalingStepByPercentage() schema.SchemaValidateDiagFunc {
 			diag := diag.Diagnostic{
 				Severity: diag.Error,
 				Summary:  "Invalid value",
-				Detail:   fmt.Sprintf("Param `expansion_percentage_per_node` is invalid. The range of values is: [10,100]"),
+				Detail:   "Param `expansion_percentage_per_node` is invalid. The range of values is: [10,100]",
 			}
 			diags = append(diags, diag)
 		}
@@ -98,11 +98,11 @@ func ValidateVolumeAutoscalingMax() schema.SchemaValidateDiagFunc {
 		value := v.(int)
 		var diags diag.Diagnostics
 
-		if value < 100 || value > 32000 {
+		if value < 50 || value > 16000 {
 			diag := diag.Diagnostic{
 				Severity: diag.Error,
 				Summary:  "Invalid value",
-				Detail:   fmt.Sprintf("Param `max_size_per_node` is invalid. The range of values is: [10,32000]"),
+				Detail:   "Param `max_size_per_node` is invalid. The range of values is: [50,16000]",
 			}
 			diags = append(diags, diag)
 		}
