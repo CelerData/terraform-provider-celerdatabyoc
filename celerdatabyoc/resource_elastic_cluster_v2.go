@@ -1219,23 +1219,20 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %w", d.Id(), err))
 		}
 	} else {
-		// If the user does not configure volume autoscaling, it will be enabled by default for new clusters created after 2026-03-01 UTC.
-		cutoffDate := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC).Unix()
-		if time.Now().Unix() >= cutoffDate {
-			autoscalingConfig := &cluster.VolumeAutoScalingConfig{
-				Enable:                     true,
-				TriggerExpansionPercentage: 85,
-				ExpansionStepPerNode:       50,
-				MaxSizePerNode:             500,
-				ModuleType:                 cluster.ModuleTypeNumber_MODULE_TYPE_FE,
-			}
-			err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
-				ClusterId:                clusterId,
-				VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
-			})
-			if err != nil {
-				return diag.FromErr(fmt.Errorf("cluster (%s) failed to auto-enable coordinator node volume autoscaling: %w", d.Id(), err))
-			}
+		// If the user does not configure volume autoscaling, it will be enabled by default.
+		autoscalingConfig := &cluster.VolumeAutoScalingConfig{
+			Enable:                     true,
+			TriggerExpansionPercentage: 85,
+			ExpansionStepPerNode:       50,
+			MaxSizePerNode:             500,
+			ModuleType:                 cluster.ModuleTypeNumber_MODULE_TYPE_FE,
+		}
+		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+			ClusterId:                clusterId,
+			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to auto-enable coordinator node volume autoscaling: %w", d.Id(), err))
 		}
 	}
 
