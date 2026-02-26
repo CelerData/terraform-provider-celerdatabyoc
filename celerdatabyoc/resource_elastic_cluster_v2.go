@@ -3137,3 +3137,30 @@ type UpdateWarehouseReq struct {
 	newParamMap    map[string]interface{}
 	whExternalInfo *cluster.WarehouseExternalInfo
 }
+
+func getVolumeAutoscalingFromYaml(yamlConfig map[string]interface{}) (*cluster.VolumeAutoScalingConfig, error) {
+	autoscalingConfig := &cluster.VolumeAutoScalingConfig{}
+	if enable, ok := yamlConfig["enable"]; ok {
+		autoscalingConfig.Enable = enable.(bool)
+	}
+	if triggerExpansionPercentage, ok := yamlConfig["trigger_expansion_percentage"]; ok {
+		autoscalingConfig.TriggerExpansionPercentage = uint32(triggerExpansionPercentage.(int))
+	}
+	if expansionStepPerNode, ok := yamlConfig["expansion_step_per_node"]; ok {
+		autoscalingConfig.ExpansionStepPerNode = uint32(expansionStepPerNode.(int))
+	}
+	if expansionPercentagePerNode, ok := yamlConfig["expansion_percentage_per_node"]; ok {
+		autoscalingConfig.ExpansionPercentagePerNode = uint32(expansionPercentagePerNode.(int))
+	}
+	if maxSizePerNode, ok := yamlConfig["max_size_per_node"]; ok {
+		autoscalingConfig.MaxSizePerNode = uint32(maxSizePerNode.(int))
+	}
+
+	if autoscalingConfig.ExpansionPercentagePerNode != 0 && autoscalingConfig.ExpansionStepPerNode != 0 {
+		return nil, errors.New("cannot set both expansion_percentage_per_node and expansion_step_per_node")
+	} else if autoscalingConfig.ExpansionPercentagePerNode == 0 && autoscalingConfig.ExpansionStepPerNode == 0 {
+		return nil, errors.New("you must set one of expansion_percentage_per_node and expansion_step_per_node")
+	}
+
+	return autoscalingConfig, nil
+}
