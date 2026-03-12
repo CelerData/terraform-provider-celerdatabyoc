@@ -576,7 +576,16 @@ func MarkScriptReRun(d *schema.ResourceDiff) error {
 		return nil
 	}
 
-	scripts := d.Get("scripts").(*schema.Set).List()
+	scriptsRaw := d.Get("scripts")
+	if scriptsRaw == nil {
+		return nil
+	}
+
+	scripts := scriptsRaw.(*schema.Set).List()
+	if len(scripts) == 0 {
+		return nil
+	}
+
 	for _, s := range scripts {
 		script := s.(map[string]interface{})
 		if reRun, ok := script["rerun"].(bool); ok && reRun {
@@ -2800,10 +2809,16 @@ func RunScripts(ctx context.Context, req RunScriptsReq) diag.Diagnostics {
 			scriptList = v.(*schema.Set).List()
 		}
 	} else {
-		_, n := d.GetChange("scripts")
-		for _, item := range n.(*schema.Set).List() {
+		old, n := d.GetChange("scripts")
+		oldSet := old.(*schema.Set)
+		newSet := n.(*schema.Set)
+
+		// Get scripts that have changed (added/modified)
+		for _, item := range newSet.List() {
 			m := item.(map[string]interface{})
-			if m["rerun"].(bool) {
+
+			// Check if this script is new or modified
+			if !oldSet.Contains(item) || m["rerun"].(bool) {
 				scriptList = append(scriptList, item)
 			}
 		}
