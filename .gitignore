@@ -30,3 +30,5 @@ vendor/
 go.work
 
 GEMINI.md
+/tf-test/*
+
