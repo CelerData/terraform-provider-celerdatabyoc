@@ -533,6 +533,12 @@ func resourceElasticClusterV2() *schema.Resource {
 				Default:      3600,
 				ValidateFunc: validation.IntAtMost(int(common.DeployOrScaleClusterTimeout.Seconds())),
 			},
+			"timezone": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Specifies the timezone for the cluster.",
+				Default:     "Etc/UTC",
+			},
 			"coordinator_node_configs": {
 				Type:     schema.TypeMap,
 				Optional: true,
@@ -1001,6 +1007,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		RunScriptsParallel:           d.Get("run_scripts_parallel").(bool),
 		QueryPort:                    int32(d.Get("query_port").(int)),
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
+		Timezone:                     d.Get("timezone").(string),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
 	}

@@ -210,7 +210,8 @@ type ClusterConf struct {
 	EnabledTerminationProtection bool `json:"enabled_termination_protection"`
 	// table_name_case_insensitive indicates whether cluster will be created with table name case insensitive mode.
 	// this feature is supported starting from sr 4.0.0
-	TableNameCaseInsensitive bool `json:"table_name_case_insensitive"`
+	TableNameCaseInsensitive bool   `json:"table_name_case_insensitive"`
+	Timezone                 string `json:"timezone"`
 }
 
 type GetReq struct {
