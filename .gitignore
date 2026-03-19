@@ -30,3 +30,4 @@ vendor/
 go.work
 
 GEMINI.md
+terraform-provider-celerdatabyoc
