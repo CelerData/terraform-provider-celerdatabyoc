@@ -667,6 +667,10 @@ type ScaleWarehouseNumResp struct {
 type ScaleWarehouseSizeReq struct {
 	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
 	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
+	Iops        int64  `json:"iops" mapstructure:"iops"`
+	Throughput  int64  `json:"throughput" mapstructure:"throughput"`
+	VmVolSize   int64  `json:"vm_vol_size" mapstructure:"vm_vol_size"`
+	VmVolNum    int64  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 }
 
 type ScaleWarehouseSizeResp struct {

@@ -631,7 +631,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 	clusterAPI := cluster.NewClustersAPI(c)
 	networkAPI := network.NewNetworkAPI(c)
 
-	clusterId := d.Id()
 	csp := d.Get("csp").(string)
 	region := d.Get("region").(string)
 	isNewResource := d.Id() == ""
@@ -805,25 +804,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			}
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
 		}
-
-		if len(clusterId) > 0 {
-			// Check is instance store
-			whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
-			for whName, whExInfo := range whExternalInfoMap {
-				if v, ok := whVmInfoMap[whName]; ok {
-					whExternalInfo := &cluster.WarehouseExternalInfo{}
-					json.Unmarshal([]byte(whExInfo.(string)), whExternalInfo)
-
-					expectStr := "local disk vm instance type"
-					if !whExternalInfo.IsInstanceStore {
-						expectStr = "nonlocal disk vm instance type"
-					}
-					if whExternalInfo.IsInstanceStore != v.IsInstanceStore {
-						return fmt.Errorf("the disk type of the warehouse[%s] must be the same as the previous disk type, expect:%s", whName, expectStr)
-					}
-				}
-			}
-		}
 	}
 
 	if d.HasChange("warehouse") {
@@ -897,25 +877,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			}
 
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
-		}
-
-		if len(clusterId) > 0 {
-			// 3. check is instance store
-			whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
-			for whName, whExInfo := range whExternalInfoMap {
-				if v, ok := whVmInfoMap[whName]; ok {
-					whExternalInfo := &cluster.WarehouseExternalInfo{}
-					json.Unmarshal([]byte(whExInfo.(string)), whExternalInfo)
-
-					expectStr := "local disk vm instance type"
-					if !whExternalInfo.IsInstanceStore {
-						expectStr = "nonlocal disk vm instance type"
-					}
-					if whExternalInfo.IsInstanceStore != v.IsInstanceStore {
-						return fmt.Errorf("the disk type of the warehouse[%s] must be the same as the previous disk type, expect:%s", whName, expectStr)
-					}
-				}
-			}
 		}
 	}
 
@@ -2576,10 +2537,55 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 	computeNodeSizeChanged := oldParamMap["compute_node_size"].(string) != newParamMap["compute_node_size"].(string)
 	if computeNodeSizeChanged {
 		vmCate := newParamMap["compute_node_size"].(string)
-		resp, err := clusterAPI.ScaleWarehouseSize(ctx, &cluster.ScaleWarehouseSizeReq{
-			WarehouseId: warehouseId,
+		vmCateInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+			Csp:         csp,
+			Region:      region,
+			ProcessType: string(cluster.ClusterModuleTypeBE),
 			VmCate:      vmCate,
 		})
+		if err != nil {
+			log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, vmCate, err)
+			return diag.FromErr(fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, vmCate, err.Error()))
+		}
+
+		if vmCateInfoResp.VmInfo == nil {
+			return diag.FromErr(fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, vmCate))
+		}
+
+		scaleReq := &cluster.ScaleWarehouseSizeReq{
+			WarehouseId: warehouseId,
+			VmCate:      vmCate,
+		}
+
+		if computeNodeIsInstanceStore && !vmCateInfoResp.VmInfo.IsInstanceStore {
+			newVolumeConfig := cluster.DefaultBeVolumeMap()
+			if len(newParamMap["compute_node_volume_config"].([]interface{})) > 0 {
+				newVolumeConfig = newParamMap["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})
+			}
+
+			if newVolumeConfig["vol_number"].(int) > int(vmCateInfoResp.VmInfo.MaxDataDiskCount) {
+				return diag.FromErr(fmt.Errorf("the maximum allowed `vol_number` for this VM type is: %d", vmCateInfoResp.VmInfo.MaxDataDiskCount))
+			}
+
+			if newVolumeConfig["vol_number"].(int) < 1 {
+				return diag.FromErr(fmt.Errorf("the minimum allowed `vol_number` is: 1"))
+			}
+
+			if v, ok := newVolumeConfig["vol_number"]; ok {
+				scaleReq.VmVolNum = int64(v.(int))
+			}
+			if v, ok := newVolumeConfig["vol_size"]; ok {
+				scaleReq.VmVolSize = int64(v.(int))
+			}
+			if v, ok := newVolumeConfig["iops"]; ok {
+				scaleReq.Iops = int64(v.(int))
+			}
+			if v, ok := newVolumeConfig["throughput"]; ok {
+				scaleReq.Throughput = int64(v.(int))
+			}
+		}
+
+		resp, err := clusterAPI.ScaleWarehouseSize(ctx, scaleReq)
 
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("failed to scale warehouse size, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
