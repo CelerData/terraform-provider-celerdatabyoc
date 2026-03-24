@@ -67,7 +67,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				Type:         schema.TypeInt,
 				Optional:     true,
 				Default:      1,
-				ValidateFunc: validation.IntInSlice([]int{1, 3, 5, 7}),
+				ValidateFunc: validation.IntInSlice([]int{1, 3, 5, 6, 7, 8, 9, 10, 11}),
 			},
 			"coordinator_node_volume_config": {
 				Type:     schema.TypeList,
