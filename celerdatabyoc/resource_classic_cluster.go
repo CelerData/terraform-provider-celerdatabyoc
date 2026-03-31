@@ -2689,6 +2689,8 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 		}
 	}
 
+	hasFailed := false
+	errMsg := ""
 	if len(updatedVariables) > 0 {
 		resp, err := api.SetGlobalSqlSessionVariables(ctx, &cluster.SetGlobalSqlSessionVariablesReq{
 			ClusterId: clusterId,
@@ -2704,13 +2706,8 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 			}
 		}
 		if resp.HasFailed {
-			return diag.Diagnostics{
-				diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  "Failed to update global session variables",
-					Detail:   fmt.Sprintf("ErrMsg:%s", strings.Join(resp.ErrMsgArr, "\n")),
-				},
-			}
+			hasFailed = true
+			errMsg = strings.Join(resp.ErrMsgArr, "\n")
 		}
 	}
 
@@ -2729,15 +2726,21 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 			}
 		}
 		if resp.HasFailed {
-			return diag.Diagnostics{
-				diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  "Failed to reset global session variables",
-					Detail:   fmt.Sprintf("ErrMsg:%s", strings.Join(resp.ErrMsgArr, "\n")),
-				},
-			}
+			hasFailed = true
+			errMsg = errMsg + strings.Join(resp.ErrMsgArr, "\n")
 		}
 	}
+
+	if hasFailed {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Failed to update global session variables",
+				Detail:   fmt.Sprintf("ErrMsg:%s", errMsg),
+			},
+		}
+	}
+
 	return nil
 }
 
