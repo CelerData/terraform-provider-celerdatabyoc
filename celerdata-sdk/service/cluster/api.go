@@ -92,6 +92,10 @@ type IClusterAPI interface {
 
 	ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
 	CleanRangerConfigV2(ctx context.Context, req *CleanRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
+
+	CheckAuditLoaderPlugin(ctx context.Context, req *CheckAuditLoaderPluginReq) (*CheckAuditLoaderPluginResp, error)
+	InstallAuditLoaderPlugin(ctx context.Context, req *InstallAuditLoaderPluginReq) (*InstallAuditLoaderPluginResp, error)
+	UninstallAuditLoaderPlugin(ctx context.Context, req *UninstallAuditLoaderPluginReq) (*UninstallAuditLoaderPluginResp, error)
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -701,6 +705,33 @@ func (c *clusterAPI) ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerCo
 func (c *clusterAPI) CleanRangerConfigV2(ctx context.Context, req *CleanRangerConfigV2Req) (*OperateRangerConfigV2Resp, error) {
 	resp := &OperateRangerConfigV2Resp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/clean-ranger-config", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) CheckAuditLoaderPlugin(ctx context.Context, req *CheckAuditLoaderPluginReq) (*CheckAuditLoaderPluginResp, error) {
+	resp := &CheckAuditLoaderPluginResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/audit-loader-plugin", c.apiVersion, req.ClusterID), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) InstallAuditLoaderPlugin(ctx context.Context, req *InstallAuditLoaderPluginReq) (*InstallAuditLoaderPluginResp, error) {
+	resp := &InstallAuditLoaderPluginResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/audit-loader-plugin/install", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) UninstallAuditLoaderPlugin(ctx context.Context, req *UninstallAuditLoaderPluginReq) (*UninstallAuditLoaderPluginResp, error) {
+	resp := &UninstallAuditLoaderPluginResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/audit-loader-plugin/uninstall", c.apiVersion, req.ClusterID), req, resp)
 	if err != nil {
 		return nil, err
 	}
