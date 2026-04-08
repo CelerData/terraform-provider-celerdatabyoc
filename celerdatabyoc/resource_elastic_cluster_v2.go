@@ -452,6 +452,11 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"enabled_arrow_flight": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 			"table_name_case_insensitive": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -632,7 +637,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 	clusterAPI := cluster.NewClustersAPI(c)
 	networkAPI := network.NewNetworkAPI(c)
 
-	clusterId := d.Id()
 	csp := d.Get("csp").(string)
 	region := d.Get("region").(string)
 	isNewResource := d.Id() == ""
@@ -806,25 +810,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			}
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
 		}
-
-		if len(clusterId) > 0 {
-			// Check is instance store
-			whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
-			for whName, whExInfo := range whExternalInfoMap {
-				if v, ok := whVmInfoMap[whName]; ok {
-					whExternalInfo := &cluster.WarehouseExternalInfo{}
-					json.Unmarshal([]byte(whExInfo.(string)), whExternalInfo)
-
-					expectStr := "local disk vm instance type"
-					if !whExternalInfo.IsInstanceStore {
-						expectStr = "nonlocal disk vm instance type"
-					}
-					if whExternalInfo.IsInstanceStore != v.IsInstanceStore {
-						return fmt.Errorf("the disk type of the warehouse[%s] must be the same as the previous disk type, expect:%s", whName, expectStr)
-					}
-				}
-			}
-		}
 	}
 
 	if d.HasChange("warehouse") {
@@ -898,25 +883,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			}
 
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
-		}
-
-		if len(clusterId) > 0 {
-			// 3. check is instance store
-			whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
-			for whName, whExInfo := range whExternalInfoMap {
-				if v, ok := whVmInfoMap[whName]; ok {
-					whExternalInfo := &cluster.WarehouseExternalInfo{}
-					json.Unmarshal([]byte(whExInfo.(string)), whExternalInfo)
-
-					expectStr := "local disk vm instance type"
-					if !whExternalInfo.IsInstanceStore {
-						expectStr = "nonlocal disk vm instance type"
-					}
-					if whExternalInfo.IsInstanceStore != v.IsInstanceStore {
-						return fmt.Errorf("the disk type of the warehouse[%s] must be the same as the previous disk type, expect:%s", whName, expectStr)
-					}
-				}
-			}
 		}
 	}
 
@@ -1205,6 +1171,17 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	enabled := d.Get("enabled_arrow_flight").(bool)
+	if enabled {
+		diagnostics := configArrowFlight(ctx, clusterAPI, &cluster.SetClusterArrowFlightReq{
+			ClusterId: clusterId,
+			Enabled:   enabled,
+		})
+		if diagnostics != nil {
+			return diagnostics
+		}
+	}
+
 	if v, ok := d.GetOk("global_session_variables"); ok && len(d.Get("global_session_variables").(map[string]interface{})) > 0 {
 		diagnostics := SetGlobalSqlSessionVariables(ctx, v, clusterAPI, clusterId)
 		if diagnostics != nil {
@@ -1418,6 +1395,11 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		log.Printf("[ERROR] get cluster termination protection failed, clusterId:%s err:%+v", clusterId, err)
 		return diag.FromErr(err)
+	}
+
+	arrowFlight, err := clusterAPI.GetClusterArrowFlight(ctx, &cluster.GetClusterArrowFlightReq{ClusterId: clusterId})
+	if err != nil {
+		return diag.Errorf("Failed to get cluster arrow flight, errMsg:%s", err.Error())
 	}
 
 	rangerConfigResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
@@ -1639,6 +1621,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
+	d.Set("enabled_arrow_flight", arrowFlight.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
 	// Check actual audit loader plugin status (don't reconcile here, just report actual state)
@@ -1896,6 +1879,17 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to set termination protection: %s", d.Id(), err.Error()))
+		}
+	}
+
+	if d.HasChange("enabled_arrow_flight") && !d.IsNewResource() {
+		enabled := d.Get("enabled_arrow_flight").(bool)
+		diagnostics := configArrowFlight(ctx, clusterAPI, &cluster.SetClusterArrowFlightReq{
+			ClusterId: clusterId,
+			Enabled:   enabled,
+		})
+		if diagnostics != nil {
+			return diagnostics
 		}
 	}
 
@@ -2579,10 +2573,55 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 	computeNodeSizeChanged := oldParamMap["compute_node_size"].(string) != newParamMap["compute_node_size"].(string)
 	if computeNodeSizeChanged {
 		vmCate := newParamMap["compute_node_size"].(string)
-		resp, err := clusterAPI.ScaleWarehouseSize(ctx, &cluster.ScaleWarehouseSizeReq{
-			WarehouseId: warehouseId,
+		vmCateInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+			Csp:         csp,
+			Region:      region,
+			ProcessType: string(cluster.ClusterModuleTypeBE),
 			VmCate:      vmCate,
 		})
+		if err != nil {
+			log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, vmCate, err)
+			return diag.FromErr(fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, vmCate, err.Error()))
+		}
+
+		if vmCateInfoResp.VmInfo == nil {
+			return diag.FromErr(fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, vmCate))
+		}
+
+		scaleReq := &cluster.ScaleWarehouseSizeReq{
+			WarehouseId: warehouseId,
+			VmCate:      vmCate,
+		}
+
+		if computeNodeIsInstanceStore && !vmCateInfoResp.VmInfo.IsInstanceStore {
+			newVolumeConfig := cluster.DefaultBeVolumeMap()
+			if len(newParamMap["compute_node_volume_config"].([]interface{})) > 0 {
+				newVolumeConfig = newParamMap["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})
+			}
+
+			if newVolumeConfig["vol_number"].(int) > int(vmCateInfoResp.VmInfo.MaxDataDiskCount) {
+				return diag.FromErr(fmt.Errorf("the maximum allowed `vol_number` for this VM type is: %d", vmCateInfoResp.VmInfo.MaxDataDiskCount))
+			}
+
+			if newVolumeConfig["vol_number"].(int) < 1 {
+				return diag.FromErr(fmt.Errorf("the minimum allowed `vol_number` is: 1"))
+			}
+
+			if v, ok := newVolumeConfig["vol_number"]; ok {
+				scaleReq.VmVolNum = int64(v.(int))
+			}
+			if v, ok := newVolumeConfig["vol_size"]; ok {
+				scaleReq.VmVolSize = int64(v.(int))
+			}
+			if v, ok := newVolumeConfig["iops"]; ok {
+				scaleReq.Iops = int64(v.(int))
+			}
+			if v, ok := newVolumeConfig["throughput"]; ok {
+				scaleReq.Throughput = int64(v.(int))
+			}
+		}
+
+		resp, err := clusterAPI.ScaleWarehouseSize(ctx, scaleReq)
 
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("failed to scale warehouse size, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
@@ -3155,3 +3194,57 @@ func waitForInfraActionElasticClusterV2(ctx context.Context, clusterAPI cluster.
 	return fmt.Errorf("timeout waiting for action %s to complete", actionId)
 }
 
+func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.SetClusterArrowFlightReq) diag.Diagnostics {
+	summary := "Failed to config arrow flight."
+
+	resp, err := clusterAPI.SetClusterArrowFlight(ctx, req)
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	log.Printf("[DEBUG] configArrowFlight, req:%v resp:%+v", req, resp)
+
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  req.ClusterId,
+		actionID:   resp.ActionID,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterInfraActionStatePending),
+			string(cluster.ClusterInfraActionStateOngoing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterInfraActionStateSucceeded),
+			string(cluster.ClusterInfraActionStateCompleted),
+			string(cluster.ClusterInfraActionStateFailed),
+		},
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   infraActionResp.ErrMsg,
+			},
+		}
+	}
+
+	return nil
+}

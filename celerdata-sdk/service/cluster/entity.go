@@ -667,6 +667,10 @@ type ScaleWarehouseNumResp struct {
 type ScaleWarehouseSizeReq struct {
 	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
 	VmCate      string `json:"vm_cate" mapstructure:"vm_cate"`
+	Iops        int64  `json:"iops" mapstructure:"iops"`
+	Throughput  int64  `json:"throughput" mapstructure:"throughput"`
+	VmVolSize   int64  `json:"vm_vol_size" mapstructure:"vm_vol_size"`
+	VmVolNum    int64  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 }
 
 type ScaleWarehouseSizeResp struct {
@@ -1087,4 +1091,21 @@ type UninstallAuditLoaderPluginReq struct {
 
 type UninstallAuditLoaderPluginResp struct {
 	InfraActionID string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type GetClusterArrowFlightReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type GetClusterArrowFlightResp struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+type SetClusterArrowFlightReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+	Enabled   bool   `json:"enabled" mapstructure:"enabled"`
+}
+
+type SetClusterArrowFlightResp struct {
+	ActionID string `json:"action_id" mapstructure:"action_id"`
 }
