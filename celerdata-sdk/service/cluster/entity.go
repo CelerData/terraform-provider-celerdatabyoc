@@ -1069,6 +1069,30 @@ type GetClusterTableNameCaseInsensitiveResp struct {
 	Enabled bool `json:"enabled" mapstructure:"enabled"`
 }
 
+type CheckAuditLoaderPluginReq struct {
+	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type CheckAuditLoaderPluginResp struct {
+	Installed bool `json:"plugin_installed" mapstructure:"plugin_installed"`
+}
+
+type InstallAuditLoaderPluginReq struct {
+	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type InstallAuditLoaderPluginResp struct {
+	InfraActionID string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
+type UninstallAuditLoaderPluginReq struct {
+	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type UninstallAuditLoaderPluginResp struct {
+	InfraActionID string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
 type GetClusterArrowFlightReq struct {
 	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
 }

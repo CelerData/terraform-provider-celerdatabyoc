@@ -462,6 +462,12 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"audit_loader_plugin_enabled": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Whether the audit loader plugin is enabled (default: false)",
+			},
 			"query_port": {
 				Type:     schema.TypeInt,
 				Optional: true,
@@ -1281,6 +1287,12 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	// Reconcile audit loader plugin state (post-install operation)
+	desiredEnabled := d.Get("audit_loader_plugin_enabled").(bool)
+	if _, err := reconcileAuditLoaderPlugin(ctx, clusterAPI, clusterId, desiredEnabled, string(cluster.ClusterStateRunning)); err != nil {
+		return diag.FromErr(fmt.Errorf("cluster (%s) %s", clusterId, err.Error()))
+	}
+
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
 		warningDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if warningDiag != nil {
@@ -1612,6 +1624,20 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("enabled_arrow_flight", arrowFlight.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
+	// Check actual audit loader plugin status (don't reconcile here, just report actual state)
+	checkResp, err := clusterAPI.CheckAuditLoaderPlugin(ctx, &cluster.CheckAuditLoaderPluginReq{
+		ClusterID: clusterId,
+	})
+	if err != nil {
+		log.Printf("[WARN] Failed to check audit loader plugin status: %s", err.Error())
+		// If we can't check, leave state unchanged
+	} else {
+		actualInstalled := checkResp.Installed
+		log.Printf("[DEBUG] Audit loader plugin actual state for cluster %s: installed=%t", clusterId, actualInstalled)
+		// Always set to actual state - this will trigger Update if config differs
+		d.Set("audit_loader_plugin_enabled", actualInstalled)
+	}
+
 	if len(rangerConfigResp.Configs) > 0 {
 		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 	}
@@ -1869,6 +1895,16 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
 		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
+	}
+
+	// Always reconcile audit loader plugin to ensure actual state matches desired config
+	// This handles both explicit config changes and any state drift
+	if !d.IsNewResource() {
+		desiredEnabled := d.Get("audit_loader_plugin_enabled").(bool)
+		log.Printf("[DEBUG] Reconciling audit loader plugin for cluster %s: desired=%t", clusterId, desiredEnabled)
+		if _, err := reconcileAuditLoaderPlugin(ctx, clusterAPI, clusterId, desiredEnabled, stateResp.ClusterState); err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) %s", d.Id(), err.Error()))
+		}
 	}
 
 	if elasticClusterV2NeedUnlock(d) {
@@ -3048,6 +3084,114 @@ type UpdateWarehouseReq struct {
 	oldParamMap    map[string]interface{}
 	newParamMap    map[string]interface{}
 	whExternalInfo *cluster.WarehouseExternalInfo
+}
+
+// reconcileAuditLoaderPlugin ensures the actual plugin state matches the desired state
+// Returns the actual installed state (true if installed, false if not)
+func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, desiredEnabled bool, clusterState string) (bool, error) {
+	// Only operate when cluster is in Running state
+	if clusterState != string(cluster.ClusterStateRunning) {
+		log.Printf("[DEBUG] Cluster %s not in Running state (%s), skipping audit loader plugin reconciliation", clusterId, clusterState)
+		return false, nil
+	}
+
+	// Check current installation status
+	checkResp, err := clusterAPI.CheckAuditLoaderPlugin(ctx, &cluster.CheckAuditLoaderPluginReq{
+		ClusterID: clusterId,
+	})
+	if err != nil {
+		log.Printf("[WARN] Failed to check audit loader plugin status for cluster %s: %s", clusterId, err.Error())
+		// If we can't check, assume not installed
+		return false, nil
+	}
+
+	actualInstalled := checkResp.Installed
+	log.Printf("[DEBUG] Audit loader plugin for cluster %s: desired=%t, actual=%t", clusterId, desiredEnabled, actualInstalled)
+
+	// If already in desired state, nothing to do
+	if actualInstalled == desiredEnabled {
+		log.Printf("[DEBUG] Audit loader plugin already in desired state for cluster %s", clusterId)
+		return actualInstalled, nil
+	}
+
+	// Reconcile: install or uninstall as needed
+	if desiredEnabled && !actualInstalled {
+		// Need to install
+		log.Printf("[INFO] Installing audit loader plugin for cluster %s", clusterId)
+		installResp, err := clusterAPI.InstallAuditLoaderPlugin(ctx, &cluster.InstallAuditLoaderPluginReq{
+			ClusterID: clusterId,
+		})
+		if err != nil {
+			return actualInstalled, fmt.Errorf("failed to install audit loader plugin: %w", err)
+		}
+
+		log.Printf("[INFO] Audit loader plugin install initiated for cluster %s, action_id: %s", clusterId, installResp.InfraActionID)
+
+		// Wait for installation to complete
+		if err := waitForInfraActionElasticClusterV2(ctx, clusterAPI, clusterId, installResp.InfraActionID); err != nil {
+			return actualInstalled, fmt.Errorf("failed to wait for audit loader plugin install: %w", err)
+		}
+
+		log.Printf("[INFO] Audit loader plugin successfully installed for cluster %s", clusterId)
+		return true, nil
+
+	} else if !desiredEnabled && actualInstalled {
+		// Need to uninstall
+		log.Printf("[INFO] Uninstalling audit loader plugin for cluster %s", clusterId)
+		uninstallResp, err := clusterAPI.UninstallAuditLoaderPlugin(ctx, &cluster.UninstallAuditLoaderPluginReq{
+			ClusterID: clusterId,
+		})
+		if err != nil {
+			return actualInstalled, fmt.Errorf("failed to uninstall audit loader plugin: %w", err)
+		}
+
+		log.Printf("[INFO] Audit loader plugin uninstall initiated for cluster %s, action_id: %s", clusterId, uninstallResp.InfraActionID)
+
+		// Wait for uninstallation to complete
+		if err := waitForInfraActionElasticClusterV2(ctx, clusterAPI, clusterId, uninstallResp.InfraActionID); err != nil {
+			return actualInstalled, fmt.Errorf("failed to wait for audit loader plugin uninstall: %w", err)
+		}
+
+		log.Printf("[INFO] Audit loader plugin successfully uninstalled for cluster %s", clusterId)
+		return false, nil
+	}
+
+	return actualInstalled, nil
+}
+
+// waitForInfraActionElasticClusterV2 waits for an infrastructure action to complete
+func waitForInfraActionElasticClusterV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, actionId string) error {
+	if actionId == "" {
+		return nil
+	}
+
+	maxRetries := 60 // 5 minutes with 5-second intervals
+	for i := 0; i < maxRetries; i++ {
+		stateResp, err := clusterAPI.GetClusterInfraActionState(ctx, &cluster.GetClusterInfraActionStateReq{
+			ClusterId: clusterId,
+			ActionId:  actionId,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get action state: %w", err)
+		}
+
+		log.Printf("[DEBUG] Action %s state: %s", actionId, stateResp.InfraActionState)
+
+		switch cluster.ClusterInfraActionState(stateResp.InfraActionState) {
+		case cluster.ClusterInfraActionStateSucceeded, cluster.ClusterInfraActionStateCompleted:
+			log.Printf("[INFO] Action %s completed successfully", actionId)
+			return nil
+		case cluster.ClusterInfraActionStateFailed:
+			return fmt.Errorf("action %s failed: %s", actionId, stateResp.ErrMsg)
+		case cluster.ClusterInfraActionStatePending, cluster.ClusterInfraActionStateOngoing:
+			// Continue waiting
+			time.Sleep(5 * time.Second)
+		default:
+			return fmt.Errorf("unknown action state: %s", stateResp.InfraActionState)
+		}
+	}
+
+	return fmt.Errorf("timeout waiting for action %s to complete", actionId)
 }
 
 func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.SetClusterArrowFlightReq) diag.Diagnostics {
