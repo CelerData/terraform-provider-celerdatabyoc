@@ -2617,6 +2617,7 @@ var AwsInternalTagKeys = map[string]bool{
 	"Workspace":               true,
 	"ServiceAccountName":      true,
 	"ServiceAccountID":        true,
+	"aws-apn-id":              true,
 }
 
 var AzureInternalTagKeys = map[string]bool{
