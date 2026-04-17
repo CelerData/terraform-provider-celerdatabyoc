@@ -1768,31 +1768,6 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if d.HasChange("enabled_termination_protection") && !d.IsNewResource() {
-		enabled := d.Get("enabled_termination_protection").(bool)
-		err := clusterAPI.SetClusterTerminationProtection(ctx, clusterId, &cluster.SetClusterTerminationProtectionReq{
-			Enabled: enabled,
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to set termination protection: %s", d.Id(), err.Error()))
-		}
-	}
-
-	if d.HasChange("enabled_arrow_flight") && !d.IsNewResource() {
-		enabled := d.Get("enabled_arrow_flight").(bool)
-		diagnostics := configArrowFlight(ctx, clusterAPI, &cluster.SetClusterArrowFlightReq{
-			ClusterId: clusterId,
-			Enabled:   enabled,
-		})
-		if diagnostics != nil {
-			return diagnostics
-		}
-	}
-
-	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
-		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
-	}
-
 	var diags diag.Diagnostics
 	if needResume(d) {
 		o, n := d.GetChange("expected_cluster_state")
@@ -1862,6 +1837,31 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if d.HasChange("enabled_termination_protection") && !d.IsNewResource() {
+		enabled := d.Get("enabled_termination_protection").(bool)
+		err := clusterAPI.SetClusterTerminationProtection(ctx, clusterId, &cluster.SetClusterTerminationProtectionReq{
+			Enabled: enabled,
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to set termination protection: %s", d.Id(), err.Error()))
+		}
+	}
+
+	if d.HasChange("enabled_arrow_flight") && !d.IsNewResource() {
+		enabled := d.Get("enabled_arrow_flight").(bool)
+		diagnostics := configArrowFlight(ctx, clusterAPI, &cluster.SetClusterArrowFlightReq{
+			ClusterId: clusterId,
+			Enabled:   enabled,
+		})
+		if diagnostics != nil {
+			return diagnostics
+		}
+	}
+
+	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
+		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
+	}
+
 	if d.HasChange("coordinator_node_volume_config") {
 		if diags := handleFEVolumeConfigChange(ctx, d, clusterAPI, clusterId); diags != nil {
 			return diags
@@ -1925,6 +1925,10 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	}
 
 	if diags := handleScaleOutWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
+		return diags
+	}
+
+	if diags := handleSuspendWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
 		return diags
 	}
 
@@ -2521,20 +2525,6 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("warehouse (%s) failed to update resource tags: %s", warehouseId, err.Error()))
-		}
-	}
-
-	if !isDefaultWarehouse {
-		expectedState := newParamMap["expected_state"].(string)
-		expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
-		// Modidy warehouse state
-		if expectedStateChanged {
-			if expectedState == string(cluster.ClusterStateSuspended) {
-				resp := suspendWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
-				if resp != nil {
-					return resp
-				}
-			}
 		}
 	}
 
@@ -3248,6 +3238,51 @@ func handleResumeWarehouses(ctx context.Context, d *schema.ResourceData, cluster
 		expectedStateChanged := oldWh["expected_state"].(string) != newWh["expected_state"].(string)
 		if expectedStateChanged && newWh["expected_state"].(string) == string(cluster.ClusterStateRunning) {
 			diags := resumeWarehouse(ctx, clusterAPI, clusterId, whExternalInfo.Id, whName)
+			if diags != nil {
+				return diags
+			}
+		}
+	}
+
+	return nil
+}
+
+func handleSuspendWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	if !d.HasChange("warehouse") {
+		return nil
+	}
+
+	o, n := d.GetChange("warehouse")
+	old := o.([]interface{})
+	newV := n.([]interface{})
+
+	oldWhMap := make(map[string]map[string]interface{})
+	for _, v := range old {
+		whMap := v.(map[string]interface{})
+		oldWhMap[whMap["name"].(string)] = whMap
+	}
+
+	whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+
+	for _, v := range newV {
+		newWh := v.(map[string]interface{})
+		whName := newWh["name"].(string)
+
+		oldWh, ok := oldWhMap[whName]
+		if !ok {
+			continue
+		}
+		whExternalInfoStr := whExternalInfoMap[whName].(string)
+		whExternalInfo := &cluster.WarehouseExternalInfo{}
+		json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+
+		if whExternalInfo.IsDefaultWarehouse {
+			continue
+		}
+
+		expectedStateChanged := oldWh["expected_state"].(string) != newWh["expected_state"].(string)
+		if expectedStateChanged && newWh["expected_state"].(string) == string(cluster.ClusterStateSuspended) {
+			diags := suspendWarehouse(ctx, clusterAPI, clusterId, whExternalInfo.Id, whName)
 			if diags != nil {
 				return diags
 			}
