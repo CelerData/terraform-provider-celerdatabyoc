@@ -1157,6 +1157,24 @@ func needUnlock(d *schema.ResourceData) bool {
 			d.HasChange("be_disk_per_size"))
 }
 
+func needFeScaleIn(d *schema.ResourceData) bool {
+	if !d.HasChange("coordinator_node_count") {
+		return false
+	}
+
+	o, n := d.GetChange("coordinator_node_count")
+	return n.(int) < o.(int)
+}
+
+func needFeScaleOut(d *schema.ResourceData) bool {
+	if !d.HasChange("coordinator_node_count") {
+		return false
+	}
+
+	o, n := d.GetChange("coordinator_node_count")
+	return n.(int) > o.(int)
+}
+
 func needResume(d *schema.ResourceData) bool {
 	if !d.HasChange("expected_cluster_state") {
 		return false

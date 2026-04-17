@@ -832,6 +832,31 @@ type UpgradeAMIResp struct {
 	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
+type ScaleUpFEAndUpgradeAMIReq struct {
+	RequestId  string `json:"request_id" mapstructure:"request_id"`
+	ClusterId  string `json:"cluster_id" mapstructure:"cluster_id"`
+	VmCategory string `json:"vm_category" mapstructure:"vm_category"`
+	Ami        string `json:"ami" mapstructure:"ami"`
+	Os         string `json:"os" mapstructure:"os"`
+}
+
+type ScaleUpFEAndUpgradeAMIResp struct {
+	ActionId string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ScaleUpWarehouseAndUpgradeAMIReq struct {
+	RequestId   string `json:"request_id" mapstructure:"request_id"`
+	ClusterId   string `json:"cluster_id" mapstructure:"cluster_id"`
+	WarehouseId string `json:"warehouse_id" mapstructure:"warehouse_id"`
+	VmCategory  string `json:"vm_category" mapstructure:"vm_category"`
+	Ami         string `json:"ami" mapstructure:"ami"`
+	Os          string `json:"os" mapstructure:"os"`
+}
+
+type ScaleUpWarehouseAndUpgradeAMIResp struct {
+	ActionId string `json:"action_id" mapstructure:"action_id"`
+}
+
 func ConvertStrToCustomConfigType(val string) CustomConfigType {
 	var customConfigType CustomConfigType
 	switch val {
