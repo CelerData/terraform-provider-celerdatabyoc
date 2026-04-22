@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/go-cty/cty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -27,6 +29,7 @@ const (
 	DEFAULT_WAREHOUSE_NAME = "default_warehouse"
 	CROSSING_AZ            = "crossing_az"
 	SPECIFY_AZ             = "specify_az"
+	MULTI_AZ               = "multi_az"
 )
 
 // V2 support multi-warehouse
@@ -137,6 +140,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
+							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs).",
 						},
 						"distribution_policy": {
 							Type:     schema.TypeString,
@@ -144,11 +148,18 @@ func resourceElasticClusterV2() *schema.Resource {
 							ValidateFunc: validation.StringInSlice([]string{
 								SPECIFY_AZ,
 								CROSSING_AZ,
+								MULTI_AZ,
 							}, false),
 						},
 						"specify_az": {
 							Type:     schema.TypeString,
 							Optional: true,
+						},
+						"specified_azs": {
+							Type:     schema.TypeList,
+							Optional: true,
+							MaxItems: 2,
+							Elem:     &schema.Schema{Type: schema.TypeString},
 						},
 						"resource_tags": {
 							Type:        schema.TypeMap,
@@ -252,6 +263,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
+							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs).",
 						},
 						"distribution_policy": {
 							Type:     schema.TypeString,
@@ -259,11 +271,18 @@ func resourceElasticClusterV2() *schema.Resource {
 							ValidateFunc: validation.StringInSlice([]string{
 								SPECIFY_AZ,
 								CROSSING_AZ,
+								MULTI_AZ,
 							}, false),
 						},
 						"specify_az": {
 							Type:     schema.TypeString,
 							Optional: true,
+						},
+						"specified_azs": {
+							Type:     schema.TypeList,
+							Optional: true,
+							MaxItems: 2,
+							Elem:     &schema.Schema{Type: schema.TypeString},
 						},
 						"resource_tags": {
 							Type:        schema.TypeMap,
@@ -686,10 +705,37 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		}
 	}
 
-	for _, v := range warehouses {
+	rawConfig := d.GetRawConfig()
+	for i, v := range warehouses {
 		vMap := v.(map[string]interface{})
-		if vMap["distribution_policy"].(string) != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
-			return errors.New("specify_az parameter only takes effect when the distribution_policy value is \"specify_az\"")
+		policy := vMap["distribution_policy"].(string)
+		azs := toStringSlice(vMap["specified_azs"])
+		cnc := vMap["compute_node_count"].(int)
+		rawWh := rawConfig.GetAttr("default_warehouse").Index(cty.NumberIntVal(0))
+		if i > 0 {
+			rawWh = rawConfig.GetAttr("warehouse").Index(cty.NumberIntVal(int64(i - 1)))
+		}
+		userSetComputeNodeCount := !rawWh.GetAttr("compute_node_count").IsNull()
+		if policy == MULTI_AZ {
+			if len(vMap["specify_az"].(string)) > 0 {
+				return errors.New("specify_az must be empty when distribution_policy is \"multi_az\"")
+			}
+			if len(azs) != 2 {
+				return errors.New("in multi_az distribution policy, specified_azs must contain exactly 2 AZs")
+			}
+			if !userSetComputeNodeCount {
+				return errors.New("compute_node_count is required when distribution_policy is \"multi_az\"")
+			}
+			if cnc <= 0 || cnc%len(azs) != 0 {
+				return fmt.Errorf("compute_node_count (%d) must be a positive multiple of len(specified_azs) (%d) when distribution_policy is \"multi_az\"", cnc, len(azs))
+			}
+		} else {
+			if policy != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
+				return errors.New("specify_az parameter only takes effect when the distribution_policy value is \"specify_az\"")
+			}
+			if len(azs) > 0 {
+				return errors.New("specified_azs parameter only takes effect when the distribution_policy value is \"multi_az\"")
+			}
 		}
 	}
 
@@ -1061,6 +1107,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		InstanceType:       defaultWhMap["compute_node_size"].(string),
 		DistributionPolicy: defaultWhMap["distribution_policy"].(string),
 		SpecifyAZ:          defaultWhMap["specify_az"].(string),
+		SpecifiedAZs:       toStringSlice(defaultWhMap["specified_azs"]),
 		Tags:               defaultWHTags,
 		DiskInfo: &cluster.DiskInfo{
 			Number:  2,
@@ -1466,10 +1513,14 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap["compute_node_size"] = v.Module.InstanceType
 		whMap["compute_node_count"] = v.Module.Num
 		whMap["resource_tags"] = whTags
+		whMap["specified_azs"] = []string{}
 		if !netResp.Network.MultiAz {
 			whMap["distribution_policy"] = ""
 		} else {
 			whMap["distribution_policy"] = v.DistributionPolicyStr
+			if v.DistributionPolicyStr == MULTI_AZ {
+				whMap["specified_azs"] = v.SpecifiedAZs
+			}
 		}
 		whMap["specify_az"] = v.SpecifyAZ
 
@@ -2045,6 +2096,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		Throughput:         int64(throughput),
 		DistributionPolicy: whParamMap["distribution_policy"].(string),
 		SpecifyAZ:          whParamMap["specify_az"].(string),
+		SpecifiedAZs:       toStringSlice(whParamMap["specified_azs"]),
 		Tags:               whTags,
 	}
 
@@ -2214,42 +2266,51 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 
 	warehouseName := newParamMap["name"].(string)
 
+	oldSpecifiedAZs := toStringSlice(oldParamMap["specified_azs"])
+	newSpecifiedAZs := toStringSlice(newParamMap["specified_azs"])
 	computeNodeDistributionChanged := oldParamMap["distribution_policy"].(string) != newParamMap["distribution_policy"].(string) ||
-		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string))
+		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string)) ||
+		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicyMultiAZ) && !reflect.DeepEqual(oldSpecifiedAZs, newSpecifiedAZs))
 	if computeNodeDistributionChanged && multiAz {
 		distributionPolicy := newParamMap["distribution_policy"].(string)
 		specifyAz := newParamMap["specify_az"].(string)
+		computeNodeCount := uint32(newParamMap["compute_node_count"].(int))
 		resp, err := clusterAPI.ChangeWarehouseDistribution(ctx, &cluster.ChangeWarehouseDistributionReq{
 			WarehouseID:        warehouseId,
 			DistributionPolicy: distributionPolicy,
 			SpecifyAz:          specifyAz,
+			SpecifiedAZs:       newSpecifiedAZs,
+			ComputeNodeCount:   computeNodeCount,
 		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("failed to change warehouse distribution, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err.Error()))
 		}
 
-		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 			clusterAPI: clusterAPI,
 			clusterID:  clusterId,
-			actionID:   resp.InfraActionId,
+			actionID:   resp.ActionID,
 			timeout:    common.DeployOrScaleClusterTimeout,
 			pendingStates: []string{
-				string(cluster.ClusterInfraActionStatePending),
-				string(cluster.ClusterInfraActionStateOngoing),
+				string(cluster.ClusterStateDeploying),
+				string(cluster.ClusterStateScaling),
+				string(cluster.ClusterStateResuming),
+				string(cluster.ClusterStateSuspending),
+				string(cluster.ClusterStateReleasing),
+				string(cluster.ClusterStateUpdating),
 			},
 			targetStates: []string{
-				string(cluster.ClusterInfraActionStateSucceeded),
-				string(cluster.ClusterInfraActionStateCompleted),
-				string(cluster.ClusterInfraActionStateFailed),
+				string(cluster.ClusterStateRunning),
+				string(cluster.ClusterStateAbnormal),
 			},
 		})
 
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, err.Error()))
+			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.ActionID, clusterId, warehouseId, err.Error()))
 		}
 
-		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
-			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, infraActionResp.ErrMsg))
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.ActionID, clusterId, warehouseId, stateResp.AbnormalReason))
 		}
 	}
 
@@ -3139,6 +3200,14 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 			if !ok {
 				continue
 			}
+			// Cross-policy transitions route through ChangeWarehouseDistribution,
+			// which already applies the caller's node count verbatim at the
+			// backend. Issuing a separate ScaleWarehouseNum here would collide
+			// with the already-scaled warehouse (errMsg: "vm_num of nodes
+			// cannot be the same as the current number").
+			if oldWh["distribution_policy"].(string) != newWh["distribution_policy"].(string) {
+				continue
+			}
 			whExternalInfoStr := whExternalInfoMap[whName].(string)
 			whExternalInfo := &cluster.WarehouseExternalInfo{}
 			json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
@@ -3156,6 +3225,10 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 		defaultOld, defaultNew := d.GetChange("default_warehouse")
 		defaultOldWh := defaultOld.([]interface{})[0].(map[string]interface{})
 		defaultNewWh := defaultNew.([]interface{})[0].(map[string]interface{})
+
+		if defaultOldWh["distribution_policy"].(string) != defaultNewWh["distribution_policy"].(string) {
+			return nil
+		}
 
 		defaultWhExternalInfoStr := whExternalInfoMap[DEFAULT_WAREHOUSE_NAME].(string)
 		defaultWhExternalInfo := &cluster.WarehouseExternalInfo{}
@@ -3447,6 +3520,23 @@ func handleWarehouseScaleUpAndUpgradeAMI(ctx context.Context, d *schema.Resource
 	}
 
 	return nil
+}
+
+func toStringSlice(v interface{}) []string {
+	if v == nil {
+		return nil
+	}
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.SetClusterArrowFlightReq) diag.Diagnostics {
