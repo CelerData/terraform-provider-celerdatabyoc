@@ -68,7 +68,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     // When using an EBS-backed instance type, specify the following two parameters. Otherwise, delete them.
     compute_node_ebs_disk_number   = <compute_node_ebs_disk_number>
     compute_node_ebs_disk_per_size = <compute_node_ebs_disk_per_size>
-    distribution_policy            = "{specify_az | crossing_az | multi_az}"
+    distribution_policy            = "{specify_az | multi_az}"
     
     // specify_az                  = "us-west-2b"
     // specified_azs               = ["us-west-2a", "us-west-2b"]
@@ -189,8 +189,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of compute nodes, based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#compute-autoscaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
     - `distribution_policy`: (Optional, available only for AWS) The compute node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values:
         - `specify_az`: Nodes are deployed in the primary availability zone.
-        - `crossing_az`: Nodes are deployed across the three availability zones of the network configuration.
         - `multi_az`: Nodes are distributed evenly across the two availability zones specified in `specified_azs`. `compute_node_count` is required and must be a positive multiple of `len(specified_azs)`.
+        - `crossing_az`: **Deprecated.** Cannot be used when creating a new warehouse or changing the `distribution_policy` of an existing warehouse; `terraform plan` will reject it. Warehouses already provisioned with `crossing_az` continue to work unchanged; migrate them to `multi_az` or `specify_az` when convenient.
 
       For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
@@ -247,8 +247,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
     - `distribution_policy`: (Available only for AWS) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values:
         - `specify_az`: Nodes are deployed in the primary availability zone.
-        - `crossing_az`: Nodes are deployed across the three availability zones of the network configuration.
         - `multi_az`: Nodes are distributed evenly across the two availability zones specified in `specified_azs`. `compute_node_count` is required and must be a positive multiple of `len(specified_azs)`. When changing the warehouse size under this policy, `compute_node_count` is forwarded to the backend in a single distribution change, so no subsequent scale operation is issued.
+        - `crossing_az`: **Deprecated.** Cannot be used when creating a new warehouse or changing the `distribution_policy` of an existing warehouse; `terraform plan` will reject it. Warehouses already provisioned with `crossing_az` continue to work unchanged; migrate them to `multi_az` or `specify_az` when convenient.
 
       For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 

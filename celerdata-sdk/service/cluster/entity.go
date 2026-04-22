@@ -779,7 +779,7 @@ type ChangeWarehouseDistributionReq struct {
 }
 
 type ChangeWarehouseDistributionResp struct {
-	ActionID string `json:"action_id" mapstructure:"action_id"`
+	InfraActionId string `json:"infra_action_id" mapstructure:"infra_action_id"`
 }
 
 type GetVmInfoReq struct {

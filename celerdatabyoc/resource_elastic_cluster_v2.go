@@ -705,6 +705,19 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		}
 	}
 
+	oldDwRaw, _ := d.GetChange("default_warehouse")
+	oldDwList := oldDwRaw.([]interface{})
+	var oldDefaultPolicy string
+	if len(oldDwList) > 0 {
+		oldDefaultPolicy = oldDwList[0].(map[string]interface{})["distribution_policy"].(string)
+	}
+	oldWhRaw, _ := d.GetChange("warehouse")
+	oldWhPolicyByName := make(map[string]string)
+	for _, ow := range oldWhRaw.([]interface{}) {
+		owMap := ow.(map[string]interface{})
+		oldWhPolicyByName[owMap["name"].(string)] = owMap["distribution_policy"].(string)
+	}
+
 	rawConfig := d.GetRawConfig()
 	for i, v := range warehouses {
 		vMap := v.(map[string]interface{})
@@ -716,6 +729,29 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			rawWh = rawConfig.GetAttr("warehouse").Index(cty.NumberIntVal(int64(i - 1)))
 		}
 		userSetComputeNodeCount := !rawWh.GetAttr("compute_node_count").IsNull()
+
+		if policy == CROSSING_AZ {
+			var oldPolicy string
+			existedBefore := false
+			whLabel := "default_warehouse"
+			if i == 0 {
+				if !isNewResource && len(oldDwList) > 0 {
+					existedBefore = true
+					oldPolicy = oldDefaultPolicy
+				}
+			} else {
+				whName := vMap["name"].(string)
+				whLabel = fmt.Sprintf("warehouse %q", whName)
+				oldPolicy, existedBefore = oldWhPolicyByName[whName]
+			}
+			if !existedBefore {
+				return fmt.Errorf("distribution_policy %q is no longer supported for new warehouses; use %q or %q instead (%s)", CROSSING_AZ, SPECIFY_AZ, MULTI_AZ, whLabel)
+			}
+			if oldPolicy != CROSSING_AZ {
+				return fmt.Errorf("changing distribution_policy to %q is no longer supported; existing %q warehouses remain unchanged but cannot be recreated with this policy (%s)", CROSSING_AZ, CROSSING_AZ, whLabel)
+			}
+		}
+
 		if policy == MULTI_AZ {
 			if len(vMap["specify_az"].(string)) > 0 {
 				return errors.New("specify_az must be empty when distribution_policy is \"multi_az\"")
@@ -2289,7 +2325,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 			clusterAPI: clusterAPI,
 			clusterID:  clusterId,
-			actionID:   resp.ActionID,
+			actionID:   resp.InfraActionId,
 			timeout:    common.DeployOrScaleClusterTimeout,
 			pendingStates: []string{
 				string(cluster.ClusterStateDeploying),
@@ -2306,11 +2342,11 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 		})
 
 		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.ActionID, clusterId, warehouseId, err.Error()))
+			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, err.Error()))
 		}
 
 		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.ActionID, clusterId, warehouseId, stateResp.AbnormalReason))
+			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, stateResp.AbnormalReason))
 		}
 	}
 
