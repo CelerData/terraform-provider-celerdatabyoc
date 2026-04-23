@@ -20,6 +20,7 @@ type CreateAzureNetworkReq struct {
 	VirtualNetworkResourceId string `json:"virtual_network_resource_id" mapstructure:"virtual_network_resource_id"`
 	SubnetName               string `json:"subnet_name" mapstructure:"subnet_name"`
 	PublicAccess             bool   `json:"public_access" mapstructure:"public_access"`
+	VpcEndpointId            string `json:"vpc_endpoint_id" mapstructure:"vpc_endpoint_id"`
 }
 
 type CreateNetworkResp struct {
