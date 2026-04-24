@@ -161,6 +161,16 @@ func resourceElasticClusterV2() *schema.Resource {
 							MaxItems: 2,
 							Elem:     &schema.Schema{Type: schema.TypeString},
 						},
+						"cngroup_size": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Per-cngroup VM count as reported by the backend. Read-only.",
+						},
+						"cngroup_count": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Current cngroup count as reported by the backend. Read-only. Scale-in cannot bring compute_node_count below this value.",
+						},
 						"resource_tags": {
 							Type:        schema.TypeMap,
 							Optional:    true,
@@ -283,6 +293,16 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional: true,
 							MaxItems: 2,
 							Elem:     &schema.Schema{Type: schema.TypeString},
+						},
+						"cngroup_size": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Per-cngroup VM count as reported by the backend. Read-only.",
+						},
+						"cngroup_count": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Current cngroup count as reported by the backend. Read-only. Scale-in cannot bring compute_node_count below this value.",
 						},
 						"resource_tags": {
 							Type:        schema.TypeMap,
@@ -707,15 +727,15 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 
 	oldDwRaw, _ := d.GetChange("default_warehouse")
 	oldDwList := oldDwRaw.([]interface{})
-	var oldDefaultPolicy string
+	var oldDefaultMap map[string]interface{}
 	if len(oldDwList) > 0 {
-		oldDefaultPolicy = oldDwList[0].(map[string]interface{})["distribution_policy"].(string)
+		oldDefaultMap, _ = oldDwList[0].(map[string]interface{})
 	}
 	oldWhRaw, _ := d.GetChange("warehouse")
-	oldWhPolicyByName := make(map[string]string)
+	oldWhByName := make(map[string]map[string]interface{})
 	for _, ow := range oldWhRaw.([]interface{}) {
 		owMap := ow.(map[string]interface{})
-		oldWhPolicyByName[owMap["name"].(string)] = owMap["distribution_policy"].(string)
+		oldWhByName[owMap["name"].(string)] = owMap
 	}
 
 	rawConfig := d.GetRawConfig()
@@ -730,21 +750,28 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		}
 		userSetComputeNodeCount := !rawWh.GetAttr("compute_node_count").IsNull()
 
-		if policy == CROSSING_AZ {
-			var oldPolicy string
-			existedBefore := false
-			whLabel := "default_warehouse"
-			if i == 0 {
-				if !isNewResource && len(oldDwList) > 0 {
-					existedBefore = true
-					oldPolicy = oldDefaultPolicy
-				}
-			} else {
-				whName := vMap["name"].(string)
-				whLabel = fmt.Sprintf("warehouse %q", whName)
-				oldPolicy, existedBefore = oldWhPolicyByName[whName]
+		var oldWhMap map[string]interface{}
+		whLabel := "default_warehouse"
+		if i == 0 {
+			if !isNewResource {
+				oldWhMap = oldDefaultMap
 			}
-			if !existedBefore {
+		} else {
+			whName := vMap["name"].(string)
+			whLabel = fmt.Sprintf("warehouse %q", whName)
+			oldWhMap = oldWhByName[whName]
+		}
+		var oldPolicy string
+		var oldCount, oldCngroupCount, oldCngroupSize int
+		if oldWhMap != nil {
+			oldPolicy, _ = oldWhMap["distribution_policy"].(string)
+			oldCount, _ = oldWhMap["compute_node_count"].(int)
+			oldCngroupCount, _ = oldWhMap["cngroup_count"].(int)
+			oldCngroupSize, _ = oldWhMap["cngroup_size"].(int)
+		}
+
+		if policy == CROSSING_AZ {
+			if oldWhMap == nil {
 				return fmt.Errorf("distribution_policy %q is no longer supported for new warehouses; use %q or %q instead (%s)", CROSSING_AZ, SPECIFY_AZ, MULTI_AZ, whLabel)
 			}
 			if oldPolicy != CROSSING_AZ {
@@ -765,6 +792,13 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			if cnc <= 0 || cnc%len(azs) != 0 {
 				return fmt.Errorf("compute_node_count (%d) must be a positive multiple of len(specified_azs) (%d) when distribution_policy is \"multi_az\"", cnc, len(azs))
 			}
+			// Preserves source group-scaling partitions on the target per-AZ layout.
+			if oldPolicy == SPECIFY_AZ && oldCount > 0 {
+				expected := oldCount * len(azs)
+				if cnc != expected {
+					return fmt.Errorf("switching %s from specify_az to multi_az requires compute_node_count to be %d (current %d multiplied by %d AZs)", whLabel, expected, oldCount, len(azs))
+				}
+			}
 		} else {
 			if policy != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
 				return errors.New("specify_az parameter only takes effect when the distribution_policy value is \"specify_az\"")
@@ -772,6 +806,17 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			if len(azs) > 0 {
 				return errors.New("specified_azs parameter only takes effect when the distribution_policy value is \"multi_az\"")
 			}
+		}
+
+		// Same-policy scaling keeps cngroup partitions evenly sized.
+		if oldCngroupCount > 0 && oldPolicy == policy && cnc != oldCount && cnc%oldCngroupCount != 0 {
+			return fmt.Errorf("%s compute_node_count %d must be a multiple of current cngroup_count %d", whLabel, cnc, oldCngroupCount)
+		}
+
+		// multi_az → specify_az: backend chunks new VMs with the source
+		// cngroup_size, so compute_node_count must divide cleanly.
+		if oldPolicy == MULTI_AZ && policy == SPECIFY_AZ && oldCngroupSize > 0 && cnc%oldCngroupSize != 0 {
+			return fmt.Errorf("%s switching from multi_az to specify_az requires compute_node_count %d to be a multiple of current cngroup_size %d", whLabel, cnc, oldCngroupSize)
 		}
 	}
 
@@ -1548,6 +1593,8 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap["name"] = warehouseName
 		whMap["compute_node_size"] = v.Module.InstanceType
 		whMap["compute_node_count"] = v.Module.Num
+		whMap["cngroup_size"] = int(v.CngroupSize)
+		whMap["cngroup_count"] = int(v.CngroupCount)
 		whMap["resource_tags"] = whTags
 		whMap["specified_azs"] = []string{}
 		if !netResp.Network.MultiAz {
