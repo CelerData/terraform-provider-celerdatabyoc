@@ -164,7 +164,7 @@ func resourceElasticClusterV2() *schema.Resource {
 						"cngroup_size": {
 							Type:        schema.TypeInt,
 							Computed:    true,
-							Description: "Per-cngroup VM count as reported by the backend. Read-only.",
+							Description: "Per-cngroup VM count, derived as compute_node_count / cngroup_count. Read-only.",
 						},
 						"cngroup_count": {
 							Type:        schema.TypeInt,
@@ -297,7 +297,7 @@ func resourceElasticClusterV2() *schema.Resource {
 						"cngroup_size": {
 							Type:        schema.TypeInt,
 							Computed:    true,
-							Description: "Per-cngroup VM count as reported by the backend. Read-only.",
+							Description: "Per-cngroup VM count, derived as compute_node_count / cngroup_count. Read-only.",
 						},
 						"cngroup_count": {
 							Type:        schema.TypeInt,
@@ -1066,8 +1066,43 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		return err
 	}
 
+	// Mark cngroup_count/cngroup_size Unknown when their inputs change so
+	// plan does not lock the old values; Update's final Read fills the new
+	// truth from backend post-apply.
+	markWarehouseCngroupUnknown(d)
+
 	err2 := SchedulingPolicyParamCheck(d)
 	return err2
+}
+
+func markWarehouseCngroupUnknown(d *schema.ResourceDiff) {
+	cngroupTriggers := []string{"distribution_policy", "specified_azs", "compute_node_count"}
+
+	if d.HasChange("default_warehouse") {
+		for _, f := range cngroupTriggers {
+			if d.HasChange("default_warehouse.0." + f) {
+				_ = d.SetNewComputed("default_warehouse.0.cngroup_count")
+				_ = d.SetNewComputed("default_warehouse.0.cngroup_size")
+				break
+			}
+		}
+	}
+
+	if d.HasChange("warehouse") {
+		whs, ok := d.Get("warehouse").([]interface{})
+		if !ok {
+			return
+		}
+		for i := range whs {
+			for _, f := range cngroupTriggers {
+				if d.HasChange(fmt.Sprintf("warehouse.%d.%s", i, f)) {
+					_ = d.SetNewComputed(fmt.Sprintf("warehouse.%d.cngroup_count", i))
+					_ = d.SetNewComputed(fmt.Sprintf("warehouse.%d.cngroup_size", i))
+					break
+				}
+			}
+		}
+	}
 }
 
 func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
@@ -1593,7 +1628,13 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap["name"] = warehouseName
 		whMap["compute_node_size"] = v.Module.InstanceType
 		whMap["compute_node_count"] = v.Module.Num
-		whMap["cngroup_size"] = int(v.CngroupSize)
+		// Backend reports cngroup_count but not cngroup_size; derive size locally
+		// to keep the field truthful (size = total nodes / cngroup count).
+		cngroupSize := 0
+		if v.CngroupCount > 0 {
+			cngroupSize = int(v.Module.Num) / int(v.CngroupCount)
+		}
+		whMap["cngroup_size"] = cngroupSize
 		whMap["cngroup_count"] = int(v.CngroupCount)
 		whMap["resource_tags"] = whTags
 		whMap["specified_azs"] = []string{}
@@ -2082,7 +2123,10 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	return diags
+	// Refresh state so Computed fields (cngroup_count, cngroup_size) reflect
+	// post-update backend reality. Without this, plan-time SetNewComputed marks
+	// these Unknown but apply leaves them unset.
+	return append(diags, resourceElasticClusterV2Read(ctx, d, m)...)
 }
 
 func upgradeAMI(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.UpgradeAMIReq) error {
