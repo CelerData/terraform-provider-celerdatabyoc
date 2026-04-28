@@ -139,6 +139,7 @@ const (
 
 	DistributionPolicySpecifyAZ  DistributionPolicy = "specify_az"
 	DistributionPolicyCrossingAZ DistributionPolicy = "crossing_az"
+	DistributionPolicyMultiAZ    DistributionPolicy = "multi_az"
 
 	AutoScalingUnit_SINGLE   AutoScalingUnit = 0
 	AutoScalingUnit_CN_GROUP AutoScalingUnit = 1
@@ -168,6 +169,7 @@ type ClusterItem struct {
 	DiskInfo           *DiskInfo         `json:"disk_info"`
 	DistributionPolicy string            `json:"distribution_policy"`
 	SpecifyAZ          string            `json:"specify_az"`
+	SpecifiedAZs       []string          `json:"specified_azs"`
 	Tags               []*Kv             `json:"tags"`
 }
 
@@ -292,6 +294,8 @@ type Warehouse struct {
 	DistributionPolicyStr string            `json:"distribution_policy_str" mapstructure:"distribution_policy_str"`
 	SpecifyAZ             string            `json:"specify_az" mapstructure:"specify_az"`
 	SpecifiedAZs          []string          `json:"specified_azs" mapstructure:"specified_azs"`
+	CngroupCount          uint32            `json:"cngroup_count" mapstructure:"cngroup_count"`
+	CngroupSize           uint32            `json:"cngroup_size" mapstructure:"cngroup_size"`
 	ResumeWithCluster     bool              `json:"resume_with_cluster" mapstructure:"resume_with_cluster"`
 	Tags                  map[string]string `json:"tags" mapstructure:"tags"`
 }
@@ -620,9 +624,10 @@ type WarehouseInfo struct {
 	VmCate                string `json:"vm_cate" mapstructure:"vm_cate"`
 	VmVolSizeGB           int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
 	VmVolNum              int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
-	IsInstanceStore       bool   `json:"is_instance_store" mapstructure:"is_instance_store"`
-	DistributionPolicyStr string `json:"distribution_policy_str" mapstructure:"distribution_policy_str"`
-	SpecifyAZ             string `json:"specify_az" mapstructure:"specify_az"`
+	IsInstanceStore       bool     `json:"is_instance_store" mapstructure:"is_instance_store"`
+	DistributionPolicyStr string   `json:"distribution_policy_str" mapstructure:"distribution_policy_str"`
+	SpecifyAZ             string   `json:"specify_az" mapstructure:"specify_az"`
+	SpecifiedAZs          []string `json:"specified_azs" mapstructure:"specified_azs"`
 }
 
 type GetWarehouseResp struct {
@@ -630,19 +635,20 @@ type GetWarehouseResp struct {
 }
 
 type CreateWarehouseReq struct {
-	ClusterId          string `json:"cluster_id" mapstructure:"cluster_id"`
-	Name               string `json:"name" mapstructure:"name"`
-	Description        string `json:"description" mapstructure:"description"`
-	VmCate             string `json:"vm_cate" mapstructure:"vm_cate"`
-	VmNum              int32  `json:"vm_num" mapstructure:"vm_num"`
-	VolumeSizeGB       int64  `json:"volume_size_gb" mapstructure:"volume_size_gb"`
-	VolumeNum          int32  `json:"volume_num" mapstructure:"volume_num"`
-	DistributionPolicy string `json:"distribution_policy" mapstructure:"distribution_policy"`
-	SpecifyAZ          string `json:"specify_az" mapstructure:"specify_az"`
-	Iops               int64  `json:"iops" mapstructure:"iops"`
-	Throughput         int64  `json:"throughput" mapstructure:"throughput"`
-	ResumeWithCluster  bool   `json:"resume_with_cluster" mapstructure:"resume_with_cluster"`
-	Tags               []*Kv  `json:"tags" mapstructure:"tags"`
+	ClusterId          string   `json:"cluster_id" mapstructure:"cluster_id"`
+	Name               string   `json:"name" mapstructure:"name"`
+	Description        string   `json:"description" mapstructure:"description"`
+	VmCate             string   `json:"vm_cate" mapstructure:"vm_cate"`
+	VmNum              int32    `json:"vm_num" mapstructure:"vm_num"`
+	VolumeSizeGB       int64    `json:"volume_size_gb" mapstructure:"volume_size_gb"`
+	VolumeNum          int32    `json:"volume_num" mapstructure:"volume_num"`
+	DistributionPolicy string   `json:"distribution_policy" mapstructure:"distribution_policy"`
+	SpecifyAZ          string   `json:"specify_az" mapstructure:"specify_az"`
+	SpecifiedAZs       []string `json:"specified_azs" mapstructure:"specified_azs"`
+	Iops               int64    `json:"iops" mapstructure:"iops"`
+	Throughput         int64    `json:"throughput" mapstructure:"throughput"`
+	ResumeWithCluster  bool     `json:"resume_with_cluster" mapstructure:"resume_with_cluster"`
+	Tags               []*Kv    `json:"tags" mapstructure:"tags"`
 }
 
 type CreateWarehouseResp struct {
@@ -765,9 +771,11 @@ type DeleteWarehouseAutoScalingConfigReq struct {
 }
 
 type ChangeWarehouseDistributionReq struct {
-	WarehouseID        string `json:"warehouse_id" mapstructure:"warehouse_id"`
-	DistributionPolicy string `json:"distribution_policy" mapstructure:"distribution_policy"`
-	SpecifyAz          string `json:"specify_az" mapstructure:"specify_az"`
+	WarehouseID        string   `json:"warehouse_id" mapstructure:"warehouse_id"`
+	DistributionPolicy string   `json:"distribution_policy" mapstructure:"distribution_policy"`
+	SpecifyAz          string   `json:"specify_az" mapstructure:"specify_az"`
+	SpecifiedAZs       []string `json:"specified_azs" mapstructure:"specified_azs"`
+	ComputeNodeCount   uint32   `json:"compute_node_count" mapstructure:"compute_node_count"`
 }
 
 type ChangeWarehouseDistributionResp struct {
