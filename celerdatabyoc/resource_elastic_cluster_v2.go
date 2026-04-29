@@ -3346,12 +3346,18 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 			if !ok {
 				continue
 			}
-			// Cross-policy transitions route through ChangeWarehouseDistribution,
-			// which already applies the caller's node count verbatim at the
-			// backend. Issuing a separate ScaleWarehouseNum here would collide
-			// with the already-scaled warehouse (errMsg: "vm_num of nodes
-			// cannot be the same as the current number").
-			if oldWh["distribution_policy"].(string) != newWh["distribution_policy"].(string) {
+			// Skip when ChangeWarehouseDistribution already handled the count
+			// change: cross-policy, or same-policy multi_az with different
+			// specified_azs (e.g. 2↔3 AZ-count change). The redundant
+			// ScaleWarehouseNum would otherwise hit "vm_num cannot be the same
+			// as the current number" / "invalid warehouse node count".
+			oldPolicy := oldWh["distribution_policy"].(string)
+			newPolicy := newWh["distribution_policy"].(string)
+			if oldPolicy != newPolicy {
+				continue
+			}
+			if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
+				!equalAsSet(toStringSlice(oldWh["specified_azs"]), toStringSlice(newWh["specified_azs"])) {
 				continue
 			}
 			whExternalInfoStr := whExternalInfoMap[whName].(string)
@@ -3372,7 +3378,16 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 		defaultOldWh := defaultOld.([]interface{})[0].(map[string]interface{})
 		defaultNewWh := defaultNew.([]interface{})[0].(map[string]interface{})
 
-		if defaultOldWh["distribution_policy"].(string) != defaultNewWh["distribution_policy"].(string) {
+		// Same skip rule as extra warehouses: ChangeWarehouseDistribution
+		// already adjusted the count for cross-policy and same-policy
+		// multi_az AZ-set changes.
+		oldPolicy := defaultOldWh["distribution_policy"].(string)
+		newPolicy := defaultNewWh["distribution_policy"].(string)
+		if oldPolicy != newPolicy {
+			return nil
+		}
+		if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
+			!equalAsSet(toStringSlice(defaultOldWh["specified_azs"]), toStringSlice(defaultNewWh["specified_azs"])) {
 			return nil
 		}
 
