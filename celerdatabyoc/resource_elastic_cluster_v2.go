@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -156,10 +155,11 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional: true,
 						},
 						"specified_azs": {
-							Type:     schema.TypeList,
-							Optional: true,
-							MaxItems: 2,
-							Elem:     &schema.Schema{Type: schema.TypeString},
+							Type:             schema.TypeList,
+							Optional:         true,
+							MaxItems:         3,
+							Elem:             &schema.Schema{Type: schema.TypeString},
+							DiffSuppressFunc: suppressSpecifiedAZsDiff,
 						},
 						"cngroup_size": {
 							Type:        schema.TypeInt,
@@ -289,10 +289,11 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional: true,
 						},
 						"specified_azs": {
-							Type:     schema.TypeList,
-							Optional: true,
-							MaxItems: 2,
-							Elem:     &schema.Schema{Type: schema.TypeString},
+							Type:             schema.TypeList,
+							Optional:         true,
+							MaxItems:         3,
+							Elem:             &schema.Schema{Type: schema.TypeString},
+							DiffSuppressFunc: suppressSpecifiedAZsDiff,
 						},
 						"cngroup_size": {
 							Type:        schema.TypeInt,
@@ -763,11 +764,13 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		}
 		var oldPolicy string
 		var oldCount, oldCngroupCount, oldCngroupSize int
+		var oldSpecifiedAZs []string
 		if oldWhMap != nil {
 			oldPolicy, _ = oldWhMap["distribution_policy"].(string)
 			oldCount, _ = oldWhMap["compute_node_count"].(int)
 			oldCngroupCount, _ = oldWhMap["cngroup_count"].(int)
 			oldCngroupSize, _ = oldWhMap["cngroup_size"].(int)
+			oldSpecifiedAZs = toStringSlice(oldWhMap["specified_azs"])
 		}
 
 		if policy == CROSSING_AZ {
@@ -783,8 +786,8 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			if len(vMap["specify_az"].(string)) > 0 {
 				return errors.New("specify_az must be empty when distribution_policy is \"multi_az\"")
 			}
-			if len(azs) != 2 {
-				return errors.New("in multi_az distribution policy, specified_azs must contain exactly 2 AZs")
+			if len(azs) < 2 || len(azs) > 3 {
+				return errors.New("in multi_az distribution policy, specified_azs must contain 2 or 3 AZs")
 			}
 			if !userSetComputeNodeCount {
 				return errors.New("compute_node_count is required when distribution_policy is \"multi_az\"")
@@ -799,6 +802,18 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 					return fmt.Errorf("switching %s from specify_az to multi_az requires compute_node_count to be %d (current %d multiplied by %d AZs)", whLabel, expected, oldCount, len(azs))
 				}
 			}
+			// multi_az AZ-count change (2↔3): backend keeps per-AZ count fixed
+			// and recomputes total as perAZ × len(newAZs); the caller's
+			// compute_node_count must match or backend math diverges from state.
+			if oldPolicy == MULTI_AZ && len(oldSpecifiedAZs) > 0 && len(azs) != len(oldSpecifiedAZs) {
+				if oldCount%len(oldSpecifiedAZs) != 0 {
+					return fmt.Errorf("%s current compute_node_count %d is not divisible by current specified_azs count %d; cannot derive target per-AZ count", whLabel, oldCount, len(oldSpecifiedAZs))
+				}
+				expected := oldCount / len(oldSpecifiedAZs) * len(azs)
+				if cnc != expected {
+					return fmt.Errorf("changing %s multi_az specified_azs from %d to %d AZs requires compute_node_count to be %d (current %d × %d / %d)", whLabel, len(oldSpecifiedAZs), len(azs), expected, oldCount, len(azs), len(oldSpecifiedAZs))
+				}
+			}
 		} else {
 			if policy != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
 				return errors.New("specify_az parameter only takes effect when the distribution_policy value is \"specify_az\"")
@@ -808,8 +823,12 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			}
 		}
 
-		// Same-policy scaling keeps cngroup partitions evenly sized.
-		if oldCngroupCount > 0 && oldPolicy == policy && cnc != oldCount && cnc%oldCngroupCount != 0 {
+		// Same-policy scaling keeps cngroup partitions evenly sized — but
+		// multi_az AZ-count changes (2↔3) add or drop cngroups entirely, so
+		// the source cngroup_count is no longer the relevant divisor for
+		// those transitions.
+		azCountChanged := oldPolicy == MULTI_AZ && policy == MULTI_AZ && len(oldSpecifiedAZs) > 0 && len(oldSpecifiedAZs) != len(azs)
+		if oldCngroupCount > 0 && oldPolicy == policy && !azCountChanged && cnc != oldCount && cnc%oldCngroupCount != 0 {
 			return fmt.Errorf("%s compute_node_count %d must be a multiple of current cngroup_count %d", whLabel, cnc, oldCngroupCount)
 		}
 
@@ -2397,7 +2416,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 	newSpecifiedAZs := toStringSlice(newParamMap["specified_azs"])
 	computeNodeDistributionChanged := oldParamMap["distribution_policy"].(string) != newParamMap["distribution_policy"].(string) ||
 		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string)) ||
-		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicyMultiAZ) && !reflect.DeepEqual(oldSpecifiedAZs, newSpecifiedAZs))
+		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicyMultiAZ) && !equalAsSet(oldSpecifiedAZs, newSpecifiedAZs))
 	if computeNodeDistributionChanged && multiAz {
 		distributionPolicy := newParamMap["distribution_policy"].(string)
 		specifyAz := newParamMap["specify_az"].(string)
@@ -3664,6 +3683,41 @@ func toStringSlice(v interface{}) []string {
 		}
 	}
 	return out
+}
+
+// equalAsSet reports whether a and b contain the same elements regardless of order.
+// specified_azs is order-insensitive semantically (cngroups are derived per-AZ),
+// but the schema is TypeList; treat list-reorder as no diff.
+func equalAsSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]struct{}, len(a))
+	for _, s := range a {
+		seen[s] = struct{}{}
+	}
+	for _, s := range b {
+		if _, ok := seen[s]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// suppressSpecifiedAZsDiff suppresses plan diffs caused purely by reordering
+// specified_azs. Terraform invokes this for both the count key (".#") and each
+// element index; in either case we resolve the parent list and compare as sets.
+func suppressSpecifiedAZsDiff(k, _, _ string, d *schema.ResourceData) bool {
+	lastDot := strings.LastIndex(k, ".")
+	if lastDot < 0 {
+		return false
+	}
+	parent := k[:lastDot]
+	if !strings.HasSuffix(parent, ".specified_azs") {
+		return false
+	}
+	oldList, newList := d.GetChange(parent)
+	return equalAsSet(toStringSlice(oldList), toStringSlice(newList))
 }
 
 func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.SetClusterArrowFlightReq) diag.Diagnostics {
