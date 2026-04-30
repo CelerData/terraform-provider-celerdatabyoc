@@ -576,7 +576,16 @@ func MarkScriptReRun(d *schema.ResourceDiff) error {
 		return nil
 	}
 
-	scripts := d.Get("scripts").(*schema.Set).List()
+	scriptsRaw := d.Get("scripts")
+	if scriptsRaw == nil {
+		return nil
+	}
+
+	scripts := scriptsRaw.(*schema.Set).List()
+	if len(scripts) == 0 {
+		return nil
+	}
+
 	for _, s := range scripts {
 		script := s.(map[string]interface{})
 		if reRun, ok := script["rerun"].(bool); ok && reRun {
@@ -1146,6 +1155,24 @@ func needUnlock(d *schema.ResourceData) bool {
 			d.HasChange("be_node_count") ||
 			d.HasChange("be_disk_number") ||
 			d.HasChange("be_disk_per_size"))
+}
+
+func needFeScaleIn(d *schema.ResourceData) bool {
+	if !d.HasChange("coordinator_node_count") {
+		return false
+	}
+
+	o, n := d.GetChange("coordinator_node_count")
+	return n.(int) < o.(int)
+}
+
+func needFeScaleOut(d *schema.ResourceData) bool {
+	if !d.HasChange("coordinator_node_count") {
+		return false
+	}
+
+	o, n := d.GetChange("coordinator_node_count")
+	return n.(int) > o.(int)
 }
 
 func needResume(d *schema.ResourceData) bool {
@@ -2608,6 +2635,7 @@ var AwsInternalTagKeys = map[string]bool{
 	"Workspace":               true,
 	"ServiceAccountName":      true,
 	"ServiceAccountID":        true,
+	"aws-apn-id":              true,
 }
 
 var AzureInternalTagKeys = map[string]bool{
@@ -2680,6 +2708,8 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 		}
 	}
 
+	hasFailed := false
+	errMsg := ""
 	if len(updatedVariables) > 0 {
 		resp, err := api.SetGlobalSqlSessionVariables(ctx, &cluster.SetGlobalSqlSessionVariablesReq{
 			ClusterId: clusterId,
@@ -2695,13 +2725,8 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 			}
 		}
 		if resp.HasFailed {
-			return diag.Diagnostics{
-				diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  "Failed to update global session variables",
-					Detail:   fmt.Sprintf("ErrMsg:%s", strings.Join(resp.ErrMsgArr, "\n")),
-				},
-			}
+			hasFailed = true
+			errMsg = strings.Join(resp.ErrMsgArr, "\n")
 		}
 	}
 
@@ -2720,15 +2745,21 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 			}
 		}
 		if resp.HasFailed {
-			return diag.Diagnostics{
-				diag.Diagnostic{
-					Severity: diag.Warning,
-					Summary:  "Failed to reset global session variables",
-					Detail:   fmt.Sprintf("ErrMsg:%s", strings.Join(resp.ErrMsgArr, "\n")),
-				},
-			}
+			hasFailed = true
+			errMsg = errMsg + strings.Join(resp.ErrMsgArr, "\n")
 		}
 	}
+
+	if hasFailed {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Failed to update global session variables",
+				Detail:   fmt.Sprintf("ErrMsg:%s", errMsg),
+			},
+		}
+	}
+
 	return nil
 }
 
@@ -2800,10 +2831,16 @@ func RunScripts(ctx context.Context, req RunScriptsReq) diag.Diagnostics {
 			scriptList = v.(*schema.Set).List()
 		}
 	} else {
-		_, n := d.GetChange("scripts")
-		for _, item := range n.(*schema.Set).List() {
+		old, n := d.GetChange("scripts")
+		oldSet := old.(*schema.Set)
+		newSet := n.(*schema.Set)
+
+		// Get scripts that have changed (added/modified)
+		for _, item := range newSet.List() {
 			m := item.(map[string]interface{})
-			if m["rerun"].(bool) {
+
+			// Check if this script is new or modified
+			if !oldSet.Contains(item) || m["rerun"].(bool) {
 				scriptList = append(scriptList, item)
 			}
 		}

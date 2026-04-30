@@ -68,9 +68,10 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     // When using an EBS-backed instance type, specify the following two parameters. Otherwise, delete them.
     compute_node_ebs_disk_number   = <compute_node_ebs_disk_number>
     compute_node_ebs_disk_per_size = <compute_node_ebs_disk_per_size>
-    distribution_policy            = "{specify_az | crossing_az}"
+    distribution_policy            = "{specify_az | multi_az}"
     
     // specify_az                  = "us-west-2b"
+    // specified_azs               = ["us-west-2a", "us-west-2b"]
     // expected_state="Suspended"
     // auto_scaling_policy         = celerdatabyoc_auto_scaling_policy.policy_1.policy_json
     
@@ -186,11 +187,18 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `resource_tags`: The tags to be attached to the warehouse (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of compute nodes, based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#compute-autoscaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
-    - `distribution_policy`: (Optional, available only for AWS) The compute node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
+    - `distribution_policy`: (Optional, available only for AWS) The compute node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values:
+        - `specify_az`: Nodes are deployed in the primary availability zone.
+        - `multi_az`: Nodes are distributed evenly across the availability zones specified in `specified_azs` (2 or 3 AZs). `compute_node_count` is required and must be a positive multiple of `len(specified_azs)`.
+        - `crossing_az`: **Deprecated.** Cannot be used when creating a new warehouse or changing the `distribution_policy` of an existing warehouse; `terraform plan` will reject it. Warehouses already provisioned with `crossing_az` continue to work unchanged; migrate them to `multi_az` or `specify_az` when convenient.
+
+      For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
       ~> To enable Multi-AZ Deployment, you must deploy at least 3 coordinator nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
     - `specify_az`: (Optional, available only for AWS) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
+
+    - `specified_azs`: (Optional, available only for AWS) The list of availability zones across which compute nodes are evenly distributed. This argument is available only when `distribution_policy` is set to `multi_az`, and must contain 2 or 3 distinct AZs. `compute_node_count` must be a positive multiple of the length of this list. Changing the AZ count for an existing `multi_az` warehouse (e.g. 2→3 or 3→2) is supported in-place; the per-AZ node count is preserved and `compute_node_count` must equal `current_count × len(new_specified_azs) / len(current_specified_azs)`.
 
 - `custom_ami`: (Optional, available only for AWS) The Amazon Machine Image (AMI) used to deploy the cluster. You can use custom AMI for deployment. You can only specify this parameter when creating the cluster. If this argument is not specified, the default AMI is used.
   - `ami`: The ID of the custom AMI.
@@ -237,11 +245,18 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
     - `auto_scaling_policy`: This policy will automatically scale the number of Compute nodes (CN), based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
 
-    - `distribution_policy`: (Available only for AWS) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values: `specify_az` (Nodes are deployed in the primary availability zone) and `crossing_az` (Nodes are deployed across the three availability zone). For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
+    - `distribution_policy`: (Available only for AWS) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values:
+        - `specify_az`: Nodes are deployed in the primary availability zone.
+        - `multi_az`: Nodes are distributed evenly across the availability zones specified in `specified_azs` (2 or 3 AZs). `compute_node_count` is required and must be a positive multiple of `len(specified_azs)`. When changing the warehouse size under this policy, `compute_node_count` is forwarded to the backend in a single distribution change, so no subsequent scale operation is issued.
+        - `crossing_az`: **Deprecated.** Cannot be used when creating a new warehouse or changing the `distribution_policy` of an existing warehouse; `terraform plan` will reject it. Warehouses already provisioned with `crossing_az` continue to work unchanged; migrate them to `multi_az` or `specify_az` when convenient.
+
+      For more information, see [Multi-AZ Deployment](https://docs.celerdata.com/BYOC/docs/get_started/create_cluster/aws_cluster/multi-az/).
 
       ~> To enable Multi-AZ Deployment, you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
     - `specify_az`:  (Available only for AWS) The primary availability zone for node deployment. This argument is available only when `distribution_policy` is set to `specify_az`.
+
+    - `specified_azs`: (Available only for AWS) The list of availability zones across which compute nodes are evenly distributed. This argument is available only when `distribution_policy` is set to `multi_az`, and must contain 2 or 3 distinct AZs. `compute_node_count` must be a positive multiple of the length of this list. Changing the AZ count for an existing `multi_az` warehouse (e.g. 2→3 or 3→2) is supported in-place; the per-AZ node count is preserved and `compute_node_count` must equal `current_count × len(new_specified_azs) / len(current_specified_azs)`.
 - `global_session_variables`: Global session variables of the cluster. You can find all configurable variables by `select VARIABLE_NAME from information_schema.global_variables;`.
 - `ldap_ssl_certs`: (Available only for AWS) The path in the AWS S3 bucket that stores the LDAP SSL certificates. Multiple paths must be separated by commas (,). CelerData supports using LDAP over SSL by uploading the LDAP SSL certificates from S3. To allow CelerData to successfully fetch the certificates, you must grant the `ListObject` and `GetObject` permissions to CelerData. To delete the certificates uploaded, you only need to remove this argument.
 

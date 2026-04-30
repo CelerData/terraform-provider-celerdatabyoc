@@ -5,6 +5,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
 
 	"terraform-provider-celerdatabyoc/celerdatabyoc"
+	_ "time/tzdata"
 )
 
 func main() {

@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/hashicorp/go-cty/cty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -27,6 +28,7 @@ const (
 	DEFAULT_WAREHOUSE_NAME = "default_warehouse"
 	CROSSING_AZ            = "crossing_az"
 	SPECIFY_AZ             = "specify_az"
+	MULTI_AZ               = "multi_az"
 )
 
 // V2 support multi-warehouse
@@ -137,6 +139,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
+							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs).",
 						},
 						"distribution_policy": {
 							Type:     schema.TypeString,
@@ -144,11 +147,29 @@ func resourceElasticClusterV2() *schema.Resource {
 							ValidateFunc: validation.StringInSlice([]string{
 								SPECIFY_AZ,
 								CROSSING_AZ,
+								MULTI_AZ,
 							}, false),
 						},
 						"specify_az": {
 							Type:     schema.TypeString,
 							Optional: true,
+						},
+						"specified_azs": {
+							Type:             schema.TypeList,
+							Optional:         true,
+							MaxItems:         3,
+							Elem:             &schema.Schema{Type: schema.TypeString},
+							DiffSuppressFunc: suppressSpecifiedAZsDiff,
+						},
+						"cngroup_size": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Per-cngroup VM count, derived as compute_node_count / cngroup_count. Read-only.",
+						},
+						"cngroup_count": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Current cngroup count as reported by the backend. Read-only. Scale-in cannot bring compute_node_count below this value.",
 						},
 						"resource_tags": {
 							Type:        schema.TypeMap,
@@ -252,6 +273,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
+							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs).",
 						},
 						"distribution_policy": {
 							Type:     schema.TypeString,
@@ -259,11 +281,29 @@ func resourceElasticClusterV2() *schema.Resource {
 							ValidateFunc: validation.StringInSlice([]string{
 								SPECIFY_AZ,
 								CROSSING_AZ,
+								MULTI_AZ,
 							}, false),
 						},
 						"specify_az": {
 							Type:     schema.TypeString,
 							Optional: true,
+						},
+						"specified_azs": {
+							Type:             schema.TypeList,
+							Optional:         true,
+							MaxItems:         3,
+							Elem:             &schema.Schema{Type: schema.TypeString},
+							DiffSuppressFunc: suppressSpecifiedAZsDiff,
+						},
+						"cngroup_size": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Per-cngroup VM count, derived as compute_node_count / cngroup_count. Read-only.",
+						},
+						"cngroup_count": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Current cngroup count as reported by the backend. Read-only. Scale-in cannot bring compute_node_count below this value.",
 						},
 						"resource_tags": {
 							Type:        schema.TypeMap,
@@ -452,6 +492,11 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"enabled_arrow_flight": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 			"table_name_case_insensitive": {
 				Type:     schema.TypeBool,
 				Optional: true,
@@ -632,7 +677,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 	clusterAPI := cluster.NewClustersAPI(c)
 	networkAPI := network.NewNetworkAPI(c)
 
-	clusterId := d.Id()
 	csp := d.Get("csp").(string)
 	region := d.Get("region").(string)
 	isNewResource := d.Id() == ""
@@ -688,10 +732,116 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		}
 	}
 
-	for _, v := range warehouses {
+	oldDwRaw, _ := d.GetChange("default_warehouse")
+	oldDwList := oldDwRaw.([]interface{})
+	var oldDefaultMap map[string]interface{}
+	if len(oldDwList) > 0 {
+		oldDefaultMap, _ = oldDwList[0].(map[string]interface{})
+	}
+	oldWhRaw, _ := d.GetChange("warehouse")
+	oldWhByName := make(map[string]map[string]interface{})
+	for _, ow := range oldWhRaw.([]interface{}) {
+		owMap := ow.(map[string]interface{})
+		oldWhByName[owMap["name"].(string)] = owMap
+	}
+
+	rawConfig := d.GetRawConfig()
+	for i, v := range warehouses {
 		vMap := v.(map[string]interface{})
-		if vMap["distribution_policy"].(string) != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
-			return errors.New("specify_az parameter only takes effect when the distribution_policy value is \"specify_az\"")
+		policy := vMap["distribution_policy"].(string)
+		azs := toStringSlice(vMap["specified_azs"])
+		cnc := vMap["compute_node_count"].(int)
+		rawWh := rawConfig.GetAttr("default_warehouse").Index(cty.NumberIntVal(0))
+		if i > 0 {
+			rawWh = rawConfig.GetAttr("warehouse").Index(cty.NumberIntVal(int64(i - 1)))
+		}
+		userSetComputeNodeCount := !rawWh.GetAttr("compute_node_count").IsNull()
+
+		var oldWhMap map[string]interface{}
+		whLabel := "default_warehouse"
+		if i == 0 {
+			if !isNewResource {
+				oldWhMap = oldDefaultMap
+			}
+		} else {
+			whName := vMap["name"].(string)
+			whLabel = fmt.Sprintf("warehouse %q", whName)
+			oldWhMap = oldWhByName[whName]
+		}
+		var oldPolicy string
+		var oldCount, oldCngroupCount, oldCngroupSize int
+		var oldSpecifiedAZs []string
+		if oldWhMap != nil {
+			oldPolicy, _ = oldWhMap["distribution_policy"].(string)
+			oldCount, _ = oldWhMap["compute_node_count"].(int)
+			oldCngroupCount, _ = oldWhMap["cngroup_count"].(int)
+			oldCngroupSize, _ = oldWhMap["cngroup_size"].(int)
+			oldSpecifiedAZs = toStringSlice(oldWhMap["specified_azs"])
+		}
+
+		if policy == CROSSING_AZ {
+			if oldWhMap == nil {
+				return fmt.Errorf("distribution_policy %q is no longer supported for new warehouses; use %q or %q instead (%s)", CROSSING_AZ, SPECIFY_AZ, MULTI_AZ, whLabel)
+			}
+			if oldPolicy != CROSSING_AZ {
+				return fmt.Errorf("changing distribution_policy to %q is no longer supported; existing %q warehouses remain unchanged but cannot be recreated with this policy (%s)", CROSSING_AZ, CROSSING_AZ, whLabel)
+			}
+		}
+
+		if policy == MULTI_AZ {
+			if len(vMap["specify_az"].(string)) > 0 {
+				return errors.New("specify_az must be empty when distribution_policy is \"multi_az\"")
+			}
+			if len(azs) < 2 || len(azs) > 3 {
+				return errors.New("in multi_az distribution policy, specified_azs must contain 2 or 3 AZs")
+			}
+			if !userSetComputeNodeCount {
+				return errors.New("compute_node_count is required when distribution_policy is \"multi_az\"")
+			}
+			if cnc <= 0 || cnc%len(azs) != 0 {
+				return fmt.Errorf("compute_node_count (%d) must be a positive multiple of len(specified_azs) (%d) when distribution_policy is \"multi_az\"", cnc, len(azs))
+			}
+			// Preserves source group-scaling partitions on the target per-AZ layout.
+			if oldPolicy == SPECIFY_AZ && oldCount > 0 {
+				expected := oldCount * len(azs)
+				if cnc != expected {
+					return fmt.Errorf("switching %s from specify_az to multi_az requires compute_node_count to be %d (current %d multiplied by %d AZs)", whLabel, expected, oldCount, len(azs))
+				}
+			}
+			// multi_az AZ-count change (2↔3): backend keeps per-AZ count fixed
+			// and recomputes total as perAZ × len(newAZs); the caller's
+			// compute_node_count must match or backend math diverges from state.
+			if oldPolicy == MULTI_AZ && len(oldSpecifiedAZs) > 0 && len(azs) != len(oldSpecifiedAZs) {
+				if oldCount%len(oldSpecifiedAZs) != 0 {
+					return fmt.Errorf("%s current compute_node_count %d is not divisible by current specified_azs count %d; cannot derive target per-AZ count", whLabel, oldCount, len(oldSpecifiedAZs))
+				}
+				expected := oldCount / len(oldSpecifiedAZs) * len(azs)
+				if cnc != expected {
+					return fmt.Errorf("changing %s multi_az specified_azs from %d to %d AZs requires compute_node_count to be %d (current %d × %d / %d)", whLabel, len(oldSpecifiedAZs), len(azs), expected, oldCount, len(azs), len(oldSpecifiedAZs))
+				}
+			}
+		} else {
+			if policy != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
+				return errors.New("specify_az parameter only takes effect when the distribution_policy value is \"specify_az\"")
+			}
+			if len(azs) > 0 {
+				return errors.New("specified_azs parameter only takes effect when the distribution_policy value is \"multi_az\"")
+			}
+		}
+
+		// Same-policy scaling keeps cngroup partitions evenly sized — but
+		// multi_az AZ-count changes (2↔3) add or drop cngroups entirely, so
+		// the source cngroup_count is no longer the relevant divisor for
+		// those transitions.
+		azCountChanged := oldPolicy == MULTI_AZ && policy == MULTI_AZ && len(oldSpecifiedAZs) > 0 && len(oldSpecifiedAZs) != len(azs)
+		if oldCngroupCount > 0 && oldPolicy == policy && !azCountChanged && cnc != oldCount && cnc%oldCngroupCount != 0 {
+			return fmt.Errorf("%s compute_node_count %d must be a multiple of current cngroup_count %d", whLabel, cnc, oldCngroupCount)
+		}
+
+		// multi_az → specify_az: backend chunks new VMs with the source
+		// cngroup_size, so compute_node_count must divide cleanly.
+		if oldPolicy == MULTI_AZ && policy == SPECIFY_AZ && oldCngroupSize > 0 && cnc%oldCngroupSize != 0 {
+			return fmt.Errorf("%s switching from multi_az to specify_az requires compute_node_count %d to be a multiple of current cngroup_size %d", whLabel, cnc, oldCngroupSize)
 		}
 	}
 
@@ -806,25 +956,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			}
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
 		}
-
-		if len(clusterId) > 0 {
-			// Check is instance store
-			whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
-			for whName, whExInfo := range whExternalInfoMap {
-				if v, ok := whVmInfoMap[whName]; ok {
-					whExternalInfo := &cluster.WarehouseExternalInfo{}
-					json.Unmarshal([]byte(whExInfo.(string)), whExternalInfo)
-
-					expectStr := "local disk vm instance type"
-					if !whExternalInfo.IsInstanceStore {
-						expectStr = "nonlocal disk vm instance type"
-					}
-					if whExternalInfo.IsInstanceStore != v.IsInstanceStore {
-						return fmt.Errorf("the disk type of the warehouse[%s] must be the same as the previous disk type, expect:%s", whName, expectStr)
-					}
-				}
-			}
-		}
 	}
 
 	if d.HasChange("warehouse") {
@@ -899,25 +1030,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 
 			whVmInfoMap[whName] = vmCateInfoResp.VmInfo
 		}
-
-		if len(clusterId) > 0 {
-			// 3. check is instance store
-			whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
-			for whName, whExInfo := range whExternalInfoMap {
-				if v, ok := whVmInfoMap[whName]; ok {
-					whExternalInfo := &cluster.WarehouseExternalInfo{}
-					json.Unmarshal([]byte(whExInfo.(string)), whExternalInfo)
-
-					expectStr := "local disk vm instance type"
-					if !whExternalInfo.IsInstanceStore {
-						expectStr = "nonlocal disk vm instance type"
-					}
-					if whExternalInfo.IsInstanceStore != v.IsInstanceStore {
-						return fmt.Errorf("the disk type of the warehouse[%s] must be the same as the previous disk type, expect:%s", whName, expectStr)
-					}
-				}
-			}
-		}
 	}
 
 	if d.HasChange("global_session_variables") && d.Get("expected_cluster_state") != string(cluster.ClusterStateRunning) {
@@ -979,8 +1091,43 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		return err
 	}
 
+	// Mark cngroup_count/cngroup_size Unknown when their inputs change so
+	// plan does not lock the old values; Update's final Read fills the new
+	// truth from backend post-apply.
+	markWarehouseCngroupUnknown(d)
+
 	err2 := SchedulingPolicyParamCheck(d)
 	return err2
+}
+
+func markWarehouseCngroupUnknown(d *schema.ResourceDiff) {
+	cngroupTriggers := []string{"distribution_policy", "specified_azs", "compute_node_count"}
+
+	if d.HasChange("default_warehouse") {
+		for _, f := range cngroupTriggers {
+			if d.HasChange("default_warehouse.0." + f) {
+				_ = d.SetNewComputed("default_warehouse.0.cngroup_count")
+				_ = d.SetNewComputed("default_warehouse.0.cngroup_size")
+				break
+			}
+		}
+	}
+
+	if d.HasChange("warehouse") {
+		whs, ok := d.Get("warehouse").([]interface{})
+		if !ok {
+			return
+		}
+		for i := range whs {
+			for _, f := range cngroupTriggers {
+				if d.HasChange(fmt.Sprintf("warehouse.%d.%s", i, f)) {
+					_ = d.SetNewComputed(fmt.Sprintf("warehouse.%d.cngroup_count", i))
+					_ = d.SetNewComputed(fmt.Sprintf("warehouse.%d.cngroup_size", i))
+					break
+				}
+			}
+		}
+	}
 }
 
 func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
@@ -1101,6 +1248,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		InstanceType:       defaultWhMap["compute_node_size"].(string),
 		DistributionPolicy: defaultWhMap["distribution_policy"].(string),
 		SpecifyAZ:          defaultWhMap["specify_az"].(string),
+		SpecifiedAZs:       toStringSlice(defaultWhMap["specified_azs"]),
 		Tags:               defaultWHTags,
 		DiskInfo: &cluster.DiskInfo{
 			Number:  2,
@@ -1202,6 +1350,17 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		})
 		if warnDiag != nil {
 			return warnDiag
+		}
+	}
+
+	enabled := d.Get("enabled_arrow_flight").(bool)
+	if enabled {
+		diagnostics := configArrowFlight(ctx, clusterAPI, &cluster.SetClusterArrowFlightReq{
+			ClusterId: clusterId,
+			Enabled:   enabled,
+		})
+		if diagnostics != nil {
+			return diagnostics
 		}
 	}
 
@@ -1420,6 +1579,11 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
+	arrowFlight, err := clusterAPI.GetClusterArrowFlight(ctx, &cluster.GetClusterArrowFlightReq{ClusterId: clusterId})
+	if err != nil {
+		return diag.Errorf("Failed to get cluster arrow flight, errMsg:%s", err.Error())
+	}
+
 	rangerConfigResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
 		ClusterID:  clusterId,
 		ConfigType: cluster.CustomConfigTypeRangerV2,
@@ -1495,11 +1659,23 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap["name"] = warehouseName
 		whMap["compute_node_size"] = v.Module.InstanceType
 		whMap["compute_node_count"] = v.Module.Num
+		// Backend reports cngroup_count but not cngroup_size; derive size locally
+		// to keep the field truthful (size = total nodes / cngroup count).
+		cngroupSize := 0
+		if v.CngroupCount > 0 {
+			cngroupSize = int(v.Module.Num) / int(v.CngroupCount)
+		}
+		whMap["cngroup_size"] = cngroupSize
+		whMap["cngroup_count"] = int(v.CngroupCount)
 		whMap["resource_tags"] = whTags
+		whMap["specified_azs"] = []string{}
 		if !netResp.Network.MultiAz {
 			whMap["distribution_policy"] = ""
 		} else {
 			whMap["distribution_policy"] = v.DistributionPolicyStr
+			if v.DistributionPolicyStr == MULTI_AZ {
+				whMap["specified_azs"] = v.SpecifiedAZs
+			}
 		}
 		whMap["specify_az"] = v.SpecifyAZ
 
@@ -1639,6 +1815,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("scheduling_policy_extra_info", policyExtraInfo)
 
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
+	d.Set("enabled_arrow_flight", arrowFlight.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
 	// Check actual audit loader plugin status (don't reconcile here, just report actual state)
@@ -1788,6 +1965,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 
+	// Top-level flags (config-ish, must run before REDUCE so reductions see the right state)
 	if d.HasChange("idle_suspend_interval") && !d.IsNewResource() {
 		o, n := d.GetChange("idle_suspend_interval")
 
@@ -1810,7 +1988,6 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	// Warning or errors can be collected in a slice type
 	var diags diag.Diagnostics
 	if needResume(d) {
 		o, n := d.GetChange("expected_cluster_state")
@@ -1820,6 +1997,33 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if elasticClusterV2NeedUnlock(d) {
+		err := clusterAPI.UnlockFreeTier(ctx, clusterId)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to unlock free tier: %s", d.Id(), err.Error()))
+		}
+	}
+
+	// ---- REDUCE ----
+	if needFeScaleIn(d) {
+		if diags := handleFEScaleIn(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
+		}
+	}
+
+	if diags := handleDeleteWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
+		return diags
+	}
+
+	if diags := handleResumeWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
+		return diags
+	}
+
+	if diags := handleScaleInWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
+		return diags
+	}
+
+	// ---- CONFIG ----
 	if d.HasChange("global_session_variables") && !d.IsNewResource() {
 		errDiag := HandleChangedGlobalSqlSessionVariables(ctx, clusterAPI, d)
 		if errDiag != nil {
@@ -1828,56 +2032,20 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	}
 
 	if d.HasChange("ldap_ssl_certs") && !d.IsNewResource() {
-		sslCerts := make([]string, 0)
-		if v, ok := d.GetOk("ldap_ssl_certs"); ok {
-			arr := v.(*schema.Set).List()
-			for _, v := range arr {
-				value := v.(string)
-				sslCerts = append(sslCerts, value)
-			}
-		}
-		warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, true)
-		if warningDiag != nil {
-			return warningDiag
+		if diags := handleLdapSslCertsChange(ctx, d, clusterAPI); diags != nil {
+			return diags
 		}
 	}
 
 	if d.HasChange("resource_tags") && !d.IsNewResource() {
-		_, n := d.GetChange("resource_tags")
-
-		nTags := n.(map[string]interface{})
-		tags := make(map[string]string, len(nTags))
-		for k, v := range nTags {
-			tags[k] = v.(string)
-		}
-		err := clusterAPI.UpdateResourceTags(ctx, &cluster.UpdateResourceTagsReq{
-			ClusterId: clusterId,
-			Tags:      tags,
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update resource tags: %s", d.Id(), err.Error()))
+		if diags := handleClusterResourceTagsChange(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
 		}
 	}
 
 	if d.HasChange("init_scripts") && !d.IsNewResource() {
-		_, n := d.GetChange("init_scripts")
-		vL := n.(*schema.Set).List()
-		scripts := make([]*cluster.Script, 0, len(vL))
-		for _, v := range vL {
-			s := v.(map[string]interface{})
-			scripts = append(scripts, &cluster.Script{
-				ScriptPath: s["script_path"].(string),
-				LogsDir:    s["logs_dir"].(string),
-			})
-		}
-		err := clusterAPI.UpdateDeploymentScripts(ctx, &cluster.UpdateDeploymentScriptsReq{
-			ClusterId: clusterId,
-			Scripts:   scripts,
-			Parallel:  d.Get("run_scripts_parallel").(bool),
-			Timeout:   int32(d.Get("run_scripts_timeout").(int)),
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to update cluster(%s) init-scripts: %s", d.Id(), err.Error()))
+		if diags := handleInitScriptsChange(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
 		}
 	}
 
@@ -1899,6 +2067,17 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if d.HasChange("enabled_arrow_flight") && !d.IsNewResource() {
+		enabled := d.Get("enabled_arrow_flight").(bool)
+		diagnostics := configArrowFlight(ctx, clusterAPI, &cluster.SetClusterArrowFlightReq{
+			ClusterId: clusterId,
+			Enabled:   enabled,
+		})
+		if diagnostics != nil {
+			return diagnostics
+		}
+	}
+
 	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
 		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
 	}
@@ -1917,337 +2096,83 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		err := clusterAPI.UnlockFreeTier(ctx, clusterId)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to unlock free tier: %s", d.Id(), err.Error()))
-		}
-	}
-
-	if d.HasChange("coordinator_node_size") && !d.IsNewResource() {
-		_, n := d.GetChange("coordinator_node_size")
-		resp, err := clusterAPI.ScaleUp(ctx, &cluster.ScaleUpReq{
-			RequestId:  uuid.NewString(),
-			ClusterId:  clusterId,
-			ModuleType: cluster.ClusterModuleTypeFE,
-			VmCategory: n.(string),
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale up fe nodes: %s", d.Id(), err))
-		}
-
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      resp.ActionId,
-			clusterID:     clusterId,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running %s", d.Id(), err))
-		}
-
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
-		}
-	}
-
-	if d.HasChange("coordinator_node_count") && !d.IsNewResource() {
-		o, n := d.GetChange("coordinator_node_count")
-
-		var actionID string
-		if n.(int) > o.(int) {
-			resp, err := clusterAPI.ScaleOut(ctx, &cluster.ScaleOutReq{
-				RequestId:  uuid.NewString(),
-				ClusterId:  clusterId,
-				ModuleType: cluster.ClusterModuleTypeFE,
-				ExpectNum:  int32(n.(int)),
-			})
-			if err != nil {
-				return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale out fe nodes: %s", d.Id(), err))
-			}
-
-			actionID = resp.ActionId
-		} else if n.(int) < o.(int) {
-			resp, err := clusterAPI.ScaleIn(ctx, &cluster.ScaleInReq{
-				RequestId:  uuid.NewString(),
-				ClusterId:  clusterId,
-				ModuleType: cluster.ClusterModuleTypeFE,
-				ExpectNum:  int32(n.(int)),
-			})
-			if err != nil {
-				return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale in fe nodes: %s", d.Id(), err))
-			}
-
-			actionID = resp.ActionId
-		}
-
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI:    clusterAPI,
-			actionID:      actionID,
-			clusterID:     clusterId,
-			timeout:       common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{string(cluster.ClusterStateScaling)},
-			targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
-		}
-
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
-		}
-	}
-
 	if d.HasChange("coordinator_node_volume_config") {
-		o, n := d.GetChange("coordinator_node_volume_config")
-
-		oldVolumeConfig, newVolumeConfig := cluster.DefaultFeVolumeMap(), cluster.DefaultFeVolumeMap()
-
-		if len(o.([]interface{})) > 0 {
-			oldVolumeConfig = o.([]interface{})[0].(map[string]interface{})
-		}
-		if len(n.([]interface{})) > 0 {
-			newVolumeConfig = n.([]interface{})[0].(map[string]interface{})
-		}
-
-		nodeType := cluster.ClusterModuleTypeFE
-		req := &cluster.ModifyClusterVolumeReq{
-			ClusterId: clusterId,
-			Type:      nodeType,
-		}
-
-		if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
-			req.VmVolSize = int64(v.(int))
-		}
-		if v, ok := newVolumeConfig["iops"]; ok && v != oldVolumeConfig["iops"] {
-			req.Iops = int64(v.(int))
-		}
-		if v, ok := newVolumeConfig["throughput"]; ok && v != oldVolumeConfig["throughput"] {
-			req.Throughput = int64(v.(int))
-		}
-
-		log.Printf("[DEBUG] modify cluster volume detail, req:%+v", req)
-		resp, err := clusterAPI.ModifyClusterVolume(ctx, req)
-		if err != nil {
-			log.Printf("[ERROR] modify cluster volume detail failed, err:%+v", err)
-			return diag.FromErr(err)
-		}
-
-		infraActionId := resp.ActionID
-		if len(infraActionId) > 0 {
-			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
-				clusterAPI: clusterAPI,
-				clusterID:  clusterId,
-				actionID:   infraActionId,
-				timeout:    30 * time.Minute,
-				pendingStates: []string{
-					string(cluster.ClusterInfraActionStatePending),
-					string(cluster.ClusterInfraActionStateOngoing),
-				},
-				targetStates: []string{
-					string(cluster.ClusterInfraActionStateSucceeded),
-					string(cluster.ClusterInfraActionStateCompleted),
-					string(cluster.ClusterInfraActionStateFailed),
-				},
-			})
-
-			summary := fmt.Sprintf("Modify %s node volume detail of the cluster[%s] failed", nodeType, clusterId)
-			if err != nil {
-				return diag.Diagnostics{
-					diag.Diagnostic{
-						Severity: diag.Error,
-						Summary:  summary,
-						Detail:   err.Error(),
-					},
-				}
-			}
-
-			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
-				return diag.Diagnostics{
-					diag.Diagnostic{
-						Severity: diag.Error,
-						Summary:  summary,
-						Detail:   infraActionResp.ErrMsg,
-					},
-				}
-			}
+		if diags := handleFEVolumeConfigChange(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
 		}
 	}
 
 	if d.HasChange("coordinator_node_configs") {
-		configMap := d.Get("coordinator_node_configs").(map[string]interface{})
-		configs := make(map[string]string, 0)
-		for k, v := range configMap {
-			configs[k] = v.(string)
-		}
-		warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
-			ClusterID:  clusterId,
-			ConfigType: cluster.CustomConfigTypeFE,
-			Configs:    configs,
-		})
-		if warnDiag != nil {
-			return warnDiag
+		if diags := handleCoordinatorNodeConfigsChange(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
 		}
 	}
+
+	if d.HasChange("ranger_config_id") {
+		if diags := handleRangerConfigIDChange(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
+		}
+	}
+
+	// ---- MODIFY (size + AMI, merged when both change) ----
+	feScaleUpChanged := d.HasChange("coordinator_node_size") && !d.IsNewResource()
+	customAmiChanged := d.HasChange("custom_ami.0.ami") && !d.IsNewResource()
 
 	netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("get network (%s): %s", d.Get("network_id").(string), err.Error()))
 	}
 
-	if d.HasChange("default_warehouse") {
-		o, n := d.GetChange("default_warehouse")
-		oldWh := o.([]interface{})[0].(map[string]interface{})
-		newWh := n.([]interface{})[0].(map[string]interface{})
-		whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+	if diags := handleWarehousesChange(ctx, d, clusterAPI, clusterId, netResp.Network.MultiAz, customAmiChanged); diags != nil {
+		return diags
+	}
 
-		// modified
-		whExternalInfoStr := whExternalInfoMap[DEFAULT_WAREHOUSE_NAME].(string)
-		whExternalInfo := &cluster.WarehouseExternalInfo{}
-		json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
-		diags := updateWarehouse(ctx, &UpdateWarehouseReq{
-			d:              d,
-			clusterAPI:     clusterAPI,
-			clusterId:      clusterId,
-			oldParamMap:    oldWh,
-			newParamMap:    newWh,
-			whExternalInfo: whExternalInfo,
-		}, netResp.Network.MultiAz)
-		if diags != nil {
+	if diags := handleDefaultWarehouseChange(ctx, d, clusterAPI, clusterId, netResp.Network.MultiAz, customAmiChanged); diags != nil {
+		return diags
+	}
+
+	switch {
+	case feScaleUpChanged && customAmiChanged:
+		if diags := handleFEScaleUpAndUpgradeAMI(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
+		}
+	case feScaleUpChanged:
+		if diags := handleFEScaleUp(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
+		}
+	case customAmiChanged:
+		// Warehouses already upgraded inside updateWarehouse; only FE AMI remains.
+		if diags := handleFECustomAmiChange(ctx, d, clusterAPI, clusterId); diags != nil {
 			return diags
 		}
 	}
 
-	if d.HasChange("warehouse") {
-		o, n := d.GetChange("warehouse")
-		old := o.([]interface{})
-		new := n.([]interface{})
-		whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
-
-		oldWhMap := make(map[string]map[string]interface{})
-		for _, v := range old {
-			whMap := v.(map[string]interface{})
-			oldWhMap[whMap["name"].(string)] = whMap
-		}
-		newWhMap := make(map[string]map[string]interface{})
-		for _, v := range new {
-			whMap := v.(map[string]interface{})
-			newWhMap[whMap["name"].(string)] = whMap
-		}
-
-		for _, v := range new {
-			newWh := v.(map[string]interface{})
-			whName := newWh["name"].(string)
-			if oldWh, ok := oldWhMap[whName]; ok {
-				// modified
-				whExternalInfoStr := whExternalInfoMap[whName].(string)
-				whExternalInfo := &cluster.WarehouseExternalInfo{}
-				json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
-				diags := updateWarehouse(ctx, &UpdateWarehouseReq{
-					d:              d,
-					clusterAPI:     clusterAPI,
-					clusterId:      clusterId,
-					oldParamMap:    oldWh,
-					newParamMap:    newWh,
-					whExternalInfo: whExternalInfo,
-				}, netResp.Network.MultiAz)
-				if diags != nil {
-					return diags
-				}
-			} else {
-				// added
-				diags := createWarehouse(ctx, clusterAPI, clusterId, newWh)
-				if diags != nil {
-					return diags
-				}
-			}
-		}
-
-		for _, v := range old {
-			oldWh := v.(map[string]interface{})
-			whName := oldWh["name"].(string)
-			if _, ok := newWhMap[whName]; !ok {
-				// removed
-				whExternalInfoStr := whExternalInfoMap[whName].(string)
-				whExternalInfo := &cluster.WarehouseExternalInfo{}
-				json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
-				whId := whExternalInfo.Id
-				diags := DeleteWarehouse(ctx, clusterAPI, clusterId, whId)
-				if diags != nil {
-					return diags
-				}
-			}
+	// ---- ADD ----
+	if needFeScaleOut(d) {
+		if diags := handleFEScaleOut(ctx, d, clusterAPI, clusterId); diags != nil {
+			return diags
 		}
 	}
 
+	if diags := handleCreateWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
+		return diags
+	}
+
+	if diags := handleScaleOutWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
+		return diags
+	}
+
+	if diags := handleSuspendWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
+		return diags
+	}
+
+	// ---- post ----
 	RunScripts(ctx, RunScriptsReq{
 		ResourceData:       d,
 		ClusterAPI:         clusterAPI,
 		ClusterID:          clusterId,
 		RunScriptsParallel: d.Get("run_scripts_parallel").(bool),
 	})
-
-	if d.HasChange("ranger_config_id") {
-		rangerConfigID := d.Get("ranger_config_id").(string)
-		var warningDiag diag.Diagnostics
-		if rangerConfigID == "" {
-			warningDiag = ClearRangerV2(ctx, clusterAPI, clusterId)
-		} else {
-			warningDiag = ApplyRangerV2(ctx, clusterAPI, clusterId, rangerConfigID)
-		}
-		if warningDiag != nil {
-			return warningDiag
-		}
-	}
-
-	if d.HasChange("custom_ami") && !d.IsNewResource() {
-		o, _ := d.GetChange("custom_ami")
-		if len(o.([]interface{})) == 0 {
-			return diag.FromErr(errors.New("custom ami can only be specified when creating cluster"))
-		}
-
-		if d.HasChange("custom_ami.0.os") && !d.IsNewResource() {
-			oOs, nOs := d.GetChange("custom_ami.0.os")
-			if len(oOs.(string)) > 0 && oOs.(string) != nOs.(string) {
-				return diag.FromErr(errors.New("custom ami os can not be changed"))
-			}
-		}
-
-		if d.HasChange("custom_ami.0.ami") && !d.IsNewResource() {
-			_, nAmi := d.GetChange("custom_ami.0.ami")
-			_, nOs := d.GetChange("custom_ami.0.os")
-
-			clusterResp, err := clusterAPI.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
-			if err != nil {
-				return diag.FromErr(err)
-			}
-
-			if !IsAllRunning(clusterResp.Cluster) {
-				return diag.FromErr(errors.New("custom ami can only be upgraded when the cluster and all warehouse states are running"))
-			}
-
-			for _, wh := range clusterResp.Cluster.Warehouses {
-				err := upgradeAMI(ctx, clusterAPI, &cluster.UpgradeAMIReq{
-					ClusterId:   clusterId,
-					Os:          nOs.(string),
-					Ami:         nAmi.(string),
-					WarehouseId: wh.Id,
-					ModuleType:  cluster.ClusterModuleTypeWarehouse,
-				})
-				if err != nil {
-					return diag.FromErr(err)
-				}
-			}
-
-			err = upgradeAMI(ctx, clusterAPI, &cluster.UpgradeAMIReq{
-				ClusterId:  clusterId,
-				Os:         nOs.(string),
-				Ami:        nAmi.(string),
-				ModuleType: cluster.ClusterModuleTypeFE,
-			})
-			if err != nil {
-				return diag.FromErr(err)
-			}
-		}
-	}
 
 	if needSuspend(d) {
 		o, n := d.GetChange("expected_cluster_state")
@@ -2257,7 +2182,10 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	return diags
+	// Refresh state so Computed fields (cngroup_count, cngroup_size) reflect
+	// post-update backend reality. Without this, plan-time SetNewComputed marks
+	// these Unknown but apply leaves them unset.
+	return append(diags, resourceElasticClusterV2Read(ctx, d, m)...)
 }
 
 func upgradeAMI(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.UpgradeAMIReq) error {
@@ -2354,6 +2282,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		Throughput:         int64(throughput),
 		DistributionPolicy: whParamMap["distribution_policy"].(string),
 		SpecifyAZ:          whParamMap["specify_az"].(string),
+		SpecifiedAZs:       toStringSlice(whParamMap["specified_azs"]),
 		Tags:               whTags,
 	}
 
@@ -2523,46 +2452,42 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 
 	warehouseName := newParamMap["name"].(string)
 
-	if !isDefaultWarehouse {
-		expectedState := newParamMap["expected_state"].(string)
-		expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
-		if expectedStateChanged {
-			if expectedState == string(cluster.ClusterStateRunning) {
-				resp := ResumeWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
-				if resp != nil {
-					return resp
-				}
-			}
-		}
-	}
-
+	oldSpecifiedAZs := toStringSlice(oldParamMap["specified_azs"])
+	newSpecifiedAZs := toStringSlice(newParamMap["specified_azs"])
 	computeNodeDistributionChanged := oldParamMap["distribution_policy"].(string) != newParamMap["distribution_policy"].(string) ||
-		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string))
+		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicySpecifyAZ) && oldParamMap["specify_az"].(string) != newParamMap["specify_az"].(string)) ||
+		(newParamMap["distribution_policy"].(string) == string(cluster.DistributionPolicyMultiAZ) && !equalAsSet(oldSpecifiedAZs, newSpecifiedAZs))
 	if computeNodeDistributionChanged && multiAz {
 		distributionPolicy := newParamMap["distribution_policy"].(string)
 		specifyAz := newParamMap["specify_az"].(string)
+		computeNodeCount := uint32(newParamMap["compute_node_count"].(int))
 		resp, err := clusterAPI.ChangeWarehouseDistribution(ctx, &cluster.ChangeWarehouseDistributionReq{
 			WarehouseID:        warehouseId,
 			DistributionPolicy: distributionPolicy,
 			SpecifyAz:          specifyAz,
+			SpecifiedAZs:       newSpecifiedAZs,
+			ComputeNodeCount:   computeNodeCount,
 		})
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("failed to change warehouse distribution, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err.Error()))
 		}
 
-		infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 			clusterAPI: clusterAPI,
 			clusterID:  clusterId,
 			actionID:   resp.InfraActionId,
 			timeout:    common.DeployOrScaleClusterTimeout,
 			pendingStates: []string{
-				string(cluster.ClusterInfraActionStatePending),
-				string(cluster.ClusterInfraActionStateOngoing),
+				string(cluster.ClusterStateDeploying),
+				string(cluster.ClusterStateScaling),
+				string(cluster.ClusterStateResuming),
+				string(cluster.ClusterStateSuspending),
+				string(cluster.ClusterStateReleasing),
+				string(cluster.ClusterStateUpdating),
 			},
 			targetStates: []string{
-				string(cluster.ClusterInfraActionStateSucceeded),
-				string(cluster.ClusterInfraActionStateCompleted),
-				string(cluster.ClusterInfraActionStateFailed),
+				string(cluster.ClusterStateRunning),
+				string(cluster.ClusterStateAbnormal),
 			},
 		})
 
@@ -2570,72 +2495,105 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, err.Error()))
 		}
 
-		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
-			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, infraActionResp.ErrMsg))
+		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+			return diag.FromErr(fmt.Errorf("failed to wait change warehouse distribution[%s], clusterId:%s warehouseId:%s, errMsg:%s", resp.InfraActionId, clusterId, warehouseId, stateResp.AbnormalReason))
 		}
 	}
 
-	// Modify warehouse node size
+	// Modify warehouse node size (optionally combined with AMI upgrade)
 	computeNodeSizeChanged := oldParamMap["compute_node_size"].(string) != newParamMap["compute_node_size"].(string)
 	if computeNodeSizeChanged {
 		vmCate := newParamMap["compute_node_size"].(string)
-		resp, err := clusterAPI.ScaleWarehouseSize(ctx, &cluster.ScaleWarehouseSizeReq{
+
+		if req.customAmiChanged {
+			if err := handleWarehouseScaleUpAndUpgradeAMI(ctx, req.d, clusterAPI, clusterId, warehouseId, vmCate); err != nil {
+				return diag.FromErr(err)
+			}
+		} else {
+			vmCateInfoResp, err := clusterAPI.GetVmInfo(ctx, &cluster.GetVmInfoReq{
+				Csp:         csp,
+				Region:      region,
+				ProcessType: string(cluster.ClusterModuleTypeBE),
+				VmCate:      vmCate,
+			})
+			if err != nil {
+				log.Printf("[ERROR] query vm info failed, csp:%s region:%s vmCate:%s err:%+v", csp, region, vmCate, err)
+				return diag.FromErr(fmt.Errorf("query vm info failed, csp:%s region:%s vmCate:%s errMsg:%s", csp, region, vmCate, err.Error()))
+			}
+
+			if vmCateInfoResp.VmInfo == nil {
+				return diag.FromErr(fmt.Errorf("vm info not exists, csp:%s region:%s vmCate:%s", csp, region, vmCate))
+			}
+
+			scaleReq := &cluster.ScaleWarehouseSizeReq{
+				WarehouseId: warehouseId,
+				VmCate:      vmCate,
+			}
+
+			if computeNodeIsInstanceStore && !vmCateInfoResp.VmInfo.IsInstanceStore {
+				newVolumeConfig := cluster.DefaultBeVolumeMap()
+				if len(newParamMap["compute_node_volume_config"].([]interface{})) > 0 {
+					newVolumeConfig = newParamMap["compute_node_volume_config"].([]interface{})[0].(map[string]interface{})
+				}
+
+				if newVolumeConfig["vol_number"].(int) > int(vmCateInfoResp.VmInfo.MaxDataDiskCount) {
+					return diag.FromErr(fmt.Errorf("the maximum allowed `vol_number` for this VM type is: %d", vmCateInfoResp.VmInfo.MaxDataDiskCount))
+				}
+
+				if newVolumeConfig["vol_number"].(int) < 1 {
+					return diag.FromErr(fmt.Errorf("the minimum allowed `vol_number` is: 1"))
+				}
+
+				if v, ok := newVolumeConfig["vol_number"]; ok {
+					scaleReq.VmVolNum = int64(v.(int))
+				}
+				if v, ok := newVolumeConfig["vol_size"]; ok {
+					scaleReq.VmVolSize = int64(v.(int))
+				}
+				if v, ok := newVolumeConfig["iops"]; ok {
+					scaleReq.Iops = int64(v.(int))
+				}
+				if v, ok := newVolumeConfig["throughput"]; ok {
+					scaleReq.Throughput = int64(v.(int))
+				}
+			}
+
+			resp, err := clusterAPI.ScaleWarehouseSize(ctx, scaleReq)
+
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("failed to scale warehouse size, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
+			}
+
+			stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				actionID:   resp.ActionID,
+				clusterID:  clusterId,
+				timeout:    common.DeployOrScaleClusterTimeout,
+				pendingStates: []string{
+					string(cluster.ClusterStateRunning),
+					string(cluster.ClusterStateScaling)},
+				targetStates: []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+			})
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err))
+			}
+
+			if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+				return diag.FromErr(errors.New(stateResp.AbnormalReason))
+			}
+		}
+	} else if req.customAmiChanged {
+		// Upgrade warehouse AMI when size is unchanged
+		_, nAmi := req.d.GetChange("custom_ami.0.ami")
+		_, nOs := req.d.GetChange("custom_ami.0.os")
+		if err := upgradeAMI(ctx, clusterAPI, &cluster.UpgradeAMIReq{
+			ClusterId:   clusterId,
+			Os:          nOs.(string),
+			Ami:         nAmi.(string),
 			WarehouseId: warehouseId,
-			VmCate:      vmCate,
-		})
-
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to scale warehouse size, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
-		}
-
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI: clusterAPI,
-			actionID:   resp.ActionID,
-			clusterID:  clusterId,
-			timeout:    common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{
-				string(cluster.ClusterStateRunning),
-				string(cluster.ClusterStateScaling)},
-			targetStates: []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err))
-		}
-
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
-		}
-	}
-
-	// Modify warehouse node count
-	computeNodeCountChanged := oldParamMap["compute_node_count"].(int) != newParamMap["compute_node_count"].(int)
-	if computeNodeCountChanged {
-		vmNum := int32(newParamMap["compute_node_count"].(int))
-		resp, err := clusterAPI.ScaleWarehouseNum(ctx, &cluster.ScaleWarehouseNumReq{
-			WarehouseId: warehouseId,
-			VmNum:       vmNum,
-		})
-
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("failed to scale warehouse number, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err))
-		}
-
-		stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
-			clusterAPI: clusterAPI,
-			actionID:   resp.ActionID,
-			clusterID:  clusterId,
-			timeout:    common.DeployOrScaleClusterTimeout,
-			pendingStates: []string{
-				string(cluster.ClusterStateRunning),
-				string(cluster.ClusterStateScaling)},
-			targetStates: []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err))
-		}
-
-		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-			return diag.FromErr(errors.New(stateResp.AbnormalReason))
+			ModuleType:  cluster.ClusterModuleTypeWarehouse,
+		}); err != nil {
+			return diag.FromErr(err)
 		}
 	}
 
@@ -2817,20 +2775,6 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 		}
 	}
 
-	if !isDefaultWarehouse {
-		expectedState := newParamMap["expected_state"].(string)
-		expectedStateChanged := oldParamMap["expected_state"].(string) != newParamMap["expected_state"].(string)
-		// Modidy warehouse state
-		if expectedStateChanged {
-			if expectedState == string(cluster.ClusterStateSuspended) {
-				resp := SuspendWarehouse(ctx, clusterAPI, clusterId, warehouseId, warehouseName)
-				if resp != nil {
-					return resp
-				}
-			}
-		}
-	}
-
 	// Modify auto scaling policy
 	autoScalingPolicyChanged := oldParamMap["auto_scaling_policy"].(string) != newParamMap["auto_scaling_policy"].(string)
 	if autoScalingPolicyChanged {
@@ -2873,7 +2817,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 	return nil
 }
 
-func DeleteWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId string) (diags diag.Diagnostics) {
+func deleteWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId string) (diags diag.Diagnostics) {
 
 	resp, err := clusterAPI.ReleaseWarehouse(ctx, &cluster.ReleaseWarehouseReq{
 		WarehouseId: warehouseId,
@@ -2918,7 +2862,7 @@ func DeleteWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 	return diags
 }
 
-func SuspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, warehouseName string) (diags diag.Diagnostics) {
+func suspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, warehouseName string) (diags diag.Diagnostics) {
 	suspendWhResp, err := clusterAPI.SuspendWarehouse(ctx, &cluster.SuspendWarehouseReq{
 		WarehouseId: warehouseId,
 	})
@@ -2977,7 +2921,7 @@ func SuspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clust
 	return diags
 }
 
-func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, warehouseName string) (diags diag.Diagnostics) {
+func resumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, warehouseName string) (diags diag.Diagnostics) {
 	resumeWhResp, err := clusterAPI.ResumeWarehouse(ctx, &cluster.ResumeWarehouseReq{
 		WarehouseId: warehouseId,
 	})
@@ -3024,7 +2968,7 @@ func ResumeWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 	return diags
 }
 
-func IsAllRunning(c *cluster.Cluster) bool {
+func isAllRunning(c *cluster.Cluster) bool {
 	if c.ClusterState != cluster.ClusterStateRunning {
 		return false
 	}
@@ -3039,12 +2983,858 @@ func IsAllRunning(c *cluster.Cluster) bool {
 }
 
 type UpdateWarehouseReq struct {
-	d              *schema.ResourceData
-	clusterAPI     cluster.IClusterAPI
-	clusterId      string
-	oldParamMap    map[string]interface{}
-	newParamMap    map[string]interface{}
-	whExternalInfo *cluster.WarehouseExternalInfo
+	d                *schema.ResourceData
+	clusterAPI       cluster.IClusterAPI
+	clusterId        string
+	oldParamMap      map[string]interface{}
+	newParamMap      map[string]interface{}
+	whExternalInfo   *cluster.WarehouseExternalInfo
+	customAmiChanged bool
+}
+
+func handleLdapSslCertsChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI) diag.Diagnostics {
+	sslCerts := make([]string, 0)
+	if v, ok := d.GetOk("ldap_ssl_certs"); ok {
+		arr := v.(*schema.Set).List()
+		for _, v := range arr {
+			sslCerts = append(sslCerts, v.(string))
+		}
+	}
+	warningDiag := UpsertClusterLdapSslCert(ctx, clusterAPI, d.Id(), sslCerts, true)
+	if warningDiag != nil {
+		return warningDiag
+	}
+	return nil
+}
+
+func handleClusterResourceTagsChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	_, n := d.GetChange("resource_tags")
+
+	nTags := n.(map[string]interface{})
+	tags := make(map[string]string, len(nTags))
+	for k, v := range nTags {
+		tags[k] = v.(string)
+	}
+
+	err := clusterAPI.UpdateResourceTags(ctx, &cluster.UpdateResourceTagsReq{
+		ClusterId: clusterId,
+		Tags:      tags,
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("cluster (%s) failed to update resource tags: %s", d.Id(), err.Error()))
+	}
+	return nil
+}
+
+func handleInitScriptsChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	_, n := d.GetChange("init_scripts")
+	vL := n.(*schema.Set).List()
+
+	scripts := make([]*cluster.Script, 0, len(vL))
+	for _, v := range vL {
+		s := v.(map[string]interface{})
+		scripts = append(scripts, &cluster.Script{
+			ScriptPath: s["script_path"].(string),
+			LogsDir:    s["logs_dir"].(string),
+		})
+	}
+
+	err := clusterAPI.UpdateDeploymentScripts(ctx, &cluster.UpdateDeploymentScriptsReq{
+		ClusterId: clusterId,
+		Scripts:   scripts,
+		Parallel:  d.Get("run_scripts_parallel").(bool),
+		Timeout:   int32(d.Get("run_scripts_timeout").(int)),
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("failed to update cluster(%s) init-scripts: %s", d.Id(), err.Error()))
+	}
+	return nil
+}
+
+func handleFEScaleUp(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	_, n := d.GetChange("coordinator_node_size")
+
+	resp, err := clusterAPI.ScaleUp(ctx, &cluster.ScaleUpReq{
+		RequestId:  uuid.NewString(),
+		ClusterId:  clusterId,
+		ModuleType: cluster.ClusterModuleTypeFE,
+		VmCategory: n.(string),
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale up coordinator nodes: %s", d.Id(), err))
+	}
+
+	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI:    clusterAPI,
+		actionID:      resp.ActionId,
+		clusterID:     clusterId,
+		timeout:       common.DeployOrScaleClusterTimeout,
+		pendingStates: []string{string(cluster.ClusterStateScaling)},
+		targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running %s", d.Id(), err))
+	}
+
+	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+		return diag.FromErr(errors.New(stateResp.AbnormalReason))
+	}
+
+	return nil
+}
+
+func handleFEScaleUpAndUpgradeAMI(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	_, nSize := d.GetChange("coordinator_node_size")
+	_, nAmi := d.GetChange("custom_ami.0.ami")
+	_, nOs := d.GetChange("custom_ami.0.os")
+
+	resp, err := clusterAPI.ScaleUpFEAndUpgradeAMI(ctx, &cluster.ScaleUpFEAndUpgradeAMIReq{
+		RequestId:  uuid.NewString(),
+		ClusterId:  clusterId,
+		VmCategory: nSize.(string),
+		Ami:        nAmi.(string),
+		Os:         nOs.(string),
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale up FE and upgrade AMI: %s", d.Id(), err))
+	}
+
+	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI:    clusterAPI,
+		actionID:      resp.ActionId,
+		clusterID:     clusterId,
+		timeout:       common.DeployOrScaleClusterTimeout,
+		pendingStates: []string{string(cluster.ClusterStateScaling)},
+		targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+	}
+
+	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+		return diag.FromErr(errors.New(stateResp.AbnormalReason))
+	}
+
+	return nil
+}
+
+func handleFEScaleIn(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	o, n := d.GetChange("coordinator_node_count")
+	if n.(int) >= o.(int) {
+		return nil
+	}
+
+	resp, err := clusterAPI.ScaleIn(ctx, &cluster.ScaleInReq{
+		RequestId:  uuid.NewString(),
+		ClusterId:  clusterId,
+		ModuleType: cluster.ClusterModuleTypeFE,
+		ExpectNum:  int32(n.(int)),
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale in fe nodes: %s", d.Id(), err))
+	}
+
+	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI:    clusterAPI,
+		actionID:      resp.ActionId,
+		clusterID:     clusterId,
+		timeout:       common.DeployOrScaleClusterTimeout,
+		pendingStates: []string{string(cluster.ClusterStateScaling)},
+		targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+	}
+
+	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+		return diag.FromErr(errors.New(stateResp.AbnormalReason))
+	}
+
+	return nil
+}
+
+func handleFEScaleOut(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	o, n := d.GetChange("coordinator_node_count")
+	if n.(int) <= o.(int) {
+		return nil
+	}
+
+	resp, err := clusterAPI.ScaleOut(ctx, &cluster.ScaleOutReq{
+		RequestId:  uuid.NewString(),
+		ClusterId:  clusterId,
+		ModuleType: cluster.ClusterModuleTypeFE,
+		ExpectNum:  int32(n.(int)),
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("cluster (%s) failed to scale out fe nodes: %s", d.Id(), err))
+	}
+
+	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI:    clusterAPI,
+		actionID:      resp.ActionId,
+		clusterID:     clusterId,
+		timeout:       common.DeployOrScaleClusterTimeout,
+		pendingStates: []string{string(cluster.ClusterStateScaling)},
+		targetStates:  []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+	})
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) running: %s", d.Id(), err))
+	}
+
+	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+		return diag.FromErr(errors.New(stateResp.AbnormalReason))
+	}
+
+	return nil
+}
+
+func handleFEVolumeConfigChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	o, n := d.GetChange("coordinator_node_volume_config")
+
+	oldVolumeConfig, newVolumeConfig := cluster.DefaultFeVolumeMap(), cluster.DefaultFeVolumeMap()
+
+	if len(o.([]interface{})) > 0 {
+		oldVolumeConfig = o.([]interface{})[0].(map[string]interface{})
+	}
+	if len(n.([]interface{})) > 0 {
+		newVolumeConfig = n.([]interface{})[0].(map[string]interface{})
+	}
+
+	nodeType := cluster.ClusterModuleTypeFE
+	req := &cluster.ModifyClusterVolumeReq{
+		ClusterId: clusterId,
+		Type:      nodeType,
+	}
+
+	if v, ok := newVolumeConfig["vol_size"]; ok && v != oldVolumeConfig["vol_size"] {
+		req.VmVolSize = int64(v.(int))
+	}
+	if v, ok := newVolumeConfig["iops"]; ok && v != oldVolumeConfig["iops"] {
+		req.Iops = int64(v.(int))
+	}
+	if v, ok := newVolumeConfig["throughput"]; ok && v != oldVolumeConfig["throughput"] {
+		req.Throughput = int64(v.(int))
+	}
+
+	log.Printf("[DEBUG] modify cluster volume detail, req:%+v", req)
+	resp, err := clusterAPI.ModifyClusterVolume(ctx, req)
+	if err != nil {
+		log.Printf("[ERROR] modify cluster volume detail failed, err:%+v", err)
+		return diag.FromErr(err)
+	}
+
+	infraActionId := resp.ActionID
+	if len(infraActionId) == 0 {
+		return nil
+	}
+
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  clusterId,
+		actionID:   infraActionId,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterInfraActionStatePending),
+			string(cluster.ClusterInfraActionStateOngoing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterInfraActionStateSucceeded),
+			string(cluster.ClusterInfraActionStateCompleted),
+			string(cluster.ClusterInfraActionStateFailed),
+		},
+	})
+
+	summary := fmt.Sprintf("Modify %s node volume detail of the cluster[%s] failed", nodeType, clusterId)
+	if err != nil {
+		return diag.Diagnostics{{
+			Severity: diag.Error,
+			Summary:  summary,
+			Detail:   err.Error(),
+		}}
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return diag.Diagnostics{{
+			Severity: diag.Error,
+			Summary:  summary,
+			Detail:   infraActionResp.ErrMsg,
+		}}
+	}
+
+	return nil
+}
+
+func handleCoordinatorNodeConfigsChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	configMap := d.Get("coordinator_node_configs").(map[string]interface{})
+	configs := make(map[string]string, 0)
+	for k, v := range configMap {
+		configs[k] = v.(string)
+	}
+
+	warnDiag := UpsertClusterConfig(ctx, clusterAPI, &cluster.UpsertClusterConfigReq{
+		ClusterID:  clusterId,
+		ConfigType: cluster.CustomConfigTypeFE,
+		Configs:    configs,
+	})
+	if warnDiag != nil {
+		return warnDiag
+	}
+
+	return nil
+}
+
+func handleDefaultWarehouseChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string, multiAz bool, customAmiChanged bool) diag.Diagnostics {
+	if !d.HasChange("default_warehouse") && !customAmiChanged {
+		return nil
+	}
+
+	whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+
+	dOld, dNew := d.GetChange("default_warehouse")
+	oldWh := dOld.([]interface{})[0].(map[string]interface{})
+	newWh := dNew.([]interface{})[0].(map[string]interface{})
+	whExternalInfoStr := whExternalInfoMap[DEFAULT_WAREHOUSE_NAME].(string)
+	whExternalInfo := &cluster.WarehouseExternalInfo{}
+	json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+
+	diags := updateWarehouse(ctx, &UpdateWarehouseReq{
+		d:                d,
+		clusterAPI:       clusterAPI,
+		clusterId:        clusterId,
+		oldParamMap:      oldWh,
+		newParamMap:      newWh,
+		whExternalInfo:   whExternalInfo,
+		customAmiChanged: customAmiChanged,
+	}, multiAz)
+	if diags != nil {
+		return diags
+	}
+	return nil
+}
+
+func handleWarehousesChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string, multiAz bool, customAmiChanged bool) diag.Diagnostics {
+	if !d.HasChange("warehouse") && !customAmiChanged {
+		return nil
+	}
+
+	o, n := d.GetChange("warehouse")
+	old := o.([]interface{})
+	newV := n.([]interface{})
+	whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+
+	oldWhMap := make(map[string]map[string]interface{})
+	for _, v := range old {
+		whMap := v.(map[string]interface{})
+		oldWhMap[whMap["name"].(string)] = whMap
+	}
+
+	for _, v := range newV {
+		newWh := v.(map[string]interface{})
+		whName := newWh["name"].(string)
+		if oldWh, ok := oldWhMap[whName]; ok {
+			whExternalInfoStr := whExternalInfoMap[whName].(string)
+			whExternalInfo := &cluster.WarehouseExternalInfo{}
+			json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+
+			diags := updateWarehouse(ctx, &UpdateWarehouseReq{
+				d:                d,
+				clusterAPI:       clusterAPI,
+				clusterId:        clusterId,
+				oldParamMap:      oldWh,
+				newParamMap:      newWh,
+				whExternalInfo:   whExternalInfo,
+				customAmiChanged: customAmiChanged,
+			}, multiAz)
+			if diags != nil {
+				return diags
+			}
+		}
+	}
+
+	return nil
+}
+
+func handleScaleOutWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	return handleScaleWarehouses(ctx, d, clusterAPI, clusterId, true)
+}
+
+func handleScaleInWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	return handleScaleWarehouses(ctx, d, clusterAPI, clusterId, false)
+}
+
+func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string, isScaleOut bool) diag.Diagnostics {
+	if !d.HasChange("warehouse") && !d.HasChange("default_warehouse") {
+		return nil
+	}
+
+	whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+
+	if d.HasChange("warehouse") {
+		o, n := d.GetChange("warehouse")
+		old := o.([]interface{})
+		newV := n.([]interface{})
+		oldWhMap := make(map[string]map[string]interface{})
+		for _, v := range old {
+			whMap := v.(map[string]interface{})
+			oldWhMap[whMap["name"].(string)] = whMap
+		}
+
+		for _, v := range newV {
+			newWh := v.(map[string]interface{})
+			whName := newWh["name"].(string)
+			oldWh, ok := oldWhMap[whName]
+			if !ok {
+				continue
+			}
+			// Skip when ChangeWarehouseDistribution already moved the count:
+			// cross-policy honors the caller's NodeCount, and same-policy
+			// multi_az with a different AZ count (2↔3) auto-recomputes total
+			// as perAZ × len(newAZs). Same-AZ-count membership swap leaves
+			// count unchanged on backend, so ScaleWarehouseNum must still run
+			// to apply any caller-requested count change.
+			oldPolicy := oldWh["distribution_policy"].(string)
+			newPolicy := newWh["distribution_policy"].(string)
+			if oldPolicy != newPolicy {
+				continue
+			}
+			oldAZs := toStringSlice(oldWh["specified_azs"])
+			newAZs := toStringSlice(newWh["specified_azs"])
+			if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
+				len(oldAZs) != len(newAZs) {
+				continue
+			}
+			whExternalInfoStr := whExternalInfoMap[whName].(string)
+			whExternalInfo := &cluster.WarehouseExternalInfo{}
+			json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+			oldCnt := oldWh["compute_node_count"].(int)
+			newCnt := newWh["compute_node_count"].(int)
+			if (isScaleOut && newCnt > oldCnt) || (!isScaleOut && newCnt < oldCnt) {
+				if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, whExternalInfo.Id, int32(newCnt)); err != nil {
+					return diag.FromErr(err)
+				}
+			}
+		}
+	}
+
+	if d.HasChange("default_warehouse") {
+		defaultOld, defaultNew := d.GetChange("default_warehouse")
+		defaultOldWh := defaultOld.([]interface{})[0].(map[string]interface{})
+		defaultNewWh := defaultNew.([]interface{})[0].(map[string]interface{})
+
+		// Same skip rule as extra warehouses: skip only when
+		// ChangeWarehouseDistribution moved the count (cross-policy or
+		// multi_az AZ-count change). Same-AZ-count membership swap falls
+		// through to ScaleWarehouseNum so caller-requested count changes
+		// are not silently dropped.
+		oldPolicy := defaultOldWh["distribution_policy"].(string)
+		newPolicy := defaultNewWh["distribution_policy"].(string)
+		if oldPolicy != newPolicy {
+			return nil
+		}
+		oldAZs := toStringSlice(defaultOldWh["specified_azs"])
+		newAZs := toStringSlice(defaultNewWh["specified_azs"])
+		if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
+			len(oldAZs) != len(newAZs) {
+			return nil
+		}
+
+		defaultWhExternalInfoStr := whExternalInfoMap[DEFAULT_WAREHOUSE_NAME].(string)
+		defaultWhExternalInfo := &cluster.WarehouseExternalInfo{}
+		json.Unmarshal([]byte(defaultWhExternalInfoStr), defaultWhExternalInfo)
+
+		defaultOldCnt := defaultOldWh["compute_node_count"].(int)
+		defaultNewCnt := defaultNewWh["compute_node_count"].(int)
+		if (isScaleOut && defaultNewCnt > defaultOldCnt) || (!isScaleOut && defaultNewCnt < defaultOldCnt) {
+			if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, defaultWhExternalInfo.Id, int32(defaultNewCnt)); err != nil {
+				return diag.FromErr(err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func scaleWarehouseNum(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId string, vmNum int32) error {
+	resp, err := clusterAPI.ScaleWarehouseNum(ctx, &cluster.ScaleWarehouseNumReq{
+		WarehouseId: warehouseId,
+		VmNum:       vmNum,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to scale warehouse number, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err)
+	}
+
+	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		actionID:   resp.ActionID,
+		clusterID:  clusterId,
+		timeout:    common.DeployOrScaleClusterTimeout,
+		pendingStates: []string{
+			string(cluster.ClusterStateRunning),
+			string(cluster.ClusterStateScaling)},
+		targetStates: []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+	})
+	if err != nil {
+		return fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err)
+	}
+
+	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+		return errors.New(stateResp.AbnormalReason)
+	}
+	return nil
+}
+
+func handleResumeWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	if !d.HasChange("warehouse") {
+		return nil
+	}
+
+	o, n := d.GetChange("warehouse")
+	old := o.([]interface{})
+	newV := n.([]interface{})
+
+	oldWhMap := make(map[string]map[string]interface{})
+	for _, v := range old {
+		whMap := v.(map[string]interface{})
+		oldWhMap[whMap["name"].(string)] = whMap
+	}
+
+	whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+
+	for _, v := range newV {
+		newWh := v.(map[string]interface{})
+		whName := newWh["name"].(string)
+
+		oldWh, ok := oldWhMap[whName]
+		if !ok {
+			continue
+		}
+		whExternalInfoStr := whExternalInfoMap[whName].(string)
+		whExternalInfo := &cluster.WarehouseExternalInfo{}
+		json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+
+		if whExternalInfo.IsDefaultWarehouse {
+			continue
+		}
+
+		expectedStateChanged := oldWh["expected_state"].(string) != newWh["expected_state"].(string)
+		if expectedStateChanged && newWh["expected_state"].(string) == string(cluster.ClusterStateRunning) {
+			diags := resumeWarehouse(ctx, clusterAPI, clusterId, whExternalInfo.Id, whName)
+			if diags != nil {
+				return diags
+			}
+		}
+	}
+
+	return nil
+}
+
+func handleSuspendWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	if !d.HasChange("warehouse") {
+		return nil
+	}
+
+	o, n := d.GetChange("warehouse")
+	old := o.([]interface{})
+	newV := n.([]interface{})
+
+	oldWhMap := make(map[string]map[string]interface{})
+	for _, v := range old {
+		whMap := v.(map[string]interface{})
+		oldWhMap[whMap["name"].(string)] = whMap
+	}
+
+	whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+
+	for _, v := range newV {
+		newWh := v.(map[string]interface{})
+		whName := newWh["name"].(string)
+
+		oldWh, ok := oldWhMap[whName]
+		if !ok {
+			continue
+		}
+		whExternalInfoStr := whExternalInfoMap[whName].(string)
+		whExternalInfo := &cluster.WarehouseExternalInfo{}
+		json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+
+		if whExternalInfo.IsDefaultWarehouse {
+			continue
+		}
+
+		expectedStateChanged := oldWh["expected_state"].(string) != newWh["expected_state"].(string)
+		if expectedStateChanged && newWh["expected_state"].(string) == string(cluster.ClusterStateSuspended) {
+			diags := suspendWarehouse(ctx, clusterAPI, clusterId, whExternalInfo.Id, whName)
+			if diags != nil {
+				return diags
+			}
+		}
+	}
+
+	return nil
+}
+
+func handleDeleteWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	if !d.HasChange("warehouse") {
+		return nil
+	}
+
+	o, n := d.GetChange("warehouse")
+	old := o.([]interface{})
+	newV := n.([]interface{})
+	whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
+
+	newWhMap := make(map[string]map[string]interface{})
+	for _, v := range newV {
+		whMap := v.(map[string]interface{})
+		newWhMap[whMap["name"].(string)] = whMap
+	}
+
+	for _, v := range old {
+		oldWh := v.(map[string]interface{})
+		whName := oldWh["name"].(string)
+		if _, ok := newWhMap[whName]; ok {
+			continue
+		}
+		whExternalInfoStr := whExternalInfoMap[whName].(string)
+		whExternalInfo := &cluster.WarehouseExternalInfo{}
+		json.Unmarshal([]byte(whExternalInfoStr), whExternalInfo)
+
+		diags := deleteWarehouse(ctx, clusterAPI, clusterId, whExternalInfo.Id)
+		if diags != nil {
+			return diags
+		}
+	}
+
+	return nil
+}
+
+func handleCreateWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	if !d.HasChange("warehouse") {
+		return nil
+	}
+
+	o, n := d.GetChange("warehouse")
+	old := o.([]interface{})
+	newV := n.([]interface{})
+
+	oldWhMap := make(map[string]map[string]interface{})
+	for _, v := range old {
+		whMap := v.(map[string]interface{})
+		oldWhMap[whMap["name"].(string)] = whMap
+	}
+
+	for _, v := range newV {
+		newWh := v.(map[string]interface{})
+		whName := newWh["name"].(string)
+		if _, ok := oldWhMap[whName]; ok {
+			continue
+		}
+		diags := createWarehouse(ctx, clusterAPI, clusterId, newWh)
+		if diags != nil {
+			return diags
+		}
+	}
+
+	return nil
+}
+
+func handleRangerConfigIDChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	rangerConfigID := d.Get("ranger_config_id").(string)
+	var warningDiag diag.Diagnostics
+	if rangerConfigID == "" {
+		warningDiag = ClearRangerV2(ctx, clusterAPI, clusterId)
+	} else {
+		warningDiag = ApplyRangerV2(ctx, clusterAPI, clusterId, rangerConfigID)
+	}
+	if warningDiag != nil {
+		return warningDiag
+	}
+	return nil
+}
+
+func handleFECustomAmiChange(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string) diag.Diagnostics {
+	o, _ := d.GetChange("custom_ami")
+	if len(o.([]interface{})) == 0 {
+		return diag.FromErr(errors.New("custom ami can only be specified when creating cluster"))
+	}
+
+	if d.HasChange("custom_ami.0.os") && !d.IsNewResource() {
+		oOs, nOs := d.GetChange("custom_ami.0.os")
+		if len(oOs.(string)) > 0 && oOs.(string) != nOs.(string) {
+			return diag.FromErr(errors.New("custom ami os can not be changed"))
+		}
+	}
+
+	if !d.HasChange("custom_ami.0.ami") || d.IsNewResource() {
+		return nil
+	}
+
+	_, nAmi := d.GetChange("custom_ami.0.ami")
+	_, nOs := d.GetChange("custom_ami.0.os")
+
+	clusterResp, err := clusterAPI.Get(ctx, &cluster.GetReq{ClusterID: clusterId})
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	if !isAllRunning(clusterResp.Cluster) {
+		return diag.FromErr(errors.New("custom ami can only be upgraded when the cluster and all warehouse states are running"))
+	}
+
+	if err := upgradeAMI(ctx, clusterAPI, &cluster.UpgradeAMIReq{
+		ClusterId:  clusterId,
+		Os:         nOs.(string),
+		Ami:        nAmi.(string),
+		ModuleType: cluster.ClusterModuleTypeFE,
+	}); err != nil {
+		return diag.FromErr(err)
+	}
+
+	return nil
+}
+
+func handleWarehouseScaleUpAndUpgradeAMI(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId, warehouseId, vmCate string) error {
+	_, nAmi := d.GetChange("custom_ami.0.ami")
+	_, nOs := d.GetChange("custom_ami.0.os")
+
+	resp, err := clusterAPI.ScaleUpWarehouseAndUpgradeAMI(ctx, &cluster.ScaleUpWarehouseAndUpgradeAMIReq{
+		RequestId:   uuid.NewString(),
+		ClusterId:   clusterId,
+		WarehouseId: warehouseId,
+		VmCategory:  vmCate,
+		Ami:         nAmi.(string),
+		Os:          nOs.(string),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to scale up warehouse and upgrade AMI, clusterId:%s warehouseId:%s, errMsg:%s", clusterId, warehouseId, err)
+	}
+
+	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		actionID:   resp.ActionId,
+		clusterID:  clusterId,
+		timeout:    common.DeployOrScaleClusterTimeout,
+		pendingStates: []string{
+			string(cluster.ClusterStateRunning),
+			string(cluster.ClusterStateScaling)},
+		targetStates: []string{string(cluster.ClusterStateRunning), string(cluster.ClusterStateAbnormal)},
+	})
+	if err != nil {
+		return fmt.Errorf("waiting for cluster (%s) running: %s", clusterId, err)
+	}
+
+	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
+		return errors.New(stateResp.AbnormalReason)
+	}
+
+	return nil
+}
+
+func toStringSlice(v interface{}) []string {
+	if v == nil {
+		return nil
+	}
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// equalAsSet reports whether a and b contain the same elements regardless of order.
+// specified_azs is order-insensitive semantically (cngroups are derived per-AZ),
+// but the schema is TypeList; treat list-reorder as no diff.
+func equalAsSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]struct{}, len(a))
+	for _, s := range a {
+		seen[s] = struct{}{}
+	}
+	for _, s := range b {
+		if _, ok := seen[s]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// suppressSpecifiedAZsDiff suppresses plan diffs caused purely by reordering
+// specified_azs. Terraform invokes this for both the count key (".#") and each
+// element index; in either case we resolve the parent list and compare as sets.
+func suppressSpecifiedAZsDiff(k, _, _ string, d *schema.ResourceData) bool {
+	lastDot := strings.LastIndex(k, ".")
+	if lastDot < 0 {
+		return false
+	}
+	parent := k[:lastDot]
+	if !strings.HasSuffix(parent, ".specified_azs") {
+		return false
+	}
+	oldList, newList := d.GetChange(parent)
+	return equalAsSet(toStringSlice(oldList), toStringSlice(newList))
+}
+
+func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req *cluster.SetClusterArrowFlightReq) diag.Diagnostics {
+	summary := "Failed to config arrow flight."
+
+	resp, err := clusterAPI.SetClusterArrowFlight(ctx, req)
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	log.Printf("[DEBUG] configArrowFlight, req:%v resp:%+v", req, resp)
+
+	infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+		clusterAPI: clusterAPI,
+		clusterID:  req.ClusterId,
+		actionID:   resp.ActionID,
+		timeout:    30 * time.Minute,
+		pendingStates: []string{
+			string(cluster.ClusterInfraActionStatePending),
+			string(cluster.ClusterInfraActionStateOngoing),
+		},
+		targetStates: []string{
+			string(cluster.ClusterInfraActionStateSucceeded),
+			string(cluster.ClusterInfraActionStateCompleted),
+			string(cluster.ClusterInfraActionStateFailed),
+		},
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   err.Error(),
+			},
+		}
+	}
+
+	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  summary,
+				Detail:   infraActionResp.ErrMsg,
+			},
+		}
+	}
+
+	return nil
 }
 
 // reconcileAuditLoaderPlugin ensures the actual plugin state matches the desired state
