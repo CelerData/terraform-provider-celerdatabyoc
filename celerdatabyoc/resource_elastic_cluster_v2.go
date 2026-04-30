@@ -3346,18 +3346,21 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 			if !ok {
 				continue
 			}
-			// Skip when ChangeWarehouseDistribution already handled the count
-			// change: cross-policy, or same-policy multi_az with different
-			// specified_azs (e.g. 2↔3 AZ-count change). The redundant
-			// ScaleWarehouseNum would otherwise hit "vm_num cannot be the same
-			// as the current number" / "invalid warehouse node count".
+			// Skip when ChangeWarehouseDistribution already moved the count:
+			// cross-policy honors the caller's NodeCount, and same-policy
+			// multi_az with a different AZ count (2↔3) auto-recomputes total
+			// as perAZ × len(newAZs). Same-AZ-count membership swap leaves
+			// count unchanged on backend, so ScaleWarehouseNum must still run
+			// to apply any caller-requested count change.
 			oldPolicy := oldWh["distribution_policy"].(string)
 			newPolicy := newWh["distribution_policy"].(string)
 			if oldPolicy != newPolicy {
 				continue
 			}
+			oldAZs := toStringSlice(oldWh["specified_azs"])
+			newAZs := toStringSlice(newWh["specified_azs"])
 			if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
-				!equalAsSet(toStringSlice(oldWh["specified_azs"]), toStringSlice(newWh["specified_azs"])) {
+				len(oldAZs) != len(newAZs) {
 				continue
 			}
 			whExternalInfoStr := whExternalInfoMap[whName].(string)
@@ -3378,16 +3381,20 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 		defaultOldWh := defaultOld.([]interface{})[0].(map[string]interface{})
 		defaultNewWh := defaultNew.([]interface{})[0].(map[string]interface{})
 
-		// Same skip rule as extra warehouses: ChangeWarehouseDistribution
-		// already adjusted the count for cross-policy and same-policy
-		// multi_az AZ-set changes.
+		// Same skip rule as extra warehouses: skip only when
+		// ChangeWarehouseDistribution moved the count (cross-policy or
+		// multi_az AZ-count change). Same-AZ-count membership swap falls
+		// through to ScaleWarehouseNum so caller-requested count changes
+		// are not silently dropped.
 		oldPolicy := defaultOldWh["distribution_policy"].(string)
 		newPolicy := defaultNewWh["distribution_policy"].(string)
 		if oldPolicy != newPolicy {
 			return nil
 		}
+		oldAZs := toStringSlice(defaultOldWh["specified_azs"])
+		newAZs := toStringSlice(defaultNewWh["specified_azs"])
 		if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
-			!equalAsSet(toStringSlice(defaultOldWh["specified_azs"]), toStringSlice(defaultNewWh["specified_azs"])) {
+			len(oldAZs) != len(newAZs) {
 			return nil
 		}
 
