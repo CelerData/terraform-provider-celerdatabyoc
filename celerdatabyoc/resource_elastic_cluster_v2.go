@@ -3061,9 +3061,7 @@ func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.ICluster
 		ClusterID: clusterId,
 	})
 	if err != nil {
-		log.Printf("[WARN] Failed to check audit loader plugin status for cluster %s: %s", clusterId, err.Error())
-		// If we can't check, assume not installed
-		return false, nil
+		return false, fmt.Errorf("failed to check audit loader plugin status for cluster %s: %w", clusterId, err)
 	}
 
 	actualInstalled := checkResp.Installed
@@ -3089,8 +3087,28 @@ func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.ICluster
 		log.Printf("[INFO] Audit loader plugin install initiated for cluster %s, action_id: %s", clusterId, installResp.InfraActionID)
 
 		// Wait for installation to complete
-		if err := waitForInfraActionElasticClusterV2(ctx, clusterAPI, clusterId, installResp.InfraActionID); err != nil {
-			return actualInstalled, fmt.Errorf("failed to wait for audit loader plugin install: %w", err)
+		if len(installResp.InfraActionID) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterId,
+				actionID:   installResp.InfraActionID,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+			if err != nil {
+				return actualInstalled, fmt.Errorf("failed to wait for audit loader plugin install: %w", err)
+			}
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return actualInstalled, fmt.Errorf("audit loader plugin install failed: %s", infraActionResp.ErrMsg)
+			}
 		}
 
 		log.Printf("[INFO] Audit loader plugin successfully installed for cluster %s", clusterId)
@@ -3109,8 +3127,28 @@ func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.ICluster
 		log.Printf("[INFO] Audit loader plugin uninstall initiated for cluster %s, action_id: %s", clusterId, uninstallResp.InfraActionID)
 
 		// Wait for uninstallation to complete
-		if err := waitForInfraActionElasticClusterV2(ctx, clusterAPI, clusterId, uninstallResp.InfraActionID); err != nil {
-			return actualInstalled, fmt.Errorf("failed to wait for audit loader plugin uninstall: %w", err)
+		if len(uninstallResp.InfraActionID) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterId,
+				actionID:   uninstallResp.InfraActionID,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+			if err != nil {
+				return actualInstalled, fmt.Errorf("failed to wait for audit loader plugin uninstall: %w", err)
+			}
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return actualInstalled, fmt.Errorf("audit loader plugin uninstall failed: %s", infraActionResp.ErrMsg)
+			}
 		}
 
 		log.Printf("[INFO] Audit loader plugin successfully uninstalled for cluster %s", clusterId)
@@ -3118,40 +3156,5 @@ func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.ICluster
 	}
 
 	return actualInstalled, nil
-}
-
-// waitForInfraActionElasticClusterV2 waits for an infrastructure action to complete
-func waitForInfraActionElasticClusterV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, actionId string) error {
-	if actionId == "" {
-		return nil
-	}
-
-	maxRetries := 60 // 5 minutes with 5-second intervals
-	for i := 0; i < maxRetries; i++ {
-		stateResp, err := clusterAPI.GetClusterInfraActionState(ctx, &cluster.GetClusterInfraActionStateReq{
-			ClusterId: clusterId,
-			ActionId:  actionId,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to get action state: %w", err)
-		}
-
-		log.Printf("[DEBUG] Action %s state: %s", actionId, stateResp.InfraActionState)
-
-		switch cluster.ClusterInfraActionState(stateResp.InfraActionState) {
-		case cluster.ClusterInfraActionStateSucceeded, cluster.ClusterInfraActionStateCompleted:
-			log.Printf("[INFO] Action %s completed successfully", actionId)
-			return nil
-		case cluster.ClusterInfraActionStateFailed:
-			return fmt.Errorf("action %s failed: %s", actionId, stateResp.ErrMsg)
-		case cluster.ClusterInfraActionStatePending, cluster.ClusterInfraActionStateOngoing:
-			// Continue waiting
-			time.Sleep(5 * time.Second)
-		default:
-			return fmt.Errorf("unknown action state: %s", stateResp.InfraActionState)
-		}
-	}
-
-	return fmt.Errorf("timeout waiting for action %s to complete", actionId)
 }
 
