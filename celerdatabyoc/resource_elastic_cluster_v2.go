@@ -811,13 +811,8 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			oldSpecifiedAZs = toStringSlice(oldWhMap["specified_azs"])
 		}
 
-		if policy == CROSSING_AZ {
-			if oldWhMap == nil {
-				return fmt.Errorf("distribution_policy %q is no longer supported for new warehouses; use %q or %q instead (%s)", CROSSING_AZ, SPECIFY_AZ, MULTI_AZ, whLabel)
-			}
-			if oldPolicy != CROSSING_AZ {
-				return fmt.Errorf("changing distribution_policy to %q is no longer supported; existing %q warehouses remain unchanged but cannot be recreated with this policy (%s)", CROSSING_AZ, CROSSING_AZ, whLabel)
-			}
+		if policy == CROSSING_AZ && oldPolicy == MULTI_AZ {
+			return fmt.Errorf("switching distribution_policy from %q to %q is not supported (%s)", MULTI_AZ, CROSSING_AZ, whLabel)
 		}
 
 		if policy == MULTI_AZ {
