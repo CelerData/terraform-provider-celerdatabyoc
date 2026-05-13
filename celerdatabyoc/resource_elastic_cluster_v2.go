@@ -1064,18 +1064,14 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
 	}
 
-	clusterTagSet := make(map[string]bool)
 	if v, ok := d.GetOk("resource_tags"); ok {
 		for k := range v.(map[string]interface{}) {
 			if IsInternalTagKeys(csp, k) {
 				return fmt.Errorf("cluster tag key %s is reserved for internal use and cannot be set", k)
 			}
-
-			clusterTagSet[k] = true
 		}
 	}
 
-	whTagSet := make(map[string]bool)
 	if v, ok := d.GetOk("default_warehouse"); ok {
 		defArr := v.([]interface{})
 		if len(defArr) > 0 {
@@ -1085,7 +1081,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 					if IsInternalTagKeys(csp, k) {
 						return fmt.Errorf("default warehouse tag key %s is reserved for internal use and cannot be set", k)
 					}
-					whTagSet[k] = true
 				}
 			}
 		}
@@ -1100,16 +1095,8 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 					if IsInternalTagKeys(csp, k) {
 						return fmt.Errorf("warehouse:%s tag key %s is reserved for internal use and cannot be set", whName, k)
 					}
-
-					whTagSet[k] = true
 				}
 			}
-		}
-	}
-
-	for k := range whTagSet {
-		if clusterTagSet[k] {
-			return fmt.Errorf("tag key %s is duplicated between cluster tags and warehouse tags", k)
 		}
 	}
 
