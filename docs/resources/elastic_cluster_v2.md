@@ -187,6 +187,9 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `resource_tags`: The tags to be attached to the warehouse (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of compute nodes, based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#compute-autoscaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+
+      When `distribution_policy` is `multi_az`, `min_size`, `max_size`, and each `policy_item.step_size` must be positive multiples of the warehouse's cngroup count (which equals `len(specified_azs)` for `multi_az`). The backend enforces this invariant so that compute nodes remain balanced across the cngroups.
+
     - `distribution_policy`: (Optional, available only for AWS) The compute node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values:
         - `specify_az`: Nodes are deployed in the primary availability zone.
         - `multi_az`: Nodes are distributed evenly across the availability zones specified in `specified_azs` (2 or 3 AZs). `compute_node_count` is required and must be a positive multiple of `len(specified_azs)`.
@@ -244,6 +247,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `idle_suspend_interval`: The amount of time (in minutes) during which the warehouse can stay idle. After the specified time period elapses, the warehouse will be automatically suspended. To enable the Auto Suspend feature, set this argument to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform configuration.
 
     - `auto_scaling_policy`: This policy will automatically scale the number of Compute nodes (CN), based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+
+      When `distribution_policy` is `multi_az`, `min_size`, `max_size`, and each `policy_item.step_size` must be positive multiples of the warehouse's cngroup count (which equals `len(specified_azs)` for `multi_az`). The backend enforces this invariant so that compute nodes remain balanced across the cngroups.
 
     - `distribution_policy`: (Available only for AWS) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values:
         - `specify_az`: Nodes are deployed in the primary availability zone.

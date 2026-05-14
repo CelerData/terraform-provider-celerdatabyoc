@@ -852,6 +852,18 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 					return fmt.Errorf("changing %s multi_az specified_azs from %d to %d AZs requires compute_node_count to be %d (current %d × %d / %d)", whLabel, len(oldSpecifiedAZs), len(azs), expected, oldCount, len(azs), len(oldSpecifiedAZs))
 				}
 			}
+			// Validate the warehouse autoscaling policy (if any) against the AZ count.
+			// For multi_az + SINGLE (Node-level), min_size, max_size, and every
+			// policy_item.step_size must be positive multiples of len(specified_azs).
+			if rawPolicy, ok := vMap["auto_scaling_policy"].(string); ok && len(rawPolicy) > 0 {
+				cfg := &cluster.WarehouseAutoScalingConfig{}
+				if err := json.Unmarshal([]byte(rawPolicy), cfg); err != nil {
+					return fmt.Errorf("%s: invalid auto_scaling_policy JSON: %s", whLabel, err.Error())
+				}
+				if err := ValidateAutoScalingPolicyForDistribution(cfg, MULTI_AZ, len(azs)); err != nil {
+					return fmt.Errorf("%s: %s", whLabel, err.Error())
+				}
+			}
 		} else {
 			if policy != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
 				return errors.New("specify_az parameter only takes effect when the distribution_policy value is \"specify_az\"")

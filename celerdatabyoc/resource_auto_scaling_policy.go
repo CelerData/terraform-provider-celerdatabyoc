@@ -304,3 +304,36 @@ func ValidateAutoScalingPolicy(autoScalingConfig *cluster.WarehouseAutoScalingCo
 	}
 	return nil
 }
+
+// ValidateAutoScalingPolicyForDistribution wraps ValidateAutoScalingPolicy and adds the
+// MULTI_AZ + SINGLE divisibility invariant: min_size, max_size, and every
+// policy_item.step_size must be positive multiples of the warehouse's cngroup
+// count, so each cngroup stays balanced. At plan time we don't have an
+// observed cngroup count, but for MULTI_AZ the deploy-time invariant says
+// cngroup_count == len(specified_azs), so cngroupCount is sourced from the
+// declared specified_azs list. Mirrors the Go web-layer helper
+// (sr-cloud-platform validateMultiAZSingleAlignment) and the Java billing
+// helper (WarehouseAutoScalingServiceImpl.validateMultiAzAlignment).
+func ValidateAutoScalingPolicyForDistribution(cfg *cluster.WarehouseAutoScalingConfig, distributionPolicy string, cngroupCount int) error {
+	if err := ValidateAutoScalingPolicy(cfg); err != nil {
+		return err
+	}
+	if distributionPolicy != MULTI_AZ || cfg.AutoScalingUnit != cluster.AutoScalingUnit_SINGLE {
+		return nil
+	}
+	if cngroupCount <= 0 {
+		return fmt.Errorf("multi_az warehouse autoscaling policy requires non-empty specified_azs")
+	}
+	if int(cfg.MinSize)%cngroupCount != 0 {
+		return fmt.Errorf("min_size (%d) must be a positive multiple of cngroup count (%d) for multi_az + Node autoscaling", cfg.MinSize, cngroupCount)
+	}
+	if int(cfg.MaxSize)%cngroupCount != 0 {
+		return fmt.Errorf("max_size (%d) must be a positive multiple of cngroup count (%d) for multi_az + Node autoscaling", cfg.MaxSize, cngroupCount)
+	}
+	for _, item := range cfg.PolicyItem {
+		if item.StepSize <= 0 || int(item.StepSize)%cngroupCount != 0 {
+			return fmt.Errorf("step_size (%d) must be a positive multiple of cngroup count (%d) for multi_az + Node autoscaling", item.StepSize, cngroupCount)
+		}
+	}
+	return nil
+}
