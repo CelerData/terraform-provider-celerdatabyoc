@@ -69,7 +69,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				Type:         schema.TypeInt,
 				Optional:     true,
 				Default:      1,
-				ValidateFunc: validation.IntInSlice([]int{1, 3, 5, 7}),
+				ValidateFunc: validation.IntInSlice([]int{1, 3, 5, 6, 7, 8, 9, 10, 11}),
 			},
 			"coordinator_node_volume_config": {
 				Type:     schema.TypeList,
@@ -94,6 +94,44 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							ValidateFunc: validation.IntAtLeast(0),
 							Computed:     true,
+						},
+					},
+				},
+			},
+			"coordinator_node_volume_autoscaling": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"enable": {
+							Type:     schema.TypeBool,
+							Optional: true,
+							Default:  true,
+						},
+						"trigger_expansion_percentage": {
+							Type:             schema.TypeInt,
+							Optional:         true,
+							Default:          85,
+							ValidateDiagFunc: common.ValidateVolumeAutoscalingPercentage(),
+						},
+						"expansion_step_per_node": {
+							Type:     schema.TypeInt,
+							Optional: true,
+							// no default value, but the user should set one of expansion_step_per_node and expansion_percentage_per_node
+							ValidateDiagFunc: common.ValidateVolumeAutoscalingStepBySize(),
+						},
+						"expansion_percentage_per_node": {
+							Type:     schema.TypeInt,
+							Optional: true,
+							// no default value, but the user should set one of expansion_step_per_node and expansion_percentage_per_node
+							ValidateDiagFunc: common.ValidateVolumeAutoscalingStepByPercentage(),
+						},
+						"max_size_per_node": {
+							Type:             schema.TypeInt,
+							Optional:         true,
+							Default:          500,
+							ValidateDiagFunc: common.ValidateVolumeAutoscalingMax(),
 						},
 					},
 				},
@@ -779,13 +817,8 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			oldSpecifiedAZs = toStringSlice(oldWhMap["specified_azs"])
 		}
 
-		if policy == CROSSING_AZ {
-			if oldWhMap == nil {
-				return fmt.Errorf("distribution_policy %q is no longer supported for new warehouses; use %q or %q instead (%s)", CROSSING_AZ, SPECIFY_AZ, MULTI_AZ, whLabel)
-			}
-			if oldPolicy != CROSSING_AZ {
-				return fmt.Errorf("changing distribution_policy to %q is no longer supported; existing %q warehouses remain unchanged but cannot be recreated with this policy (%s)", CROSSING_AZ, CROSSING_AZ, whLabel)
-			}
+		if policy == CROSSING_AZ && oldPolicy == MULTI_AZ {
+			return fmt.Errorf("switching distribution_policy from %q to %q is not supported (%s)", MULTI_AZ, CROSSING_AZ, whLabel)
 		}
 
 		if policy == MULTI_AZ {
@@ -1037,18 +1070,14 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		return fmt.Errorf("when modify `global_session_variables` [from %s to %s], field `expected_cluster_state` should change to:%s", o, n, cluster.ClusterStateRunning)
 	}
 
-	clusterTagSet := make(map[string]bool)
 	if v, ok := d.GetOk("resource_tags"); ok {
 		for k := range v.(map[string]interface{}) {
 			if IsInternalTagKeys(csp, k) {
 				return fmt.Errorf("cluster tag key %s is reserved for internal use and cannot be set", k)
 			}
-
-			clusterTagSet[k] = true
 		}
 	}
 
-	whTagSet := make(map[string]bool)
 	if v, ok := d.GetOk("default_warehouse"); ok {
 		defArr := v.([]interface{})
 		if len(defArr) > 0 {
@@ -1058,7 +1087,6 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 					if IsInternalTagKeys(csp, k) {
 						return fmt.Errorf("default warehouse tag key %s is reserved for internal use and cannot be set", k)
 					}
-					whTagSet[k] = true
 				}
 			}
 		}
@@ -1073,16 +1101,8 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 					if IsInternalTagKeys(csp, k) {
 						return fmt.Errorf("warehouse:%s tag key %s is reserved for internal use and cannot be set", whName, k)
 					}
-
-					whTagSet[k] = true
 				}
 			}
-		}
-	}
-
-	for k := range whTagSet {
-		if clusterTagSet[k] {
-			return fmt.Errorf("tag key %s is duplicated between cluster tags and warehouse tags", k)
 		}
 	}
 
@@ -1319,6 +1339,38 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
+
+	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok {
+		yamlConfig := v.([]interface{})[0].(map[string]interface{})
+		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("[DEBUG] failed to parse coordinator node volume autoscaling config, err:%w", err))
+		}
+		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
+		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+			ClusterId:                clusterId,
+			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %w", d.Id(), err))
+		}
+	} else {
+		// If the user does not configure volume autoscaling, it will be enabled by default.
+		autoscalingConfig := &cluster.VolumeAutoScalingConfig{
+			Enable:                     true,
+			TriggerExpansionPercentage: 85,
+			ExpansionStepPerNode:       50,
+			MaxSizePerNode:             500,
+			ModuleType:                 cluster.ModuleTypeNumber_MODULE_TYPE_FE,
+		}
+		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+			ClusterId:                clusterId,
+			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to auto-enable coordinator node volume autoscaling: %w", d.Id(), err))
+		}
+	}
 
 	if v, ok := d.GetOk("coordinator_node_configs"); ok && len(d.Get("coordinator_node_configs").(map[string]interface{})) > 0 {
 		configMap := v.(map[string]interface{})
@@ -1567,6 +1619,19 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
+	volumeAutoscalingConfigs, err := clusterAPI.GetVolumeAutoScalingConfigs(ctx, &cluster.GetVolumeAutoScalingConfigsReq{
+		ClusterId: clusterId,
+	})
+	if err != nil {
+		log.Printf("[ERROR] get cluster volume autoscaling config failed, clusterId:%s err:%+v", clusterId, err)
+		return diag.FromErr(err)
+	}
+
+	volumeAutoscalingConfigsMap := make(map[cluster.ModuleTypeNumber]*cluster.VolumeAutoScalingConfig)
+	for _, v := range volumeAutoscalingConfigs.VolumeAutoscalingConfigs {
+		volumeAutoscalingConfigsMap[v.ModuleType] = v
+	}
+
 	policies, policyExtraInfo, err := ListClusterSchedulingPolicy(ctx, clusterAPI, clusterId)
 	if err != nil {
 		log.Printf("[ERROR] list cluster schedule policy failed,clusterId:%s err:%+v", clusterId, err)
@@ -1798,6 +1863,20 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		feVolumeConfig["throughput"] = feModule.Throughput
 		if v, ok := d.GetOk("coordinator_node_volume_config"); ok && v != nil {
 			d.Set("coordinator_node_volume_config", []interface{}{feVolumeConfig})
+		}
+	}
+
+	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok && v != nil {
+		if cfg, ok := volumeAutoscalingConfigsMap[cluster.ModuleTypeNumber_MODULE_TYPE_FE]; ok {
+			d.Set("coordinator_node_volume_autoscaling", []interface{}{
+				map[string]interface{}{
+					"enable":                        cfg.Enable,
+					"trigger_expansion_percentage":  cfg.TriggerExpansionPercentage,
+					"expansion_step_per_node":       cfg.ExpansionStepPerNode,
+					"expansion_percentage_per_node": cfg.ExpansionPercentagePerNode,
+					"max_size_per_node":             cfg.MaxSizePerNode,
+				},
+			})
 		}
 	}
 
@@ -2099,6 +2178,33 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 	if d.HasChange("coordinator_node_volume_config") {
 		if diags := handleFEVolumeConfigChange(ctx, d, clusterAPI, clusterId); diags != nil {
 			return diags
+		}
+	}
+
+	if d.HasChange("coordinator_node_volume_autoscaling") && !d.IsNewResource() {
+		_, v := d.GetChange("coordinator_node_volume_autoscaling")
+		vList := v.([]interface{})
+		var autoscalingConfig *cluster.VolumeAutoScalingConfig
+		if len(vList) > 0 {
+			yamlConfig := vList[0].(map[string]interface{})
+			var err error
+			autoscalingConfig, err = getVolumeAutoscalingFromYaml(yamlConfig)
+			if err != nil {
+				return diag.FromErr(err)
+			}
+		} else {
+			autoscalingConfig = &cluster.VolumeAutoScalingConfig{
+				Enable: false,
+			}
+		}
+
+		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
+		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+			ClusterId:                clusterId,
+			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+		})
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
 		}
 	}
 
@@ -3948,3 +4054,29 @@ func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.ICluster
 	return actualInstalled, nil
 }
 
+func getVolumeAutoscalingFromYaml(yamlConfig map[string]interface{}) (*cluster.VolumeAutoScalingConfig, error) {
+	autoscalingConfig := &cluster.VolumeAutoScalingConfig{}
+	if enable, ok := yamlConfig["enable"]; ok {
+		autoscalingConfig.Enable = enable.(bool)
+	}
+	if triggerExpansionPercentage, ok := yamlConfig["trigger_expansion_percentage"]; ok {
+		autoscalingConfig.TriggerExpansionPercentage = uint32(triggerExpansionPercentage.(int))
+	}
+	if expansionStepPerNode, ok := yamlConfig["expansion_step_per_node"]; ok {
+		autoscalingConfig.ExpansionStepPerNode = uint32(expansionStepPerNode.(int))
+	}
+	if expansionPercentagePerNode, ok := yamlConfig["expansion_percentage_per_node"]; ok {
+		autoscalingConfig.ExpansionPercentagePerNode = uint32(expansionPercentagePerNode.(int))
+	}
+	if maxSizePerNode, ok := yamlConfig["max_size_per_node"]; ok {
+		autoscalingConfig.MaxSizePerNode = uint32(maxSizePerNode.(int))
+	}
+
+	if autoscalingConfig.ExpansionPercentagePerNode != 0 && autoscalingConfig.ExpansionStepPerNode != 0 {
+		return nil, errors.New("cannot set both expansion_percentage_per_node and expansion_step_per_node")
+	} else if autoscalingConfig.ExpansionPercentagePerNode == 0 && autoscalingConfig.ExpansionStepPerNode == 0 {
+		return nil, errors.New("you must set one of expansion_percentage_per_node and expansion_step_per_node")
+	}
+
+	return autoscalingConfig, nil
+}
