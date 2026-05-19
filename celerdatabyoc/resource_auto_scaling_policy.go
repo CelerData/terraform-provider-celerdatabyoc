@@ -305,20 +305,18 @@ func ValidateAutoScalingPolicy(autoScalingConfig *cluster.WarehouseAutoScalingCo
 	return nil
 }
 
-// ValidateAutoScalingPolicyForDistribution wraps ValidateAutoScalingPolicy and adds the
+// ValidateAutoScalingPolicyMultiAZ wraps ValidateAutoScalingPolicy and adds the
 // MULTI_AZ + SINGLE divisibility invariant: min_size, max_size, and every
 // policy_item.step_size must be positive multiples of the warehouse's cngroup
-// count, so each cngroup stays balanced. At plan time we don't have an
-// observed cngroup count, but for MULTI_AZ the deploy-time invariant says
-// cngroup_count == len(specified_azs), so cngroupCount is sourced from the
-// declared specified_azs list. Mirrors the Go web-layer helper
-// (sr-cloud-platform validateMultiAZSingleAlignment) and the Java billing
-// helper (WarehouseAutoScalingServiceImpl.validateMultiAzAlignment).
-func ValidateAutoScalingPolicyForDistribution(cfg *cluster.WarehouseAutoScalingConfig, distributionPolicy string, cngroupCount int) error {
+// count so each cngroup stays balanced. For MULTI_AZ the deploy-time invariant
+// says cngroup_count == len(specified_azs), so plan-time callers source
+// cngroupCount from the declared specified_azs list. Callers are expected to
+// have already gated on distribution_policy == MULTI_AZ.
+func ValidateAutoScalingPolicyMultiAZ(cfg *cluster.WarehouseAutoScalingConfig, cngroupCount int) error {
 	if err := ValidateAutoScalingPolicy(cfg); err != nil {
 		return err
 	}
-	if distributionPolicy != MULTI_AZ || cfg.AutoScalingUnit != cluster.AutoScalingUnit_SINGLE {
+	if cfg.AutoScalingUnit != cluster.AutoScalingUnit_SINGLE {
 		return nil
 	}
 	if cngroupCount <= 0 {
@@ -336,4 +334,18 @@ func ValidateAutoScalingPolicyForDistribution(cfg *cluster.WarehouseAutoScalingC
 		}
 	}
 	return nil
+}
+
+// ValidatePolicyJSONMultiAZ parses a raw auto_scaling_policy JSON and runs the
+// multi-AZ alignment check. Empty input is treated as no-op so callers can
+// dispatch directly without their own nil/empty guard.
+func ValidatePolicyJSONMultiAZ(rawPolicyJSON string, cngroupCount int) error {
+	if rawPolicyJSON == "" {
+		return nil
+	}
+	cfg := &cluster.WarehouseAutoScalingConfig{}
+	if err := json.Unmarshal([]byte(rawPolicyJSON), cfg); err != nil {
+		return fmt.Errorf("auto_scaling_policy is not valid JSON: %s", err.Error())
+	}
+	return ValidateAutoScalingPolicyMultiAZ(cfg, cngroupCount)
 }

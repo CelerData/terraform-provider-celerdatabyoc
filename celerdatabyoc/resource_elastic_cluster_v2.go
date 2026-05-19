@@ -852,17 +852,11 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 					return fmt.Errorf("changing %s multi_az specified_azs from %d to %d AZs requires compute_node_count to be %d (current %d × %d / %d)", whLabel, len(oldSpecifiedAZs), len(azs), expected, oldCount, len(azs), len(oldSpecifiedAZs))
 				}
 			}
-			// Validate the warehouse autoscaling policy (if any) against the AZ count.
 			// For multi_az + SINGLE (Node-level), min_size, max_size, and every
 			// policy_item.step_size must be positive multiples of len(specified_azs).
-			if rawPolicy, ok := vMap["auto_scaling_policy"].(string); ok && len(rawPolicy) > 0 {
-				cfg := &cluster.WarehouseAutoScalingConfig{}
-				if err := json.Unmarshal([]byte(rawPolicy), cfg); err != nil {
-					return fmt.Errorf("%s: invalid auto_scaling_policy JSON: %s", whLabel, err.Error())
-				}
-				if err := ValidateAutoScalingPolicyForDistribution(cfg, MULTI_AZ, len(azs)); err != nil {
-					return fmt.Errorf("%s: %s", whLabel, err.Error())
-				}
+			rawPolicy, _ := vMap["auto_scaling_policy"].(string)
+			if err := ValidatePolicyJSONMultiAZ(rawPolicy, len(azs)); err != nil {
+				return fmt.Errorf("%s: %s", whLabel, err.Error())
 			}
 		} else {
 			if policy != SPECIFY_AZ && len(vMap["specify_az"].(string)) > 0 {
@@ -3482,21 +3476,7 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 			if !ok {
 				continue
 			}
-			// Skip when ChangeWarehouseDistribution already moved the count:
-			// cross-policy honors the caller's NodeCount, and same-policy
-			// multi_az with a different AZ count (2↔3) auto-recomputes total
-			// as perAZ × len(newAZs). Same-AZ-count membership swap leaves
-			// count unchanged on backend, so ScaleWarehouseNum must still run
-			// to apply any caller-requested count change.
-			oldPolicy := oldWh["distribution_policy"].(string)
-			newPolicy := newWh["distribution_policy"].(string)
-			if oldPolicy != newPolicy {
-				continue
-			}
-			oldAZs := toStringSlice(oldWh["specified_azs"])
-			newAZs := toStringSlice(newWh["specified_azs"])
-			if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
-				len(oldAZs) != len(newAZs) {
+			if shouldSkipTailScale(oldWh, newWh) {
 				continue
 			}
 			whExternalInfoStr := whExternalInfoMap[whName].(string)
@@ -3517,20 +3497,7 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 		defaultOldWh := defaultOld.([]interface{})[0].(map[string]interface{})
 		defaultNewWh := defaultNew.([]interface{})[0].(map[string]interface{})
 
-		// Same skip rule as extra warehouses: skip only when
-		// ChangeWarehouseDistribution moved the count (cross-policy or
-		// multi_az AZ-count change). Same-AZ-count membership swap falls
-		// through to ScaleWarehouseNum so caller-requested count changes
-		// are not silently dropped.
-		oldPolicy := defaultOldWh["distribution_policy"].(string)
-		newPolicy := defaultNewWh["distribution_policy"].(string)
-		if oldPolicy != newPolicy {
-			return nil
-		}
-		oldAZs := toStringSlice(defaultOldWh["specified_azs"])
-		newAZs := toStringSlice(defaultNewWh["specified_azs"])
-		if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
-			len(oldAZs) != len(newAZs) {
+		if shouldSkipTailScale(defaultOldWh, defaultNewWh) {
 			return nil
 		}
 
@@ -3824,6 +3791,27 @@ func handleWarehouseScaleUpAndUpgradeAMI(ctx context.Context, d *schema.Resource
 	}
 
 	return nil
+}
+
+// shouldSkipTailScale reports whether a follow-up ScaleWarehouseNum after
+// ChangeWarehouseDistribution would be redundant. Cross-policy changes always
+// honor the caller's NodeCount upstream; same-policy multi_az AZ-count changes
+// (2↔3) auto-recompute total as perAZ × len(newAZs). Same-AZ-count membership
+// swaps fall through so caller-requested compute_node_count changes still apply.
+func shouldSkipTailScale(oldWh, newWh map[string]interface{}) bool {
+	oldPolicy, _ := oldWh["distribution_policy"].(string)
+	newPolicy, _ := newWh["distribution_policy"].(string)
+	if oldPolicy != newPolicy {
+		return true
+	}
+	if newPolicy == string(cluster.DistributionPolicyMultiAZ) {
+		oldAZs := toStringSlice(oldWh["specified_azs"])
+		newAZs := toStringSlice(newWh["specified_azs"])
+		if len(oldAZs) != len(newAZs) {
+			return true
+		}
+	}
+	return false
 }
 
 func toStringSlice(v interface{}) []string {
