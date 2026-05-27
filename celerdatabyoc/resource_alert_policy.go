@@ -9,6 +9,7 @@ import (
 
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/alert"
+	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -28,6 +29,7 @@ func resourceAlertPolicy() *schema.Resource {
 		ReadContext:   resourceAlertPolicyRead,
 		UpdateContext: resourceAlertPolicyUpdate,
 		DeleteContext: resourceAlertPolicyDelete,
+		CustomizeDiff: resourceAlertPolicyValidateClusterRegion,
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:     schema.TypeString,
@@ -159,7 +161,10 @@ func resourceAlertPolicyCreate(ctx context.Context, d *schema.ResourceData, m in
 	api := alert.NewAlertAPI(c)
 
 	region := d.Get("region").(string)
-	policy := buildAlertPolicyFromState(d)
+	policy, err := buildAlertPolicyFromState(ctx, d, newClusterNameLookup(c))
+	if err != nil {
+		return diag.FromErr(err)
+	}
 
 	resp, err := api.CreateAlertPolicy(ctx, &alert.UpsertAlertPolicyReq{
 		Region: region,
@@ -210,7 +215,10 @@ func resourceAlertPolicyUpdate(ctx context.Context, d *schema.ResourceData, m in
 		return diag.FromErr(err)
 	}
 
-	policy := buildAlertPolicyFromState(d)
+	policy, err := buildAlertPolicyFromState(ctx, d, newClusterNameLookup(c))
+	if err != nil {
+		return diag.FromErr(err)
+	}
 	policy.PolicyId = policyID
 	if err := api.UpdateAlertPolicy(ctx, policyID, &alert.UpsertAlertPolicyReq{
 		Region: region,
@@ -253,7 +261,74 @@ func decodeAlertPolicyID(id string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func buildAlertPolicyFromState(d *schema.ResourceData) *alert.AlertPolicy {
+// resourceAlertPolicyValidateClusterRegion runs at plan time and fails the plan
+// when any rule.cluster_id does not belong to the policy's region, so the user
+// sees the mistake before apply rather than as an opaque backend error.
+func resourceAlertPolicyValidateClusterRegion(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+	c := m.(*client.CelerdataClient)
+	clusterAPI := cluster.NewClustersAPI(c)
+
+	lookup := func(ctx context.Context, clusterID string) (string, bool, error) {
+		resp, err := clusterAPI.Get(ctx, &cluster.GetReq{ClusterID: clusterID})
+		if err != nil {
+			if isNotFoundError(err) {
+				return "", false, nil
+			}
+			return "", false, err
+		}
+		if resp.Cluster == nil {
+			return "", false, nil
+		}
+		return resp.Cluster.Region, true, nil
+	}
+
+	return validateRuleClusterRegions(ctx, d.Get("region").(string), d.Get("rule").([]interface{}), lookup)
+}
+
+// clusterRegionLookup reports the region a cluster belongs to. found is false
+// when the cluster does not exist; err is reserved for unexpected failures.
+type clusterRegionLookup func(ctx context.Context, clusterID string) (region string, found bool, err error)
+
+// validateRuleClusterRegions checks that every rule.cluster_id resolves to
+// policyRegion. Values that are unknown at plan time (empty policyRegion or an
+// empty cluster_id) are skipped to avoid false positives, and each distinct
+// cluster_id is looked up at most once.
+func validateRuleClusterRegions(ctx context.Context, policyRegion string, rules []interface{}, lookup clusterRegionLookup) error {
+	if policyRegion == "" {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(rules))
+	for i, raw := range rules {
+		r := raw.(map[string]interface{})
+		clusterID := r["cluster_id"].(string)
+		if clusterID == "" {
+			continue
+		}
+		if _, ok := seen[clusterID]; ok {
+			continue
+		}
+		seen[clusterID] = struct{}{}
+
+		region, found, err := lookup(ctx, clusterID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("rule[%d].cluster_id %q does not exist", i, clusterID)
+		}
+		if region != policyRegion {
+			return fmt.Errorf("rule[%d].cluster_id %q belongs to region %q, which does not match the alert policy region %q", i, clusterID, region, policyRegion)
+		}
+	}
+	return nil
+}
+
+// clusterNameLookup resolves a cluster's display name from its id. The backend
+// stores the name on each alert expression, so the provider must resolve it at
+// create/update time rather than leaving it empty.
+type clusterNameLookup func(ctx context.Context, clusterID string) (name string, err error)
+
+func buildAlertPolicyFromState(ctx context.Context, d *schema.ResourceData, lookupName clusterNameLookup) (*alert.AlertPolicy, error) {
 	policy := &alert.AlertPolicy{
 		Name:              d.Get("name").(string),
 		Region:            d.Get("region").(string),
@@ -264,14 +339,27 @@ func buildAlertPolicyFromState(d *schema.ResourceData) *alert.AlertPolicy {
 		policy.CalculationWindow = policy.Interval
 	}
 
+	// Resolve each distinct cluster_id to its name at most once.
+	nameCache := make(map[string]string)
 	for _, raw := range d.Get("rule").([]interface{}) {
 		r := raw.(map[string]interface{})
+		clusterID := r["cluster_id"].(string)
+		clusterName, ok := nameCache[clusterID]
+		if !ok {
+			var err error
+			clusterName, err = lookupName(ctx, clusterID)
+			if err != nil {
+				return nil, err
+			}
+			nameCache[clusterID] = clusterName
+		}
 		policy.Exprs = append(policy.Exprs, &alert.AlertExpr{
-			Func:      r["func"].(string),
-			ClusterId: r["cluster_id"].(string),
-			Metric:    r["metric"].(string),
-			Operator:  r["operator"].(string),
-			Value:     float32(r["value"].(float64)),
+			Func:        r["func"].(string),
+			ClusterId:   clusterID,
+			ClusterName: clusterName,
+			Metric:      r["metric"].(string),
+			Operator:    r["operator"].(string),
+			Value:       float32(r["value"].(float64)),
 		})
 	}
 
@@ -296,7 +384,24 @@ func buildAlertPolicyFromState(d *schema.ResourceData) *alert.AlertPolicy {
 		}
 	}
 
-	return policy
+	return policy, nil
+}
+
+// newClusterNameLookup returns a clusterNameLookup backed by the cluster API. It
+// fails when the cluster cannot be found so create/update surface a clear error
+// instead of sending an alert expression with an empty cluster name.
+func newClusterNameLookup(c *client.CelerdataClient) clusterNameLookup {
+	clusterAPI := cluster.NewClustersAPI(c)
+	return func(ctx context.Context, clusterID string) (string, error) {
+		resp, err := clusterAPI.Get(ctx, &cluster.GetReq{ClusterID: clusterID})
+		if err != nil {
+			return "", err
+		}
+		if resp.Cluster == nil {
+			return "", fmt.Errorf("cluster %q does not exist", clusterID)
+		}
+		return resp.Cluster.ClusterName, nil
+	}
 }
 
 func writeAlertPolicyToState(d *schema.ResourceData, p *alert.AlertPolicy, region string) {
@@ -340,4 +445,3 @@ func writeAlertPolicyToState(d *schema.ResourceData, p *alert.AlertPolicy, regio
 	}
 	d.Set("pagerduty_binding", bindings)
 }
-

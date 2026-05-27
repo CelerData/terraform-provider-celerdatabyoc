@@ -32,3 +32,6 @@ go.work
 GEMINI.md
 /tf-test/*
 terraform-provider-celerdatabyoc
+
+# Claude Code dev notes
+.claude-dev/
