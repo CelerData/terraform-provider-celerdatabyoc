@@ -434,6 +434,98 @@ When the system returns an "Apply complete!" message, the Terraform configuratio
 
 ~> After you change the provider versions in the Terraform configuration, you must run `terraform init -upgrade` to initialize the providers and then run `terraform apply` again to apply the Terraform configuration.
 
+## Multi-AZ Deployment
+
+CelerData BYOC supports Multi-AZ deployment on GCP. A Multi-AZ cluster distributes its coordinator (FE) nodes and warehouse compute (BE) nodes across 2 or 3 zones in the same region for higher availability.
+
+### Region support
+
+GCP regions that expose 3 zones (`a`, `b`, `c`) include `us-central1`, `us-west1`, `us-east1`, and `europe-west1`. Other regions support 2-AZ deployment only. Zone names follow GCP convention: `{region}-{a|b|c}`, e.g. `us-central1-a`.
+
+### Cluster-level requirements
+
+- `coordinator_node_count` must be at least `3` (i.e. `3` or `5`). FE nodes are placed by the cluster service using a min-fe-nodes policy that keeps the per-zone FE count balanced.
+- The `celerdatabyoc_gcp_network` resource must declare the zones the cluster can span via its `zones` argument. GCP uses a single regional subnet, so the AZ set is expressed via `zones` rather than per-AZ subnets. The provider enforces `MinItems = 3` and `MaxItems = 3` on this list — you must supply **exactly 3 zones**, and the warehouse-level `specified_azs` (which may contain 2 or 3 zones) must be a subset of this list. `zones` is `ForceNew`: changing it after creation recreates the network resource.
+
+  ```hcl
+  resource "celerdatabyoc_gcp_network" "net" {
+    name                     = "tf-net-multi-az"
+    region                   = "us-central1"
+    subnet                   = "tf-subnet"
+    network_tag              = "tf-network-tag"
+    zones                    = ["us-central1-a", "us-central1-b", "us-central1-c"]
+    deployment_credential_id = celerdatabyoc_gcp_deployment_credential.deploy.id
+  }
+  ```
+
+### Warehouse-level configuration
+
+Set `distribution_policy = "multi_az"` on `default_warehouse` and on every `warehouse {}` block you want to spread across zones. `specified_azs` must contain 2 or 3 zones and `compute_node_count` must be a positive multiple of `len(specified_azs)`. Example:
+
+```hcl
+resource "celerdatabyoc_elastic_cluster_v2" "c" {
+  cluster_name           = "demo-multi-az"
+  csp                    = "gcp"
+  region                 = "us-central1"
+  coordinator_node_size  = "n2-standard-4"
+  coordinator_node_count = 3
+
+  deployment_credential_id = celerdatabyoc_gcp_deployment_credential.deploy.id
+  data_credential_id       = celerdatabyoc_gcp_data_credential.data_credential.id
+  network_id               = celerdatabyoc_gcp_network.net.id
+
+  coordinator_node_volume_config {
+    vol_size = 100
+  }
+
+  default_warehouse {
+    distribution_policy = "multi_az"
+    specified_azs       = ["us-central1-a", "us-central1-b"]
+    compute_node_size   = "n2-standard-4"
+    compute_node_count  = 2
+    compute_node_volume_config {
+      vol_number = 2
+      vol_size   = 150
+    }
+    resource_tags = {
+      warehouse_name = "default_warehouse"
+    }
+  }
+
+  warehouse {
+    name                = "wh_analytics"
+    distribution_policy = "multi_az"
+    specified_azs       = ["us-central1-a", "us-central1-b"]
+    compute_node_size   = "n2-standard-4"
+    compute_node_count  = 2
+    compute_node_volume_config {
+      vol_number = 2
+      vol_size   = 150
+    }
+    resource_tags = {
+      warehouse_name = "wh_analytics"
+    }
+  }
+
+  default_admin_password = "..."
+}
+```
+
+### GCP-specific constraints
+
+- **Disk configuration.** GCP `pd-balanced` disks do not accept Provisioned IOPS. `coordinator_node_volume_config` and `compute_node_volume_config` blocks must therefore set only `vol_size` (and `vol_number` for compute nodes). Do not specify `iops` or `throughput`; doing so causes the underlying GCP API to return `Error 400: Provisioned IOPS cannot be specified with disk type pd-balanced`.
+- **Resource labels.** Anything you place in `resource_tags` is forwarded to GCP as a resource label. GCP label keys and values must contain only lowercase letters, digits, hyphens (`-`), and underscores (`_`). Use, for example, `warehouse_name = "default_warehouse"` rather than `WarehouseName = "default_warehouse"`.
+
+### Scaling Multi-AZ warehouses
+
+The same rules apply as on AWS:
+
+- `specify_az → multi_az`: new `compute_node_count = old_count × len(specified_azs)` (preserves per-AZ node count).
+- `multi_az 2-AZ ↔ 3-AZ`: new `compute_node_count = old_count × new_az_count / old_az_count`.
+- `multi_az → specify_az`: new `compute_node_count` must be a multiple of the current `cngroup_size`.
+- Same-policy resize within `multi_az` only requires `compute_node_count` to remain a multiple of `len(specified_azs)`; AZ membership is unchanged.
+- Reordering `specified_azs` is a no-op; the provider's diff suppression treats `[a, b, c]` and `[c, a, b]` as equivalent.
+
 ## Delete configurations
 
 You can delete your Terraform configuration if you no longer need it.
