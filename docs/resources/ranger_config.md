@@ -51,21 +51,21 @@ This resource contains the following required arguments and optional arguments:
 
 - `ranger_starrocks_security_xml_path`: The remote storage path to the `ranger-starrocks-security.xml` file, which is the configuration file used in conjunction between StarRocks and Apache Ranger. Required when `scope` is `0`. When `scope` is `1`, this argument and `ranger_hive_security_xml_path` are independent and at least one of them must be set.
 
-- `ranger_starrocks_audit_xml_path`: (Forces new resource) The remote storage path to the `ranger-starrocks-audit.xml` file, which is used to enable the Audit Log service of Ranger. 
+- `ranger_starrocks_audit_xml_path`: The remote storage path to the `ranger-starrocks-audit.xml` file, which is used to enable the Audit Log service of Ranger. 
 
-- `ranger_starrocks_policymgr_ssl_xml_path`: (Forces new resource) The remote storage path to the `ranger-policymgr-ssl.xml` file, which is used to specify the actual local paths (on the server) of the corresponding files for the Trust Store or Key Store.
+- `ranger_starrocks_policymgr_ssl_xml_path`: The remote storage path to the `ranger-policymgr-ssl.xml` file, which is used to specify the actual local paths (on the server) of the corresponding files for the Trust Store or Key Store.
 
-- `ranger_starrocks_trust_store_path`: (Forces new resource) The remote storage path to the `truststore.jks` file. Specify this argument if you want to enable secure connection via Trust Store.
+- `ranger_starrocks_trust_store_path`: The remote storage path to the `truststore.jks` file. Specify this argument if you want to enable secure connection via Trust Store.
 
-- `ranger_starrocks_trust_store_cred_path`: (Forces new resource) The remote storage path to the `truststore.jceks` file. Specify this argument if you want to enable secure connection via Trust Store.
+- `ranger_starrocks_trust_store_cred_path`: The remote storage path to the `truststore.jceks` file. Specify this argument if you want to enable secure connection via Trust Store.
 
-- `ranger_starrocks_key_store_path`: (Forces new resource) The remote storage path to the `keystore.jks` file. Specify this argument if you want to enable secure connection via Key Store.
+- `ranger_starrocks_key_store_path`: The remote storage path to the `keystore.jks` file. Specify this argument if you want to enable secure connection via Key Store.
 
-- `ranger_starrocks_key_store_cred_path`: (Forces new resource) The remote storage path to the `keystore.jceks` file. Specify this argument if you want to enable secure connection via Key Store.
+- `ranger_starrocks_key_store_cred_path`: The remote storage path to the `keystore.jceks` file. Specify this argument if you want to enable secure connection via Key Store.
 
 - `ranger_hive_security_xml_path`: The remote storage path to the `ranger-hive-security.xml` file, which is used to enable Ranger's access control for Hive Catalog. When `scope` is `1`, at least one of this argument and `ranger_starrocks_security_xml_path` must be set.
 
-- `ranger_hive_audit_xml_path`: (Forces new resource) The remote storage path to the `ranger-hive-audit.xml` file, which is used to enable Ranger's Audit Log service for Hive Catalog.
+- `ranger_hive_audit_xml_path`: The remote storage path to the `ranger-hive-audit.xml` file, which is used to enable Ranger's Audit Log service for Hive Catalog.
 
 ## Attribute Reference
 
