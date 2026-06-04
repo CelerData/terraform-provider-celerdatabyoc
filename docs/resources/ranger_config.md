@@ -19,6 +19,7 @@ A Ranger configuration specifies the remote storage paths to the configuration f
 ```terraform
 resource "celerdatabyoc_ranger_config" "ranger_config" {
   name                               = "<ranger_config_name>"
+  scope                              = 0
   ranger_starrocks_security_xml_path = "<path_to_ranger-starrocks-security.xml>"
 
   ranger_starrocks_audit_xml_path = "<path_to_ranger-starrocks-audit.xml>"
@@ -44,9 +45,11 @@ This resource contains the following required arguments and optional arguments:
 
 - `name`: (Forces new resource) The name of the Ranger configuration. Enter a unique name.
 
-- `ranger_starrocks_security_xml_path`: (Forces new resource) The remote storage path to the `ranger-starrocks-security.xml` file, which is the configuration file used in conjunction between StarRocks and Apache Ranger.
-
 **Optional:**
+
+- `scope`: The catalogs that Ranger governs. Valid values: `0` (all catalogs, internal + external) and `1` (external catalogs only). Defaults to `0`. With `0`, `access_control=ranger` is written to `fe.conf`, so Ranger becomes the access control for all catalogs (internal catalogs no longer use StarRocks native RBAC). With `1`, `access_control=ranger` is not written: internal catalogs keep StarRocks native RBAC and Ranger governs only external catalogs.
+
+- `ranger_starrocks_security_xml_path`: The remote storage path to the `ranger-starrocks-security.xml` file, which is the configuration file used in conjunction between StarRocks and Apache Ranger. Required when `scope` is `0`. When `scope` is `1`, this argument and `ranger_hive_security_xml_path` are independent and at least one of them must be set.
 
 - `ranger_starrocks_audit_xml_path`: (Forces new resource) The remote storage path to the `ranger-starrocks-audit.xml` file, which is used to enable the Audit Log service of Ranger. 
 
@@ -60,7 +63,7 @@ This resource contains the following required arguments and optional arguments:
 
 - `ranger_starrocks_key_store_cred_path`: (Forces new resource) The remote storage path to the `keystore.jceks` file. Specify this argument if you want to enable secure connection via Key Store.
 
-- `ranger_hive_security_xml_path`: (Forces new resource) The remote storage path to the `ranger-hive-security.xml` file, which is used to enable Ranger's access control for Hive Catalog.
+- `ranger_hive_security_xml_path`: The remote storage path to the `ranger-hive-security.xml` file, which is used to enable Ranger's access control for Hive Catalog. When `scope` is `1`, at least one of this argument and `ranger_starrocks_security_xml_path` must be set.
 
 - `ranger_hive_audit_xml_path`: (Forces new resource) The remote storage path to the `ranger-hive-audit.xml` file, which is used to enable Ranger's Audit Log service for Hive Catalog.
 

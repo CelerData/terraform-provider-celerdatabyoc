@@ -1,5 +1,15 @@
 package rangerconfig
 
+// Ranger scope values. Mirrors the backend RangerScope enum.
+const (
+	// RangerScopeAllCatalogs makes Ranger govern all catalogs (internal + external);
+	// access_control=ranger is written to fe.conf. This is the default.
+	RangerScopeAllCatalogs = 0
+	// RangerScopeExternalOnly makes Ranger govern external catalogs only; internal
+	// catalogs keep StarRocks native RBAC and access_control=ranger is not written.
+	RangerScopeExternalOnly = 1
+)
+
 type RangerConfig struct {
 	Name                               string `json:"name" mapstructure:"name"`
 	BizID                              string `json:"biz_id" mapstructure:"biz_id"`
@@ -12,6 +22,7 @@ type RangerConfig struct {
 	RangerStarrocksKeyStoreCredPath    string `json:"ranger_starrocks_key_store_cred_path" mapstructure:"ranger_starrocks_key_store_cred_path"`
 	RangerHiveSecurityXmlPath          string `json:"ranger_hive_security_xml_path" mapstructure:"ranger_hive_security_xml_path"`
 	RangerHiveAuditXmlPath             string `json:"ranger_hive_audit_xml_path" mapstructure:"ranger_hive_audit_xml_path"`
+	Scope                              int    `json:"scope,omitempty" mapstructure:"scope"`
 }
 
 type CreateRangerConfigReq struct {
