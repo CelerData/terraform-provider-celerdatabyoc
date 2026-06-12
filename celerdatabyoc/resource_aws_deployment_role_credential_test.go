@@ -2,6 +2,7 @@ package celerdatabyoc
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -37,14 +38,16 @@ func testCheckAwsDeploymentRoleCredentialDestroy(s *terraform.State) error {
 }
 
 func testCheckAwsDeploymentRoleCredentialConfigBasic() string {
-	return `
+	return fmt.Sprintf(`
 	resource "celerdatabyoc_aws_deployment_role_credential" "new" {
 		name = "test-deployment-role-credential"
-		role_arn = "arn:aws:iam::081976408565:role/celerdata-stack-v36pza-CelerdataDeploymentRole-AKVIT05897ML"
-		external_id = "ed6b3030-1f00-11ee-a769-0ab2a5ac006f"
-		policy_version = "20230322062733"
+		role_arn = "%s"
+		external_id = "%s"
+		policy_version = "%s"
 	}
-	`
+	`, os.Getenv("CELERDATA_DEPLOY_ROLE_ARN"),
+		os.Getenv("CELERDATA_EXTERNAL_ID"),
+		os.Getenv("CELERDATA_DEPLOY_POLICY_VERSION"))
 }
 
 func testCheckCelerdataAwsDeploymentRoleCredentialExists(n string) resource.TestCheckFunc {

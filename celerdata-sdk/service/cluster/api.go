@@ -100,6 +100,7 @@ type IClusterAPI interface {
 
 	ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
 	CleanRangerConfigV2(ctx context.Context, req *CleanRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
+	ChangeClusterAdminPassword(ctx context.Context, req *ChangeClusterAdminPasswordReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -762,4 +763,8 @@ func (c *clusterAPI) CleanRangerConfigV2(ctx context.Context, req *CleanRangerCo
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) ChangeClusterAdminPassword(ctx context.Context, req *ChangeClusterAdminPasswordReq) error {
+	return c.cli.Put(ctx, fmt.Sprintf("/api/%s/clusters/%s/admin-user-password", c.apiVersion, req.ClusterId), req, nil)
 }
