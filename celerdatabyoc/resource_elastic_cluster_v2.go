@@ -1637,6 +1637,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+		return diag.FromErr(err)
 	}
 
 	tableNameCaseInsensitive, err := clusterAPI.GetClusterTableNameCaseInsensitive(ctx, &cluster.GetClusterTableNameCaseInsensitiveReq{ClusterId: clusterId})
@@ -1676,12 +1677,8 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 	d.Set("resource_tags", tags)
-	if len(resp.Cluster.LdapSslCerts) > 0 {
-		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
-	}
-	if len(resp.Cluster.RangerCertsDirPath) > 0 {
-		d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
-	}
+	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
 
 	default_warehouses := make([]map[string]interface{}, 0)
 	normal_warehouses := make([]map[string]interface{}, 0)
@@ -1833,9 +1830,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("warehouse", normal_warehouses)
 	d.Set("warehouse_external_info", warehouseExternalInfo)
 
-	if len(coordinatorNodeConfigsResp.Configs) > 0 {
-		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
-	}
+	d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
 
 	feModule := resp.Cluster.FeModule
 	if !feModule.IsInstanceStore {
@@ -1862,10 +1857,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
-	if len(coordinatorNodeConfigsResp.Configs) > 0 {
-		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
-	}
-
 	if len(globalSessionVariables) > 0 {
 		d.Set("global_session_variables", globalSessionVariables)
 	}
@@ -1879,9 +1870,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("enabled_arrow_flight", arrowFlight.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
-	if len(rangerConfigResp.Configs) > 0 {
-		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
-	}
+	d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 
 	return diags
 }

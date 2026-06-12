@@ -952,6 +952,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+		return diag.FromErr(err)
 	}
 
 	tableNameCaseInsensitive, err := clusterAPI.GetClusterTableNameCaseInsensitive(ctx, &cluster.GetClusterTableNameCaseInsensitiveReq{ClusterId: clusterID})
@@ -985,20 +986,10 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		}
 	}
 	d.Set("resource_tags", tags)
-	if len(resp.Cluster.LdapSslCerts) > 0 {
-		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
-	}
-	if len(resp.Cluster.RangerCertsDirPath) > 0 {
-		d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
-	}
-
-	if len(coordinatorNodeConfigsResp.Configs) > 0 {
-		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
-	}
-
-	if len(computeNodeConfigsResp.Configs) > 0 {
-		d.Set("compute_node_configs", computeNodeConfigsResp.Configs)
-	}
+	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
+	d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
+	d.Set("compute_node_configs", computeNodeConfigsResp.Configs)
 
 	feModule := resp.Cluster.FeModule
 	if !feModule.IsInstanceStore {
@@ -1034,9 +1025,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
-	if len(rangerConfigResp.Configs) > 0 {
-		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
-	}
+	d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 
 	return diags
 }

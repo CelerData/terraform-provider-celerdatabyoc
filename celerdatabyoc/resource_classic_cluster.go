@@ -992,6 +992,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+		return diag.FromErr(err)
 	}
 
 	tableNameCaseInsensitive, err := clusterAPI.GetClusterTableNameCaseInsensitive(ctx, &cluster.GetClusterTableNameCaseInsensitiveReq{ClusterId: clusterID})
@@ -1027,20 +1028,10 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 
 	d.Set("resource_tags", tags)
 
-	if len(resp.Cluster.LdapSslCerts) > 0 {
-		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
-	}
-	if len(resp.Cluster.RangerCertsDirPath) > 0 {
-		d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
-	}
-
-	if len(feConfigsResp.Configs) > 0 {
-		d.Set("fe_configs", feConfigsResp.Configs)
-	}
-
-	if len(beConfigsResp.Configs) > 0 {
-		d.Set("be_configs", beConfigsResp.Configs)
-	}
+	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
+	d.Set("fe_configs", feConfigsResp.Configs)
+	d.Set("be_configs", beConfigsResp.Configs)
 
 	if len(globalSessionVariables) > 0 {
 		d.Set("global_session_variables", globalSessionVariables)
@@ -1074,9 +1065,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
-	if len(rangerConfigResp.Configs) > 0 {
-		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
-	}
+	d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 
 	return diags
 }
@@ -3010,7 +2999,7 @@ func ChangeAdminPassword(ctx context.Context, api cluster.IClusterAPI, d *schema
 		}
 	}
 
-	_, n := d.GetChange("default_admin_password")
+	o, n := d.GetChange("default_admin_password")
 
 	password := base64.StdEncoding.EncodeToString([]byte(n.(string)))
 
@@ -3020,6 +3009,11 @@ func ChangeAdminPassword(ctx context.Context, api cluster.IClusterAPI, d *schema
 	})
 
 	if err != nil {
+		// SDKv2 persists the planned value to state even when Update returns
+		// an error, and the password can never be read back from the API.
+		// Roll the field back to the old value so the failed change stays
+		// visible to the next plan and gets retried.
+		d.Set("default_admin_password", o)
 		return diag.Diagnostics{
 			diag.Diagnostic{
 				Severity: diag.Error,
