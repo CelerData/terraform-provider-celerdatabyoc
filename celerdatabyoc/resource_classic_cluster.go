@@ -2,6 +2,7 @@ package celerdatabyoc
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -162,7 +163,6 @@ func resourceClassicCluster() *schema.Resource {
 				Required:         true,
 				Sensitive:        true,
 				ValidateDiagFunc: common.ValidatePassword(),
-				ForceNew:         true,
 			},
 			"data_credential_id": {
 				Type:     schema.TypeString,
@@ -740,6 +740,10 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		return diag.FromErr(err)
 	}
 
+	clusterId := resp.ClusterID
+	d.SetId(clusterId)
+	log.Printf("[INFO] The cluster deployment request has been submitted. The cluster deployment is in progress. action id:%s cluster id:%s", resp.ActionID, clusterId)
+
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
 		clusterID:  resp.ClusterID,
@@ -763,13 +767,10 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		d.SetId("")
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 
-	clusterId := resp.ClusterID
-	d.SetId(clusterId)
-	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterId)
+	log.Printf("[INFO] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterId)
 
 	if v, ok := d.GetOk("fe_configs"); ok && len(d.Get("fe_configs").(map[string]interface{})) > 0 {
 		configMap := v.(map[string]interface{})
@@ -1194,7 +1195,7 @@ func needSuspend(d *schema.ResourceData) bool {
 }
 
 func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
@@ -1267,6 +1268,13 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	if needResume(d) {
 		o, n := d.GetChange("expected_cluster_state")
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
+	if d.HasChange("default_admin_password") && !d.IsNewResource() {
+		errDiag := ChangeAdminPassword(ctx, clusterAPI, d)
 		if errDiag != nil {
 			return errDiag
 		}
@@ -2986,5 +2994,40 @@ func ClearRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterI
 			}
 		}
 	}
+	return nil
+}
+
+func ChangeAdminPassword(ctx context.Context, api cluster.IClusterAPI, d *schema.ResourceData) diag.Diagnostics {
+
+	clusterId := d.Id()
+	if clusterId == "" {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Warning,
+				Summary:  "Resource id not found",
+				Detail:   "Handle changed cluster admin password, cluster id can`t be empty",
+			},
+		}
+	}
+
+	_, n := d.GetChange("default_admin_password")
+
+	password := base64.StdEncoding.EncodeToString([]byte(n.(string)))
+
+	err := api.ChangeClusterAdminPassword(ctx, &cluster.ChangeClusterAdminPasswordReq{
+		ClusterId: clusterId,
+		Password:  password,
+	})
+
+	if err != nil {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Failed to change admin password",
+				Detail:   fmt.Sprintf("ErrMsg:%s", err.Error()),
+			},
+		}
+	}
+
 	return nil
 }

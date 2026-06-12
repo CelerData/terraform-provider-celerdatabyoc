@@ -16,10 +16,10 @@ import (
 	"terraform-provider-celerdatabyoc/common"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"github.com/hashicorp/go-cty/cty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -1971,7 +1971,7 @@ func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
 }
 
 func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
@@ -2054,6 +2054,13 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		err := clusterAPI.UnlockFreeTier(ctx, clusterId)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to unlock free tier: %s", d.Id(), err.Error()))
+		}
+	}
+
+	if d.HasChange("default_admin_password") && !d.IsNewResource() {
+		errDiag := ChangeAdminPassword(ctx, clusterAPI, d)
+		if errDiag != nil {
+			return errDiag
 		}
 	}
 
