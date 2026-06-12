@@ -190,7 +190,7 @@ func resourceClusterModifyVolumeRead(ctx context.Context, d *schema.ResourceData
 			log.Printf("[ERROR] query modify cluster volume detail infra action failed, infraActionId:%s", infraActionId)
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Failed to get cluster infra action info, actionId:[%s] ", infraActionId),
 					Detail:   err.Error(),
 				},
@@ -200,7 +200,15 @@ func resourceClusterModifyVolumeRead(ctx context.Context, d *schema.ResourceData
 		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 			log.Printf("[INFO] clean failed infra action, infraActionId:%s", infraActionId)
 			d.SetId("")
-			return diags
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Warning,
+					Summary:  fmt.Sprintf("Cluster volume modification action [%s] failed", infraActionId),
+					Detail: fmt.Sprintf("Infra action [%s] is in \"Failed\" state, errMsg:%s. "+
+						"The resource has been removed from state and the volume modification "+
+						"will be re-applied on the next terraform apply.", infraActionId, infraActionResp.ErrMsg),
+				},
+			}
 		}
 		result = infraActionResp.InfraActionState
 		d.Set("result", result)
