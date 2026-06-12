@@ -204,7 +204,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
   - `ami`: The ID of the custom AMI.
   - `os`: The operating system (OS) of the AMI. Currently only `al2023` (Amazon Linux 2023) is supported. The value of this field must be consistent with the actual OS of the AMI. Otherwise, the deployment will fail.
 
-- `default_admin_password`: (Not allowed to modify) The initial password of the cluster `admin` user.
+- `default_admin_password`: The password of the cluster `admin` user.
 
 - `expected_cluster_state`: When creating a cluster, you need to declare the status of the cluster you are creating. Cluster states are categorized as `Suspended` and `Running`. If you want the cluster to start after provisioning, set this argument to `Running`. If you do not do so, the cluster will be suspended after provisioning.
 

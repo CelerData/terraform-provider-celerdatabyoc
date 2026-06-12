@@ -2,6 +2,7 @@ package celerdatabyoc
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -18,13 +19,13 @@ func TestAccCelerdataClusterBasic(t *testing.T) {
 			{
 				Config: testCheckCelerdataClusterConfigBasic(clusterName),
 				Check: resource.ComposeTestCheckFunc(
-					testCheckCelerdataClusterExists("celerdatabyoc_cluster.new"),
+					testCheckCelerdataClusterExists("celerdatabyoc_classic_cluster.new"),
 				),
 			},
 			{
 				Config: testCheckCelerdataClusterConfigUpdate(clusterName),
 				Check: resource.ComposeTestCheckFunc(
-					testCheckCelerdataClusterExists("celerdatabyoc_cluster.new"),
+					testCheckCelerdataClusterExists("celerdatabyoc_classic_cluster.new"),
 				),
 			},
 		},
@@ -47,35 +48,48 @@ func testCheckCelerdataClusterConfigBasic(cluster_name string) string {
 	return fmt.Sprintf(`
 	resource "celerdatabyoc_classic_cluster" "new" {
 		cluster_name = "%s"
-		fe_instance_type = "t2.small"
-		deployment_credential_id = "e52bbbbd-9944-4b69-895f-8542482f2ef4"
-		data_credential_id = "f4273e04-8b00-4c70-866b-44b0cdb7d7fa"
-		network_id = "526068e9-6257-43d4-8bac-8a9f773badb8"
+		csp = "%s"
+		region = "%s"
+		fe_instance_type = "m6i.xlarge"
+		fe_node_count = 1
 		be_instance_type = "m6i.large"
 		be_node_count = 1
-		be_storage_size_gb = 100
-		admin_password = "test"
+		deployment_credential_id = "%s"
+		data_credential_id = "%s"
+		network_id = "%s"
+		default_admin_password = "Test_123456"
 	}
-	`, cluster_name)
+	`, cluster_name,
+		os.Getenv("CELERDATA_CSP"),
+		os.Getenv("CELERDATA_REGION"),
+		os.Getenv("CELERDATA_DEPLOYMENT_CREDENTIAL_ID"),
+		os.Getenv("CELERDATA_DATA_CREDENTIAL_ID"),
+		os.Getenv("CELERDATA_NETWORK_ID"))
 }
 
 func testCheckCelerdataClusterConfigUpdate(cluster_name string) string {
 	return fmt.Sprintf(`
-	resource "celerdatabyoc_cluster" "new" {
-		cluster_type = "CLASSIC"
+	resource "celerdatabyoc_classic_cluster" "new" {
 		cluster_name = "%s"
-		fe_instance_type = "m6i.large"
+		csp = "%s"
+		region = "%s"
+		fe_instance_type = "m6i.xlarge"
 		fe_node_count = 3
-		deployment_credential_id = "e52bbbbd-9944-4b69-895f-8542482f2ef4"
-		data_credential_id = "f4273e04-8b00-4c70-866b-44b0cdb7d7fa"
-		network_id = "526068e9-6257-43d4-8bac-8a9f773badb8"
-		be_instance_type = "m5.xlarge"
+		be_instance_type = "m6i.large"
 		be_node_count = 3
-		be_storage_size_gb = 200
-		admin_password = "test"
+		deployment_credential_id = "%s"
+		data_credential_id = "%s"
+		network_id = "%s"
+		default_admin_password = "Test_123456"
 	}
-	`, cluster_name)
+	`, cluster_name,
+		os.Getenv("CELERDATA_CSP"),
+		os.Getenv("CELERDATA_REGION"),
+		os.Getenv("CELERDATA_DEPLOYMENT_CREDENTIAL_ID"),
+		os.Getenv("CELERDATA_DATA_CREDENTIAL_ID"),
+		os.Getenv("CELERDATA_NETWORK_ID"))
 }
+
 func testCheckCelerdataClusterExists(n string) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		rs, ok := s.RootModule().Resources[n]
