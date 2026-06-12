@@ -1320,16 +1320,10 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		},
 	})
 	if err != nil {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Operation state not complete",
-			Detail:   fmt.Sprintf("waiting for cluster (%s) change complete failed errMsg: %s", d.Id(), err.Error()),
-		})
-		return diags
+		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) change complete: %s", d.Id(), err))
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		d.SetId("")
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)

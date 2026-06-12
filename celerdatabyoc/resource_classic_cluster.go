@@ -3003,7 +3003,7 @@ func ChangeAdminPassword(ctx context.Context, api cluster.IClusterAPI, d *schema
 	if clusterId == "" {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Resource id not found",
 				Detail:   "Handle changed cluster admin password, cluster id can`t be empty",
 			},
