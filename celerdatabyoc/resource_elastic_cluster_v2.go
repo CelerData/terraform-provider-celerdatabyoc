@@ -1454,7 +1454,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  fmt.Sprintf("Failed to save scheduling policy[%s], please retry again!", m["policy_name"].(string)),
 						Detail:   err.Error(),
 					},
@@ -1471,7 +1471,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			log.Printf("[ERROR] %s", msg)
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Config warehouse[%s] auto-scaling configuration failed", DEFAULT_WAREHOUSE_NAME),
 					Detail:   msg,
 				},
@@ -1485,7 +1485,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		if errDiag != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Create warehouse[%s] failed. %s", v["name"].(string), errDiag[0].Summary),
 					Detail:   errDiag[0].Detail,
 				},
@@ -1743,7 +1743,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 			log.Printf("[ERROR] Query warehouse auto scaling config failed, warehouseId:%s", warehouseId)
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Failed to get warehouse auto scaling config, warehouseId:[%s] ", warehouseId),
 					Detail:   err.Error(),
 				},
@@ -1778,7 +1778,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 				log.Printf("[ERROR] Query warehouse idle suspend config failed, warehouseId:%s", warehouseId)
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  fmt.Sprintf("Failed to get warehouse idle suspend config, warehouseId:[%s] ", warehouseId),
 						Detail:   err.Error(),
 					},
@@ -2401,7 +2401,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			log.Printf("[ERROR] %s", msg)
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Config warehouse[%s] auto-scaling configuration failed", warehouseName),
 					Detail:   msg,
 				},
@@ -2435,7 +2435,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   err.Error(),
 				},
@@ -2466,7 +2466,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  summary,
 						Detail:   fmt.Sprintf("%s. errMsg:%s", summary, err.Error()),
 					},
@@ -2476,7 +2476,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  summary,
 						Detail:   fmt.Sprintf("%s. errMsg:%s", summary, stateResp.AbnormalReason),
 					},
@@ -2495,7 +2495,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Config warehouse[%s] idle config failed", warehouseName),
 					Detail:   err.Error(),
 				},
@@ -2784,7 +2784,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  "Config warehouse idle config failed",
 						Detail:   err.Error(),
 					},
@@ -2872,7 +2872,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  "Delete warehouse auto scaling config failed",
 						Detail:   err.Error(),
 					},
@@ -2936,7 +2936,7 @@ func suspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clust
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Suspend warehouse failed",
 				Detail:   err.Error(),
 			},
@@ -2968,7 +2968,7 @@ func suspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clust
 			msg := fmt.Sprintf("suspend warehouse[%s] of the cluster[%s] failed, errMsg:%s", warehouseName, clusterId, err.Error())
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Suspend warehouse",
 					Detail:   msg,
 				},
@@ -2978,7 +2978,7 @@ func suspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clust
 		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Suspend warehouse",
 					Detail:   stateResp.AbnormalReason,
 				},
@@ -3856,7 +3856,7 @@ func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req 
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -3884,7 +3884,7 @@ func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req 
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -3894,7 +3894,7 @@ func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req 
 	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   infraActionResp.ErrMsg,
 			},

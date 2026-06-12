@@ -835,7 +835,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  fmt.Sprintf("Failed to save scheduling policy[%s], please retry again!", m["policy_name"].(string)),
 						Detail:   err.Error(),
 					},
