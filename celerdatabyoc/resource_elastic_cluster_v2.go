@@ -16,10 +16,10 @@ import (
 	"terraform-provider-celerdatabyoc/common"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-cty/cty"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"github.com/hashicorp/go-cty/cty"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -539,6 +539,13 @@ func resourceElasticClusterV2() *schema.Resource {
 				Type:     schema.TypeBool,
 				Optional: true,
 				Default:  false,
+			},
+			"release_version": {
+				Type:         schema.TypeString,
+				Description:  "The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `preview`, `ga`. Default: `stable`. This field only takes effect at cluster creation time and cannot be changed afterwards.",
+				Optional:     true,
+				Default:      "stable",
+				ValidateFunc: common.ValidateReleaseVersion,
 			},
 			"query_port": {
 				Type:     schema.TypeInt,
@@ -1165,6 +1172,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
+		ReleaseVersion:               d.Get("release_version").(string),
 	}
 
 	netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
@@ -2133,6 +2141,10 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
 		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
+	}
+
+	if d.HasChange("release_version") && !d.IsNewResource() {
+		return diag.FromErr(fmt.Errorf("`release_version` of cluster (%s) cannot be modified after the cluster is created", d.Id()))
 	}
 
 	if d.HasChange("coordinator_node_volume_config") {

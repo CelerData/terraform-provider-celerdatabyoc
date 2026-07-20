@@ -139,6 +139,19 @@ func ValidateSchedulingPolicyTimeZone(i interface{}, k string) ([]string, []erro
 	return nil, nil
 }
 
+func ValidateReleaseVersion(i interface{}, k string) ([]string, []error) {
+	v, ok := i.(string)
+	if !ok {
+		return nil, []error{fmt.Errorf("expected type of %s to be string", k)}
+	}
+	switch v {
+	case "stable", "preview", "ga":
+		return nil, nil
+	default:
+		return nil, []error{fmt.Errorf("%s must be one of \"stable\", \"preview\" or \"ga\", got: %s", k, v)}
+	}
+}
+
 func ValidateSchedulingPolicyDateTime(i interface{}, k string) ([]string, []error) {
 	v, ok := i.(string)
 	if !ok {

@@ -145,6 +145,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   query_port = 9030
   idle_suspend_interval = 60
   enabled_termination_protection = false
+  release_version = "stable"
 }
 ```
 
@@ -287,6 +288,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 - `enabled_termination_protection`: When enabled, termination protection prevents the deletion of the cluster via Console or APIs. To delete the cluster, this feature needs to be disabled. This has no affect on termination from scale-in, auto scaling events and scheduled maintenance.
+
+- `release_version`: The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `preview`, `ga`. Default value: `stable`. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 
 - `scheduling_policy`:(Optional, List) When specified. CelerData will automatically suspend the cluster to save the majority of costs on EC2 (only EBS costs will be incurred) and resume the cluster for usage as scheduled.
     - `policy_name`: (Required) Policy name.
