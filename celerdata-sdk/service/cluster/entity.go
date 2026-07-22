@@ -1162,6 +1162,8 @@ type UninstallAuditLoaderPluginReq struct {
 
 type UninstallAuditLoaderPluginResp struct {
 	InfraActionID string `json:"infra_action_id" mapstructure:"infra_action_id"`
+}
+
 type GetClusterArrowFlightReq struct {
 	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
 }

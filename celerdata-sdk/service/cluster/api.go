@@ -794,6 +794,8 @@ func (c *clusterAPI) UninstallAuditLoaderPlugin(ctx context.Context, req *Uninst
 		return nil, err
 	}
 	return resp, nil
+}
+
 func (c *clusterAPI) ChangeClusterAdminPassword(ctx context.Context, req *ChangeClusterAdminPasswordReq) error {
 	return c.cli.Put(ctx, fmt.Sprintf("/api/%s/clusters/%s/admin-user-password", c.apiVersion, req.ClusterId), req, nil)
 }
