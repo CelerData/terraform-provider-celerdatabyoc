@@ -634,14 +634,14 @@ type GetWarehouseReq struct {
 }
 
 type WarehouseInfo struct {
-	WarehouseId           string `json:"warehouse_id" mapstructure:"warehouse_id"`
-	WarehouseName         string `json:"warehouse_name" mapstructure:"warehouse_name"`
-	NodeCount             int32  `json:"node_count" mapstructure:"node_count"`
-	State                 string `json:"state" mapstructure:"state"`
-	IsDefault             bool   `json:"is_default" mapstructure:"is_default"`
-	VmCate                string `json:"vm_cate" mapstructure:"vm_cate"`
-	VmVolSizeGB           int64  `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
-	VmVolNum              int32  `json:"vm_vol_num" mapstructure:"vm_vol_num"`
+	WarehouseId           string   `json:"warehouse_id" mapstructure:"warehouse_id"`
+	WarehouseName         string   `json:"warehouse_name" mapstructure:"warehouse_name"`
+	NodeCount             int32    `json:"node_count" mapstructure:"node_count"`
+	State                 string   `json:"state" mapstructure:"state"`
+	IsDefault             bool     `json:"is_default" mapstructure:"is_default"`
+	VmCate                string   `json:"vm_cate" mapstructure:"vm_cate"`
+	VmVolSizeGB           int64    `json:"vm_vol_size_gb" mapstructure:"vm_vol_size_gb"`
+	VmVolNum              int32    `json:"vm_vol_num" mapstructure:"vm_vol_num"`
 	IsInstanceStore       bool     `json:"is_instance_store" mapstructure:"is_instance_store"`
 	DistributionPolicyStr string   `json:"distribution_policy_str" mapstructure:"distribution_policy_str"`
 	SpecifyAZ             string   `json:"specify_az" mapstructure:"specify_az"`
@@ -1121,6 +1121,11 @@ type ApplyRangerConfigV2Req struct {
 
 type CleanRangerConfigV2Req struct {
 	ClusterID string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type ChangeClusterAdminPasswordReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+	Password  string `json:"password" mapstructure:"password"`
 }
 
 type OperateRangerConfigV2Resp struct {

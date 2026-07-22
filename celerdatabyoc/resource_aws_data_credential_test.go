@@ -2,6 +2,7 @@ package celerdatabyoc
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -37,15 +38,18 @@ func testCheckAwsDataCredentialDestroy(s *terraform.State) error {
 }
 
 func testCheckAwsDataCredentialConfigBasic() string {
-	return `
+	return fmt.Sprintf(`
 	resource "celerdatabyoc_aws_data_credential" "new" {
 		name = "test-data-credential"
-		role_arn = "arn:aws:iam::081976408565:role/saas-dev-storage-role"
-		instance_profile_arn = "arn:aws:iam::081976408565:instance-profile/saas-dev-storage-role"
-		bucket_name = "saas-us-west-2"
-		policy_version = "20221121025439"
+		role_arn = "%s"
+		instance_profile_arn = "%s"
+		bucket_name = "%s"
+		policy_version = "%s"
 	}
-	`
+	`, os.Getenv("CELERDATA_DATA_ROLE_ARN"),
+		os.Getenv("CELERDATA_INSTANCE_PROFILE_ARN"),
+		os.Getenv("CELERDATA_BUCKET_NAME"),
+		os.Getenv("CELERDATA_DATA_POLICY_VERSION"))
 }
 
 func testCheckCelerdataAwsDataCredentialExists(n string) resource.TestCheckFunc {

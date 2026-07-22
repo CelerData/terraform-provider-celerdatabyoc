@@ -104,6 +104,7 @@ type IClusterAPI interface {
 	CheckAuditLoaderPlugin(ctx context.Context, req *CheckAuditLoaderPluginReq) (*CheckAuditLoaderPluginResp, error)
 	InstallAuditLoaderPlugin(ctx context.Context, req *InstallAuditLoaderPluginReq) (*InstallAuditLoaderPluginResp, error)
 	UninstallAuditLoaderPlugin(ctx context.Context, req *UninstallAuditLoaderPluginReq) (*UninstallAuditLoaderPluginResp, error)
+	ChangeClusterAdminPassword(ctx context.Context, req *ChangeClusterAdminPasswordReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -793,4 +794,6 @@ func (c *clusterAPI) UninstallAuditLoaderPlugin(ctx context.Context, req *Uninst
 		return nil, err
 	}
 	return resp, nil
+func (c *clusterAPI) ChangeClusterAdminPassword(ctx context.Context, req *ChangeClusterAdminPasswordReq) error {
+	return c.cli.Put(ctx, fmt.Sprintf("/api/%s/clusters/%s/admin-user-password", c.apiVersion, req.ClusterId), req, nil)
 }
