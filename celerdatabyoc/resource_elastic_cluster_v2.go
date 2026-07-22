@@ -1907,8 +1907,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if len(rangerConfigResp.Configs) > 0 {
 		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 	}
-  
-	d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 
 	return diags
 }
@@ -2181,8 +2179,9 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		err := clusterAPI.UnlockFreeTier(ctx, clusterId)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to unlock free tier: %s", d.Id(), err.Error()))
-  }
-    
+    }
+	}
+
 	if d.HasChange("coordinator_node_volume_config") {
 		if diags := handleFEVolumeConfigChange(ctx, d, clusterAPI, clusterId); diags != nil {
 			return diags
