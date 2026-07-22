@@ -546,6 +546,12 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional:     true,
 				Default:      "stable",
 				ValidateFunc: common.ValidateReleaseVersion,
+      }
+			"audit_loader_plugin_enabled": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Whether the audit loader plugin is enabled (default: false)",
 			},
 			"query_port": {
 				Type:     schema.TypeInt,
@@ -1328,16 +1334,10 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		},
 	})
 	if err != nil {
-		diags = append(diags, diag.Diagnostic{
-			Severity: diag.Warning,
-			Summary:  "Operation state not complete",
-			Detail:   fmt.Sprintf("waiting for cluster (%s) change complete failed errMsg: %s", d.Id(), err.Error()),
-		})
-		return diags
+		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) change complete: %s", d.Id(), err))
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		d.SetId("")
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, resp.ClusterID)
@@ -1468,7 +1468,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  fmt.Sprintf("Failed to save scheduling policy[%s], please retry again!", m["policy_name"].(string)),
 						Detail:   err.Error(),
 					},
@@ -1485,7 +1485,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 			log.Printf("[ERROR] %s", msg)
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Config warehouse[%s] auto-scaling configuration failed", DEFAULT_WAREHOUSE_NAME),
 					Detail:   msg,
 				},
@@ -1499,7 +1499,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		if errDiag != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Create warehouse[%s] failed. %s", v["name"].(string), errDiag[0].Summary),
 					Detail:   errDiag[0].Detail,
 				},
@@ -1521,6 +1521,12 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		if warningDiag != nil {
 			return warningDiag
 		}
+	}
+
+	// Reconcile audit loader plugin state (post-install operation)
+	desiredEnabled := d.Get("audit_loader_plugin_enabled").(bool)
+	if _, err := reconcileAuditLoaderPlugin(ctx, clusterAPI, clusterId, desiredEnabled, string(cluster.ClusterStateRunning)); err != nil {
+		return diag.FromErr(fmt.Errorf("cluster (%s) %s", clusterId, err.Error()))
 	}
 
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
@@ -1651,6 +1657,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+		return diag.FromErr(err)
 	}
 
 	tableNameCaseInsensitive, err := clusterAPI.GetClusterTableNameCaseInsensitive(ctx, &cluster.GetClusterTableNameCaseInsensitiveReq{ClusterId: clusterId})
@@ -1690,12 +1697,8 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 	d.Set("resource_tags", tags)
-	if len(resp.Cluster.LdapSslCerts) > 0 {
-		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
-	}
-	if len(resp.Cluster.RangerCertsDirPath) > 0 {
-		d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
-	}
+	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
 
 	default_warehouses := make([]map[string]interface{}, 0)
 	normal_warehouses := make([]map[string]interface{}, 0)
@@ -1757,7 +1760,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 			log.Printf("[ERROR] Query warehouse auto scaling config failed, warehouseId:%s", warehouseId)
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Failed to get warehouse auto scaling config, warehouseId:[%s] ", warehouseId),
 					Detail:   err.Error(),
 				},
@@ -1792,7 +1795,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 				log.Printf("[ERROR] Query warehouse idle suspend config failed, warehouseId:%s", warehouseId)
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  fmt.Sprintf("Failed to get warehouse idle suspend config, warehouseId:[%s] ", warehouseId),
 						Detail:   err.Error(),
 					},
@@ -1847,9 +1850,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("warehouse", normal_warehouses)
 	d.Set("warehouse_external_info", warehouseExternalInfo)
 
-	if len(coordinatorNodeConfigsResp.Configs) > 0 {
-		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
-	}
+	d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
 
 	feModule := resp.Cluster.FeModule
 	if !feModule.IsInstanceStore {
@@ -1876,10 +1877,6 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 	}
 
-	if len(coordinatorNodeConfigsResp.Configs) > 0 {
-		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
-	}
-
 	if len(globalSessionVariables) > 0 {
 		d.Set("global_session_variables", globalSessionVariables)
 	}
@@ -1893,9 +1890,25 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	d.Set("enabled_arrow_flight", arrowFlight.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
+	// Check actual audit loader plugin status (don't reconcile here, just report actual state)
+	checkResp, err := clusterAPI.CheckAuditLoaderPlugin(ctx, &cluster.CheckAuditLoaderPluginReq{
+		ClusterID: clusterId,
+	})
+	if err != nil {
+		log.Printf("[WARN] Failed to check audit loader plugin status: %s", err.Error())
+		// If we can't check, leave state unchanged
+	} else {
+		actualInstalled := checkResp.Installed
+		log.Printf("[DEBUG] Audit loader plugin actual state for cluster %s: installed=%t", clusterId, actualInstalled)
+		// Always set to actual state - this will trigger Update if config differs
+		d.Set("audit_loader_plugin_enabled", actualInstalled)
+	}
+
 	if len(rangerConfigResp.Configs) > 0 {
 		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 	}
+  
+	d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 
 	return diags
 }
@@ -1979,7 +1992,7 @@ func elasticClusterV2NeedUnlock(d *schema.ResourceData) bool {
 }
 
 func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
@@ -2065,6 +2078,13 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if d.HasChange("default_admin_password") && !d.IsNewResource() {
+		errDiag := ChangeAdminPassword(ctx, clusterAPI, d)
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
 	// ---- REDUCE ----
 	if needFeScaleIn(d) {
 		if diags := handleFEScaleIn(ctx, d, clusterAPI, clusterId); diags != nil {
@@ -2147,6 +2167,22 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(fmt.Errorf("`release_version` of cluster (%s) cannot be modified after the cluster is created", d.Id()))
 	}
 
+	// Always reconcile audit loader plugin to ensure actual state matches desired config
+	// This handles both explicit config changes and any state drift
+	if !d.IsNewResource() {
+		desiredEnabled := d.Get("audit_loader_plugin_enabled").(bool)
+		log.Printf("[DEBUG] Reconciling audit loader plugin for cluster %s: desired=%t", clusterId, desiredEnabled)
+		if _, err := reconcileAuditLoaderPlugin(ctx, clusterAPI, clusterId, desiredEnabled, stateResp.ClusterState); err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) %s", d.Id(), err.Error()))
+		}
+	}
+
+	if elasticClusterV2NeedUnlock(d) {
+		err := clusterAPI.UnlockFreeTier(ctx, clusterId)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to unlock free tier: %s", d.Id(), err.Error()))
+  }
+    
 	if d.HasChange("coordinator_node_volume_config") {
 		if diags := handleFEVolumeConfigChange(ctx, d, clusterAPI, clusterId); diags != nil {
 			return diags
@@ -2412,7 +2448,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			log.Printf("[ERROR] %s", msg)
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Config warehouse[%s] auto-scaling configuration failed", warehouseName),
 					Detail:   msg,
 				},
@@ -2446,7 +2482,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   err.Error(),
 				},
@@ -2477,7 +2513,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  summary,
 						Detail:   fmt.Sprintf("%s. errMsg:%s", summary, err.Error()),
 					},
@@ -2487,7 +2523,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 			if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  summary,
 						Detail:   fmt.Sprintf("%s. errMsg:%s", summary, stateResp.AbnormalReason),
 					},
@@ -2506,7 +2542,7 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  fmt.Sprintf("Config warehouse[%s] idle config failed", warehouseName),
 					Detail:   err.Error(),
 				},
@@ -2795,7 +2831,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  "Config warehouse idle config failed",
 						Detail:   err.Error(),
 					},
@@ -2883,7 +2919,7 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  "Delete warehouse auto scaling config failed",
 						Detail:   err.Error(),
 					},
@@ -2947,7 +2983,7 @@ func suspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clust
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Suspend warehouse failed",
 				Detail:   err.Error(),
 			},
@@ -2979,7 +3015,7 @@ func suspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clust
 			msg := fmt.Sprintf("suspend warehouse[%s] of the cluster[%s] failed, errMsg:%s", warehouseName, clusterId, err.Error())
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Suspend warehouse",
 					Detail:   msg,
 				},
@@ -2989,7 +3025,7 @@ func suspendWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, clust
 		if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Suspend warehouse",
 					Detail:   stateResp.AbnormalReason,
 				},
@@ -3867,7 +3903,7 @@ func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req 
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -3895,7 +3931,7 @@ func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req 
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -3905,7 +3941,7 @@ func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req 
 	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   infraActionResp.ErrMsg,
 			},
@@ -3913,6 +3949,117 @@ func configArrowFlight(ctx context.Context, clusterAPI cluster.IClusterAPI, req 
 	}
 
 	return nil
+}
+
+// reconcileAuditLoaderPlugin ensures the actual plugin state matches the desired state
+// Returns the actual installed state (true if installed, false if not)
+func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId string, desiredEnabled bool, clusterState string) (bool, error) {
+	// Only operate when cluster is in Running state
+	if clusterState != string(cluster.ClusterStateRunning) {
+		log.Printf("[DEBUG] Cluster %s not in Running state (%s), skipping audit loader plugin reconciliation", clusterId, clusterState)
+		return false, nil
+	}
+
+	// Check current installation status
+	checkResp, err := clusterAPI.CheckAuditLoaderPlugin(ctx, &cluster.CheckAuditLoaderPluginReq{
+		ClusterID: clusterId,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to check audit loader plugin status for cluster %s: %w", clusterId, err)
+	}
+
+	actualInstalled := checkResp.Installed
+	log.Printf("[DEBUG] Audit loader plugin for cluster %s: desired=%t, actual=%t", clusterId, desiredEnabled, actualInstalled)
+
+	// If already in desired state, nothing to do
+	if actualInstalled == desiredEnabled {
+		log.Printf("[DEBUG] Audit loader plugin already in desired state for cluster %s", clusterId)
+		return actualInstalled, nil
+	}
+
+	// Reconcile: install or uninstall as needed
+	if desiredEnabled && !actualInstalled {
+		// Need to install
+		log.Printf("[INFO] Installing audit loader plugin for cluster %s", clusterId)
+		installResp, err := clusterAPI.InstallAuditLoaderPlugin(ctx, &cluster.InstallAuditLoaderPluginReq{
+			ClusterID: clusterId,
+		})
+		if err != nil {
+			return actualInstalled, fmt.Errorf("failed to install audit loader plugin: %w", err)
+		}
+
+		log.Printf("[INFO] Audit loader plugin install initiated for cluster %s, action_id: %s", clusterId, installResp.InfraActionID)
+
+		// Wait for installation to complete
+		if len(installResp.InfraActionID) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterId,
+				actionID:   installResp.InfraActionID,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+			if err != nil {
+				return actualInstalled, fmt.Errorf("failed to wait for audit loader plugin install: %w", err)
+			}
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return actualInstalled, fmt.Errorf("audit loader plugin install failed: %s", infraActionResp.ErrMsg)
+			}
+		}
+
+		log.Printf("[INFO] Audit loader plugin successfully installed for cluster %s", clusterId)
+		return true, nil
+
+	} else if !desiredEnabled && actualInstalled {
+		// Need to uninstall
+		log.Printf("[INFO] Uninstalling audit loader plugin for cluster %s", clusterId)
+		uninstallResp, err := clusterAPI.UninstallAuditLoaderPlugin(ctx, &cluster.UninstallAuditLoaderPluginReq{
+			ClusterID: clusterId,
+		})
+		if err != nil {
+			return actualInstalled, fmt.Errorf("failed to uninstall audit loader plugin: %w", err)
+		}
+
+		log.Printf("[INFO] Audit loader plugin uninstall initiated for cluster %s, action_id: %s", clusterId, uninstallResp.InfraActionID)
+
+		// Wait for uninstallation to complete
+		if len(uninstallResp.InfraActionID) > 0 {
+			infraActionResp, err := WaitClusterInfraActionStateChangeComplete(ctx, &waitStateReq{
+				clusterAPI: clusterAPI,
+				clusterID:  clusterId,
+				actionID:   uninstallResp.InfraActionID,
+				timeout:    30 * time.Minute,
+				pendingStates: []string{
+					string(cluster.ClusterInfraActionStatePending),
+					string(cluster.ClusterInfraActionStateOngoing),
+				},
+				targetStates: []string{
+					string(cluster.ClusterInfraActionStateSucceeded),
+					string(cluster.ClusterInfraActionStateCompleted),
+					string(cluster.ClusterInfraActionStateFailed),
+				},
+			})
+			if err != nil {
+				return actualInstalled, fmt.Errorf("failed to wait for audit loader plugin uninstall: %w", err)
+			}
+			if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
+				return actualInstalled, fmt.Errorf("audit loader plugin uninstall failed: %s", infraActionResp.ErrMsg)
+			}
+		}
+
+		log.Printf("[INFO] Audit loader plugin successfully uninstalled for cluster %s", clusterId)
+		return false, nil
+	}
+
+	return actualInstalled, nil
 }
 
 func getVolumeAutoscalingFromYaml(yamlConfig map[string]interface{}) (*cluster.VolumeAutoScalingConfig, error) {

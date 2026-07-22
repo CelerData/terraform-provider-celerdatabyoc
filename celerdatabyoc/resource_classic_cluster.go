@@ -2,6 +2,7 @@ package celerdatabyoc
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -162,7 +163,6 @@ func resourceClassicCluster() *schema.Resource {
 				Required:         true,
 				Sensitive:        true,
 				ValidateDiagFunc: common.ValidatePassword(),
-				ForceNew:         true,
 			},
 			"data_credential_id": {
 				Type:     schema.TypeString,
@@ -740,6 +740,10 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		return diag.FromErr(err)
 	}
 
+	clusterId := resp.ClusterID
+	d.SetId(clusterId)
+	log.Printf("[INFO] The cluster deployment request has been submitted. The cluster deployment is in progress. action id:%s cluster id:%s", resp.ActionID, clusterId)
+
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
 		clusterID:  resp.ClusterID,
@@ -763,13 +767,10 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		d.SetId("")
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 
-	clusterId := resp.ClusterID
-	d.SetId(clusterId)
-	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterId)
+	log.Printf("[INFO] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterId)
 
 	if v, ok := d.GetOk("fe_configs"); ok && len(d.Get("fe_configs").(map[string]interface{})) > 0 {
 		configMap := v.(map[string]interface{})
@@ -869,7 +870,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  fmt.Sprintf("Failed to save scheduling policy[%s], please retry again!", m["policy_name"].(string)),
 						Detail:   err.Error(),
 					},
@@ -991,6 +992,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+		return diag.FromErr(err)
 	}
 
 	tableNameCaseInsensitive, err := clusterAPI.GetClusterTableNameCaseInsensitive(ctx, &cluster.GetClusterTableNameCaseInsensitiveReq{ClusterId: clusterID})
@@ -1026,20 +1028,10 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 
 	d.Set("resource_tags", tags)
 
-	if len(resp.Cluster.LdapSslCerts) > 0 {
-		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
-	}
-	if len(resp.Cluster.RangerCertsDirPath) > 0 {
-		d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
-	}
-
-	if len(feConfigsResp.Configs) > 0 {
-		d.Set("fe_configs", feConfigsResp.Configs)
-	}
-
-	if len(beConfigsResp.Configs) > 0 {
-		d.Set("be_configs", beConfigsResp.Configs)
-	}
+	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
+	d.Set("fe_configs", feConfigsResp.Configs)
+	d.Set("be_configs", beConfigsResp.Configs)
 
 	if len(globalSessionVariables) > 0 {
 		d.Set("global_session_variables", globalSessionVariables)
@@ -1073,9 +1065,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
-	if len(rangerConfigResp.Configs) > 0 {
-		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
-	}
+	d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 
 	return diags
 }
@@ -1194,7 +1184,7 @@ func needSuspend(d *schema.ResourceData) bool {
 }
 
 func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
@@ -1267,6 +1257,13 @@ func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interf
 	if needResume(d) {
 		o, n := d.GetChange("expected_cluster_state")
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
+	if d.HasChange("default_admin_password") && !d.IsNewResource() {
+		errDiag := ChangeAdminPassword(ctx, clusterAPI, d)
 		if errDiag != nil {
 			return errDiag
 		}
@@ -1731,7 +1728,7 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 	if clusterId == "" {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Resource id not found",
 				Detail:   "Handle changed cluster scheduling policy, cluster id can`t be empty",
 			},
@@ -1820,7 +1817,7 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Failed to delete cluster scheduling policy",
 					Detail:   fmt.Sprintf("Failed to delete cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
 				},
@@ -1834,7 +1831,7 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Failed to modify cluster scheduling policy",
 					Detail:   fmt.Sprintf("Failed to modify cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
 				},
@@ -1847,7 +1844,7 @@ func HandleChangedClusterSchedulingPolicy(ctx context.Context, api cluster.IClus
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Failed to add cluster scheduling policy",
 					Detail:   fmt.Sprintf("Failed to add cluster scheduling policy, clusterId:%s policyItem:%+v err:%s", clusterId, item, err.Error()),
 				},
@@ -2066,7 +2063,7 @@ func SuspendWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clu
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2085,7 +2082,7 @@ func SuspendWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clu
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   fmt.Sprintf("waiting for cluster (%s) suspend faild: %s", clusterID, err.Error()),
 			},
@@ -2095,7 +2092,7 @@ func SuspendWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clu
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   fmt.Sprintf("waiting for cluster (%s) suspend faild: %s", clusterID, stateResp.AbnormalReason),
 			},
@@ -2130,7 +2127,7 @@ func ResumeWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clus
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   fmt.Sprintf("waiting for cluster (%s) resume failed: %s", clusterID, err.Error()),
 			},
@@ -2140,7 +2137,7 @@ func ResumeWithContext(ctx context.Context, clusterAPI cluster.IClusterAPI, clus
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   fmt.Sprintf("waiting for cluster (%s) resume failed: %s", clusterID, stateResp.AbnormalReason),
 			},
@@ -2159,7 +2156,7 @@ func UpdateClusterIdleConfig(ctx context.Context, clusterAPI cluster.IClusterAPI
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Failed to set idle suspend interval, please retry again!",
 				Detail:   err.Error(),
 			},
@@ -2200,7 +2197,7 @@ func removeClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2227,7 +2224,7 @@ func removeClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   err.Error(),
 				},
@@ -2237,7 +2234,7 @@ func removeClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   infraActionResp.ErrMsg,
 				},
@@ -2258,7 +2255,7 @@ func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2284,7 +2281,7 @@ func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2294,7 +2291,7 @@ func configClusterLdapSSLCert(ctx context.Context, clusterAPI cluster.IClusterAP
 	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   infraActionResp.ErrMsg,
 			},
@@ -2337,7 +2334,7 @@ func removeClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, re
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2364,7 +2361,7 @@ func removeClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, re
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   err.Error(),
 				},
@@ -2374,7 +2371,7 @@ func removeClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, re
 		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   infraActionResp.ErrMsg,
 				},
@@ -2392,7 +2389,7 @@ func configClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, re
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2420,7 +2417,7 @@ func configClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, re
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2430,7 +2427,7 @@ func configClusterConfig(ctx context.Context, clusterAPI cluster.IClusterAPI, re
 	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   infraActionResp.ErrMsg,
 			},
@@ -2466,7 +2463,7 @@ func removeClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2493,7 +2490,7 @@ func removeClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   err.Error(),
 				},
@@ -2503,7 +2500,7 @@ func removeClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   infraActionResp.ErrMsg,
 				},
@@ -2524,7 +2521,7 @@ func configClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2539,7 +2536,7 @@ func configClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2565,7 +2562,7 @@ func configClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2575,7 +2572,7 @@ func configClusterRangerCert(ctx context.Context, clusterAPI cluster.IClusterAPI
 	if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   infraActionResp.ErrMsg,
 			},
@@ -2672,7 +2669,7 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 	if clusterId == "" {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Resource id not found",
 				Detail:   "Handle changed cluster scheduling policy, cluster id can`t be empty",
 			},
@@ -2718,7 +2715,7 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Failed to update global session variables",
 					Detail:   fmt.Sprintf("ErrMsg:%s", err.Error()),
 				},
@@ -2738,7 +2735,7 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  "Failed to reset global session variables",
 					Detail:   fmt.Sprintf("ErrMsg:%s", err.Error()),
 				},
@@ -2753,7 +2750,7 @@ func HandleChangedGlobalSqlSessionVariables(ctx context.Context, api cluster.ICl
 	if hasFailed {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Failed to update global session variables",
 				Detail:   fmt.Sprintf("ErrMsg:%s", errMsg),
 			},
@@ -2777,7 +2774,7 @@ func SetGlobalSqlSessionVariables(ctx context.Context, v interface{}, clusterAPI
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Set global sql session variables error",
 				Detail:   err.Error(),
 			},
@@ -2787,7 +2784,7 @@ func SetGlobalSqlSessionVariables(ctx context.Context, v interface{}, clusterAPI
 	if setVariablesResp.HasFailed {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  "Set global sql session variables failed",
 				Detail:   strings.Join(setVariablesResp.ErrMsgArr, "\n"),
 			},
@@ -2885,7 +2882,7 @@ func ApplyRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterI
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2914,7 +2911,7 @@ func ApplyRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterI
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   err.Error(),
 				},
@@ -2924,7 +2921,7 @@ func ApplyRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterI
 		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   infraActionResp.ErrMsg,
 				},
@@ -2942,7 +2939,7 @@ func ClearRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterI
 	if err != nil {
 		return diag.Diagnostics{
 			diag.Diagnostic{
-				Severity: diag.Warning,
+				Severity: diag.Error,
 				Summary:  summary,
 				Detail:   err.Error(),
 			},
@@ -2969,7 +2966,7 @@ func ClearRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterI
 		if err != nil {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   err.Error(),
 				},
@@ -2979,12 +2976,52 @@ func ClearRangerV2(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterI
 		if infraActionResp.InfraActionState == string(cluster.ClusterInfraActionStateFailed) {
 			return diag.Diagnostics{
 				diag.Diagnostic{
-					Severity: diag.Warning,
+					Severity: diag.Error,
 					Summary:  summary,
 					Detail:   infraActionResp.ErrMsg,
 				},
 			}
 		}
 	}
+	return nil
+}
+
+func ChangeAdminPassword(ctx context.Context, api cluster.IClusterAPI, d *schema.ResourceData) diag.Diagnostics {
+
+	clusterId := d.Id()
+	if clusterId == "" {
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Resource id not found",
+				Detail:   "Handle changed cluster admin password, cluster id can`t be empty",
+			},
+		}
+	}
+
+	o, n := d.GetChange("default_admin_password")
+
+	password := base64.StdEncoding.EncodeToString([]byte(n.(string)))
+
+	err := api.ChangeClusterAdminPassword(ctx, &cluster.ChangeClusterAdminPasswordReq{
+		ClusterId: clusterId,
+		Password:  password,
+	})
+
+	if err != nil {
+		// SDKv2 persists the planned value to state even when Update returns
+		// an error, and the password can never be read back from the API.
+		// Roll the field back to the old value so the failed change stays
+		// visible to the next plan and gets retried.
+		d.Set("default_admin_password", o)
+		return diag.Diagnostics{
+			diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Failed to change admin password",
+				Detail:   fmt.Sprintf("ErrMsg:%s", err.Error()),
+			},
+		}
+	}
+
 	return nil
 }
