@@ -698,6 +698,11 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional:     true,
 				ValidateFunc: validation.StringIsNotWhiteSpace,
 			},
+			"disable_public_access": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -744,6 +749,11 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			return err
 		}
 
+		disablePublicAccess := d.Get("disable_public_access").(bool)
+		if disablePublicAccess && len(netResp.Network.VpcEndpointId) == 0 {
+			return errors.New("The current cluster does not support disabling public access, the VPC endpoint config could not be found.")
+		}
+
 		coordinatorNodeCount := d.Get("coordinator_node_count").(int)
 		if d.HasChange("coordinator_node_count") {
 			_, n := d.GetChange("coordinator_node_count")
@@ -758,6 +768,44 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 				vMap := v.(map[string]interface{})
 				if len(vMap["distribution_policy"].(string)) == 0 {
 					return errors.New("in multi-AZ deployment mode, the distribution_policy parameter of warehouse can not be empty")
+				}
+			}
+
+			// specified_azs must reference AZ *names* that actually exist in the
+			// cluster network (e.g. "us-west-2a"), not AZ ids ("usw2-az1") or
+			// otherwise absent zones. When no specified_az matches a real subnet
+			// the backend silently marks every subnet as standby, so the compute
+			// nodes have no usable AZ, the deploy fails and the cluster is rolled
+			// back. Reject it here at plan time instead.
+			availableAZs := make(map[string]bool, len(netResp.Network.AZNetWorkInterfaces))
+			azNames := make([]string, 0, len(netResp.Network.AZNetWorkInterfaces))
+			for _, azNet := range netResp.Network.AZNetWorkInterfaces {
+				if azNet == nil || len(azNet.Az) == 0 {
+					continue
+				}
+				if !availableAZs[azNet.Az] {
+					azNames = append(azNames, azNet.Az)
+				}
+				availableAZs[azNet.Az] = true
+			}
+			// Skip when the backend returns no AZ interfaces, to avoid rejecting
+			// valid configs on incomplete network data.
+			if len(availableAZs) > 0 {
+				for i, v := range warehouses {
+					vMap := v.(map[string]interface{})
+					azs := toStringSlice(vMap["specified_azs"])
+					if len(azs) == 0 {
+						continue
+					}
+					whLabel := "default_warehouse"
+					if i > 0 {
+						whLabel = fmt.Sprintf("warehouse %q", vMap["name"].(string))
+					}
+					for _, az := range azs {
+						if !availableAZs[az] {
+							return fmt.Errorf("%s specified_azs contains %q, which is not an availability zone of network %q; valid AZs are %v", whLabel, az, d.Get("network_id").(string), azNames)
+						}
+					}
 				}
 			}
 		} else {
@@ -1171,6 +1219,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
+		DisablePublicAccess:          d.Get("disable_public_access").(bool),
 	}
 
 	netResp, err := networkAPI.GetNetwork(ctx, d.Get("network_id").(string))
@@ -1658,6 +1707,9 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
+	disablePublicAccess := resp.Cluster.DisablePublicAccess
+
+	d.Set("disable_public_access", disablePublicAccess)
 	d.Set("cluster_state", string(resp.Cluster.ClusterState))
 	d.Set("expected_cluster_state", string(resp.Cluster.ClusterState))
 	d.Set("cluster_name", resp.Cluster.ClusterName)
@@ -2049,6 +2101,19 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		diagError := HandleChangedClusterSchedulingPolicy(ctx, clusterAPI, d)
 		if diagError != nil {
 			return diagError
+		}
+	}
+
+	if d.HasChange("disable_public_access") && !d.IsNewResource() {
+
+		disablePublicAccess := d.Get("disable_public_access").(bool)
+		err := clusterAPI.ChangeClusterPublicAccessConfig(ctx, &cluster.ChangeClusterPublicAccessConfigReq{
+			ClusterId: clusterId,
+			Enable:    !disablePublicAccess,
+		})
+
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("cluster (%s) failed to change public access config: %s", d.Id(), err.Error()))
 		}
 	}
 
