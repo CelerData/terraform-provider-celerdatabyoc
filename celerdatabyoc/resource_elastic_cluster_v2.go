@@ -546,7 +546,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional:     true,
 				Default:      "stable",
 				ValidateFunc: common.ValidateReleaseVersion,
-      }
+			},
 			"audit_loader_plugin_enabled": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -2244,7 +2244,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		err := clusterAPI.UnlockFreeTier(ctx, clusterId)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to unlock free tier: %s", d.Id(), err.Error()))
-    }
+		}
 	}
 
 	if d.HasChange("coordinator_node_volume_config") {
