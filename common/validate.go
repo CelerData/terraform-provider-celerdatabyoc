@@ -3,8 +3,9 @@ package common
 import (
 	"fmt"
 	"strings"
-	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 	"time"
+
+	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 
 	"github.com/dlclark/regexp2"
 	"github.com/hashicorp/go-cty/cty"
@@ -41,6 +42,74 @@ func ValidatePassword() schema.SchemaValidateDiagFunc {
 	}
 }
 
+func ValidateVolumeAutoscalingPercentage() schema.SchemaValidateDiagFunc {
+	return func(v interface{}, p cty.Path) diag.Diagnostics {
+		value := v.(int)
+		var diags diag.Diagnostics
+
+		if value < 80 || value > 90 {
+			diag := diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid value",
+				Detail:   "Param `trigger_expansion_percentage` is invalid. The range of values is: [80,90]",
+			}
+			diags = append(diags, diag)
+		}
+		return diags
+	}
+}
+
+func ValidateVolumeAutoscalingStepBySize() schema.SchemaValidateDiagFunc {
+	return func(v interface{}, p cty.Path) diag.Diagnostics {
+		value := v.(int)
+		var diags diag.Diagnostics
+
+		if value < 5 || value > 16000 {
+			diag := diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid value",
+				Detail:   "Param `expansion_step_per_node` is invalid. The range of values is: [5,16000]",
+			}
+			diags = append(diags, diag)
+		}
+		return diags
+	}
+}
+
+func ValidateVolumeAutoscalingStepByPercentage() schema.SchemaValidateDiagFunc {
+	return func(v interface{}, p cty.Path) diag.Diagnostics {
+		value := v.(int)
+		var diags diag.Diagnostics
+
+		if value < 10 || value > 100 {
+			diag := diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid value",
+				Detail:   "Param `expansion_percentage_per_node` is invalid. The range of values is: [10,100]",
+			}
+			diags = append(diags, diag)
+		}
+		return diags
+	}
+}
+
+func ValidateVolumeAutoscalingMax() schema.SchemaValidateDiagFunc {
+	return func(v interface{}, p cty.Path) diag.Diagnostics {
+		value := v.(int)
+		var diags diag.Diagnostics
+
+		if value < 50 || value > 16000 {
+			diag := diag.Diagnostic{
+				Severity: diag.Error,
+				Summary:  "Invalid value",
+				Detail:   "Param `max_size_per_node` is invalid. The range of values is: [50,16000]",
+			}
+			diags = append(diags, diag)
+		}
+		return diags
+	}
+}
+
 func ValidateVolumeSize() schema.SchemaValidateDiagFunc {
 	return func(v interface{}, p cty.Path) diag.Diagnostics {
 		value := v.(int)
@@ -68,6 +137,19 @@ func ValidateSchedulingPolicyTimeZone(i interface{}, k string) ([]string, []erro
 		return nil, []error{fmt.Errorf("for param `%s`, value:%s is not a valid IANA Time-Zone", k, v)}
 	}
 	return nil, nil
+}
+
+func ValidateReleaseVersion(i interface{}, k string) ([]string, []error) {
+	v, ok := i.(string)
+	if !ok {
+		return nil, []error{fmt.Errorf("expected type of %s to be string", k)}
+	}
+	switch v {
+	case "stable", "preview", "ga":
+		return nil, nil
+	default:
+		return nil, []error{fmt.Errorf("%s must be one of \"stable\", \"preview\" or \"ga\", got: %s", k, v)}
+	}
 }
 
 func ValidateSchedulingPolicyDateTime(i interface{}, k string) ([]string, []error) {

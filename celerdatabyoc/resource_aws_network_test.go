@@ -2,6 +2,7 @@ package celerdatabyoc
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -37,14 +38,16 @@ func testCheckAwsNetworkDestroy(s *terraform.State) error {
 }
 
 func testCheckAwsNetworkConfigBasic() string {
-	return `
+	return fmt.Sprintf(`
 	resource "celerdatabyoc_aws_network" "new" {
 		name = "test-network"
-		subnet_id = "subnet-05344e8c20ceb9ad4"
-		security_group_id = "sg-09a84dfe8fc1d8deb"
-		deployment_credential_id = "e52bbbbd-9944-4b69-895f-8542482f2ef4" 
+		subnet_id = "%s"
+		security_group_id = "%s"
+		deployment_credential_id = "%s"
 	}
-	`
+	`, os.Getenv("CELERDATA_SUBNET_ID"),
+		os.Getenv("CELERDATA_SECURITY_GROUP_ID"),
+		os.Getenv("CELERDATA_DEPLOYMENT_CREDENTIAL_ID"))
 }
 
 func testCheckCelerdataAwsNetworkExists(n string) resource.TestCheckFunc {

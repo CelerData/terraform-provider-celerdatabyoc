@@ -22,6 +22,8 @@ type IClusterAPI interface {
 	ScaleOut(ctx context.Context, req *ScaleOutReq) (*ScaleOutResp, error)
 	ScaleUp(ctx context.Context, req *ScaleUpReq) (*ScaleUpResp, error)
 	UpgradeAMI(ctx context.Context, req *UpgradeAMIReq) (*UpgradeAMIResp, error)
+	ScaleUpFEAndUpgradeAMI(ctx context.Context, req *ScaleUpFEAndUpgradeAMIReq) (*ScaleUpFEAndUpgradeAMIResp, error)
+	ScaleUpWarehouseAndUpgradeAMI(ctx context.Context, req *ScaleUpWarehouseAndUpgradeAMIReq) (*ScaleUpWarehouseAndUpgradeAMIResp, error)
 	IncrStorageSize(ctx context.Context, req *IncrStorageSizeReq) (*IncrStorageSizeResp, error)
 	UnlockFreeTier(ctx context.Context, clusterID string) error
 	GetClusterEndpoints(ctx context.Context, req *GetClusterEndpointsReq) (*GetClusterEndpointsResp, error)
@@ -74,6 +76,9 @@ type IClusterAPI interface {
 	GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmInfoResp, error)
 	UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error
 
+	GetVolumeAutoScalingConfigs(ctx context.Context, req *GetVolumeAutoScalingConfigsReq) (*GetVolumeAutoScalingConfigsResp, error)
+	SetVolumeAutoScalingConfig(ctx context.Context, req *SetVolumeAutoScalingConfigsReq) error
+
 	ListClusterSchedulePolicy(ctx context.Context, req *ListClusterSchedulePolicyReq) (*ListClusterSchedulePolicyResp, error)
 	IsSchedulePolicyNameExist(ctx context.Context, req *CheckClusterSchedulePolicyReq) (*CheckClusterSchedulePolicyResp, error)
 	SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error)
@@ -86,12 +91,21 @@ type IClusterAPI interface {
 	GetClusterTerminationProtection(ctx context.Context, req *GetClusterTerminationProtectionReq) (*GetClusterTerminationProtectionResp, error)
 	SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error
 
+	GetClusterArrowFlight(ctx context.Context, req *GetClusterArrowFlightReq) (*GetClusterArrowFlightResp, error)
+	SetClusterArrowFlight(ctx context.Context, req *SetClusterArrowFlightReq) (*SetClusterArrowFlightResp, error)
+
 	GetClusterTableNameCaseInsensitive(ctx context.Context, req *GetClusterTableNameCaseInsensitiveReq) (*GetClusterTableNameCaseInsensitiveResp, error)
 
 	RunScripts(ctx context.Context, req *RunScriptsReq) error
 
 	ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
 	CleanRangerConfigV2(ctx context.Context, req *CleanRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
+
+	CheckAuditLoaderPlugin(ctx context.Context, req *CheckAuditLoaderPluginReq) (*CheckAuditLoaderPluginResp, error)
+	InstallAuditLoaderPlugin(ctx context.Context, req *InstallAuditLoaderPluginReq) (*InstallAuditLoaderPluginResp, error)
+	UninstallAuditLoaderPlugin(ctx context.Context, req *UninstallAuditLoaderPluginReq) (*UninstallAuditLoaderPluginResp, error)
+	ChangeClusterAdminPassword(ctx context.Context, req *ChangeClusterAdminPasswordReq) error
+	ChangeClusterPublicAccessConfig(ctx context.Context, req *ChangeClusterPublicAccessConfigReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -101,6 +115,11 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+// ChangeClusterPublicAccessConfig implements [IClusterAPI].
+func (c *clusterAPI) ChangeClusterPublicAccessConfig(ctx context.Context, req *ChangeClusterPublicAccessConfigReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/public-access", c.apiVersion, req.ClusterId), req, nil)
 }
 
 func (c *clusterAPI) RunScripts(ctx context.Context, req *RunScriptsReq) error {
@@ -124,6 +143,19 @@ func (c *clusterAPI) GetVmInfo(ctx context.Context, req *GetVmInfoReq) (*GetVmIn
 
 func (c *clusterAPI) UpdateDeploymentScripts(ctx context.Context, req *UpdateDeploymentScriptsReq) error {
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deployment-scripts", c.apiVersion, req.ClusterId), req, nil)
+}
+
+func (c *clusterAPI) GetVolumeAutoScalingConfigs(ctx context.Context, req *GetVolumeAutoScalingConfigsReq) (*GetVolumeAutoScalingConfigsResp, error) {
+	resp := &GetVolumeAutoScalingConfigsResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/volume/autoscaling", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SetVolumeAutoScalingConfig(ctx context.Context, req *SetVolumeAutoScalingConfigsReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/volume/autoscaling", c.apiVersion, req.ClusterId), req, nil)
 }
 
 func (c *clusterAPI) DeleteWarehouseAutoScalingConfig(ctx context.Context, req *DeleteWarehouseAutoScalingConfigReq) error {
@@ -371,6 +403,24 @@ func (c *clusterAPI) UpgradeAMI(ctx context.Context, req *UpgradeAMIReq) (*Upgra
 		return nil, err
 	}
 
+	return resp, nil
+}
+
+func (c *clusterAPI) ScaleUpFEAndUpgradeAMI(ctx context.Context, req *ScaleUpFEAndUpgradeAMIReq) (*ScaleUpFEAndUpgradeAMIResp, error) {
+	resp := &ScaleUpFEAndUpgradeAMIResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/clusters/%s/scale-up-fe-and-upgrade-ami", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ScaleUpWarehouseAndUpgradeAMI(ctx context.Context, req *ScaleUpWarehouseAndUpgradeAMIReq) (*ScaleUpWarehouseAndUpgradeAMIResp, error) {
+	resp := &ScaleUpWarehouseAndUpgradeAMIResp{}
+	err := c.cli.Patch(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scale-up-and-upgrade-ami", c.apiVersion, req.WarehouseId), req, resp)
+	if err != nil {
+		return nil, err
+	}
 	return resp, nil
 }
 
@@ -689,6 +739,24 @@ func (c *clusterAPI) SetClusterTerminationProtection(ctx context.Context, cluste
 	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/termination-protection", c.apiVersion, clusterId), req, nil)
 }
 
+func (c *clusterAPI) GetClusterArrowFlight(ctx context.Context, req *GetClusterArrowFlightReq) (*GetClusterArrowFlightResp, error) {
+	resp := &GetClusterArrowFlightResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/arrow-flight", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SetClusterArrowFlight(ctx context.Context, req *SetClusterArrowFlightReq) (*SetClusterArrowFlightResp, error) {
+	resp := &SetClusterArrowFlightResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/arrow-flight", c.apiVersion, req.ClusterId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func (c *clusterAPI) ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error) {
 	resp := &OperateRangerConfigV2Resp{}
 	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/deploy-ranger-config", c.apiVersion, req.ClusterID), req, resp)
@@ -705,4 +773,35 @@ func (c *clusterAPI) CleanRangerConfigV2(ctx context.Context, req *CleanRangerCo
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) CheckAuditLoaderPlugin(ctx context.Context, req *CheckAuditLoaderPluginReq) (*CheckAuditLoaderPluginResp, error) {
+	resp := &CheckAuditLoaderPluginResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/audit-loader-plugin", c.apiVersion, req.ClusterID), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) InstallAuditLoaderPlugin(ctx context.Context, req *InstallAuditLoaderPluginReq) (*InstallAuditLoaderPluginResp, error) {
+	resp := &InstallAuditLoaderPluginResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/audit-loader-plugin/install", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) UninstallAuditLoaderPlugin(ctx context.Context, req *UninstallAuditLoaderPluginReq) (*UninstallAuditLoaderPluginResp, error) {
+	resp := &UninstallAuditLoaderPluginResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/audit-loader-plugin/uninstall", c.apiVersion, req.ClusterID), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) ChangeClusterAdminPassword(ctx context.Context, req *ChangeClusterAdminPasswordReq) error {
+	return c.cli.Put(ctx, fmt.Sprintf("/api/%s/clusters/%s/admin-user-password", c.apiVersion, req.ClusterId), req, nil)
 }

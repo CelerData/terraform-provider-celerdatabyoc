@@ -58,6 +58,12 @@ func azureResourceNetwork() *schema.Resource {
 				ForceNew:    true,
 				Default:     false,
 			},
+			"vpc_endpoint_id": {
+				Type:        schema.TypeString,
+				Description: "Resource ID of the Azure Private Endpoint used to reach the cluster over Azure Private Link. When set, the cluster is accessed via Private Link instead of the public network. The Private Endpoint must be Approved and connected to the CelerData Private Link Service in the same VNet as the cluster's subnet.",
+				Optional:    true,
+				ForceNew:    true,
+			},
 		},
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -77,6 +83,7 @@ func azureResourceNetworkCreate(ctx context.Context, d *schema.ResourceData, m i
 		VirtualNetworkResourceId: d.Get("virtual_network_resource_id").(string),
 		SubnetName:               d.Get("subnet_name").(string),
 		PublicAccess:             d.Get("public_accessible").(bool),
+		VpcEndpointId:            d.Get("vpc_endpoint_id").(string),
 	}
 
 	resp, err := networkCli.CreateAzureNetwork(ctx, req)
@@ -102,7 +109,10 @@ func azureResourceNetworkRead(ctx context.Context, d *schema.ResourceData, m int
 	}
 	if resp.Network == nil || len(resp.Network.BizID) == 0 {
 		d.SetId("")
+		return diags
 	}
+
+	d.Set("vpc_endpoint_id", resp.Network.VpcEndpointId)
 
 	log.Printf("[DEBUG] get Network, resp:%+v", resp)
 	return diags

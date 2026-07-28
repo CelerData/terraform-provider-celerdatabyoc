@@ -714,6 +714,10 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
+	clusterId := resp.ClusterID
+	d.SetId(clusterId)
+	log.Printf("[INFO] The cluster deployment request has been submitted. The cluster deployment is in progress. action id:%s cluster id:%s", resp.ActionID, clusterId)
+
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
 		clusterID:  resp.ClusterID,
@@ -737,12 +741,9 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	if stateResp.ClusterState == string(cluster.ClusterStateAbnormal) {
-		d.SetId("")
 		return diag.FromErr(errors.New(stateResp.AbnormalReason))
 	}
 
-	clusterId := resp.ClusterID
-	d.SetId(clusterId)
 	log.Printf("[DEBUG] deploy succeeded, action id:%s cluster id:%s]", resp.ActionID, clusterId)
 
 	if v, ok := d.GetOk("coordinator_node_configs"); ok && len(d.Get("coordinator_node_configs").(map[string]interface{})) > 0 {
@@ -841,7 +842,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 			if err != nil {
 				return diag.Diagnostics{
 					diag.Diagnostic{
-						Severity: diag.Warning,
+						Severity: diag.Error,
 						Summary:  fmt.Sprintf("Failed to save scheduling policy[%s], please retry again!", m["policy_name"].(string)),
 						Detail:   err.Error(),
 					},
@@ -958,6 +959,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	})
 	if err != nil {
 		log.Printf("[ERROR] query cluster ranger config failed, err:%+v", err)
+		return diag.FromErr(err)
 	}
 
 	tableNameCaseInsensitive, err := clusterAPI.GetClusterTableNameCaseInsensitive(ctx, &cluster.GetClusterTableNameCaseInsensitiveReq{ClusterId: clusterID})
@@ -991,20 +993,10 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		}
 	}
 	d.Set("resource_tags", tags)
-	if len(resp.Cluster.LdapSslCerts) > 0 {
-		d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
-	}
-	if len(resp.Cluster.RangerCertsDirPath) > 0 {
-		d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
-	}
-
-	if len(coordinatorNodeConfigsResp.Configs) > 0 {
-		d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
-	}
-
-	if len(computeNodeConfigsResp.Configs) > 0 {
-		d.Set("compute_node_configs", computeNodeConfigsResp.Configs)
-	}
+	d.Set("ldap_ssl_certs", resp.Cluster.LdapSslCerts)
+	d.Set("ranger_certs_dir", resp.Cluster.RangerCertsDirPath)
+	d.Set("coordinator_node_configs", coordinatorNodeConfigsResp.Configs)
+	d.Set("compute_node_configs", computeNodeConfigsResp.Configs)
 
 	feModule := resp.Cluster.FeModule
 	if !feModule.IsInstanceStore {
@@ -1040,9 +1032,7 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 	d.Set("enabled_termination_protection", terminationProtection.Enabled)
 	d.Set("table_name_case_insensitive", tableNameCaseInsensitive.Enabled)
 
-	if len(rangerConfigResp.Configs) > 0 {
-		d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
-	}
+	d.Set("ranger_config_id", rangerConfigResp.Configs["biz_id"])
 
 	return diags
 }
@@ -1128,7 +1118,7 @@ func IsInstanceStore(d *schema.ResourceData) bool {
 }
 
 func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "default_admin_password", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
@@ -1201,6 +1191,13 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 	if needResume(d) {
 		o, n := d.GetChange("expected_cluster_state")
 		errDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), o.(string), n.(string))
+		if errDiag != nil {
+			return errDiag
+		}
+	}
+
+	if d.HasChange("default_admin_password") && !d.IsNewResource() {
+		errDiag := ChangeAdminPassword(ctx, clusterAPI, d)
 		if errDiag != nil {
 			return errDiag
 		}

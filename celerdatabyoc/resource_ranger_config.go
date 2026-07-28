@@ -2,6 +2,7 @@ package celerdatabyoc
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"regexp"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
@@ -18,12 +19,21 @@ func resourceRangerConfig() *schema.Resource {
 		ReadContext:   resourceRangerConfigRead,
 		DeleteContext: resourceRangerConfigDelete,
 		UpdateContext: resourceRangerConfigUpdate,
+		CustomizeDiff: resourceRangerConfigCustomizeDiff,
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:         schema.TypeString,
 				ForceNew:     true,
 				Required:     true,
 				ValidateFunc: validation.StringIsNotEmpty,
+			},
+			"scope": {
+				Type:         schema.TypeInt,
+				Optional:     true,
+				Default:      rangerconfig.RangerScopeAllCatalogs,
+				ValidateFunc: validation.IntInSlice([]int{rangerconfig.RangerScopeAllCatalogs, rangerconfig.RangerScopeExternalOnly}),
+				Description: "Ranger scope: 0 = all catalogs (internal + external, writes access_control=ranger to fe.conf), " +
+					"1 = external catalogs only (internal catalogs keep StarRocks native RBAC). Defaults to 0.",
 			},
 			"ranger_starrocks_security_xml_path": {
 				Type:         schema.TypeString,
@@ -73,6 +83,29 @@ func resourceRangerConfig() *schema.Resource {
 	}
 }
 
+// resourceRangerConfigCustomizeDiff enforces the same security-xml requirement as the backend
+// validateRangerConfig, so users get a plan-time error instead of an apply-time API rejection:
+//   - scope=0 (all catalogs): ranger_starrocks_security_xml_path is required.
+//   - scope=1 (external only): at least one of ranger_starrocks_security_xml_path or
+//     ranger_hive_security_xml_path is required, otherwise no external catalog can be governed.
+func resourceRangerConfigCustomizeDiff(ctx context.Context, d *schema.ResourceDiff, m interface{}) error {
+	scope := d.Get("scope").(int)
+	starrocksXml := d.Get("ranger_starrocks_security_xml_path").(string)
+	hiveXml := d.Get("ranger_hive_security_xml_path").(string)
+
+	if scope == rangerconfig.RangerScopeExternalOnly {
+		if len(starrocksXml) == 0 && len(hiveXml) == 0 {
+			return fmt.Errorf("scope=1 (external catalogs only) requires at least one of " +
+				"ranger_starrocks_security_xml_path or ranger_hive_security_xml_path")
+		}
+		return nil
+	}
+	if len(starrocksXml) == 0 {
+		return fmt.Errorf("scope=0 (all catalogs) requires ranger_starrocks_security_xml_path")
+	}
+	return nil
+}
+
 func resourceRangerConfigCreate(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
 	c := m.(*client.CelerdataClient)
 	cli := rangerconfig.NewRangerConfigAPI(c)
@@ -89,6 +122,7 @@ func resourceRangerConfigCreate(ctx context.Context, d *schema.ResourceData, m i
 			RangerStarrocksKeyStoreCredPath:    d.Get("ranger_starrocks_key_store_cred_path").(string),
 			RangerHiveSecurityXmlPath:          d.Get("ranger_hive_security_xml_path").(string),
 			RangerHiveAuditXmlPath:             d.Get("ranger_hive_audit_xml_path").(string),
+			Scope:                              d.Get("scope").(int),
 		},
 	}
 
@@ -118,6 +152,7 @@ func resourceRangerConfigUpdate(ctx context.Context, d *schema.ResourceData, m i
 			RangerStarrocksKeyStoreCredPath:    d.Get("ranger_starrocks_key_store_cred_path").(string),
 			RangerHiveSecurityXmlPath:          d.Get("ranger_hive_security_xml_path").(string),
 			RangerHiveAuditXmlPath:             d.Get("ranger_hive_audit_xml_path").(string),
+			Scope:                              d.Get("scope").(int),
 		},
 	}
 

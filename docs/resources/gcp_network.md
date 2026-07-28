@@ -15,11 +15,14 @@ The implementation of this resource can be part of the whole cluster deployment 
 
 ```terraform
 resource "celerdatabyoc_gcp_network" "network_credential" {
-  name = "<network_credential_name>"
-  region = "<region_name>"
-  subnet = "<subnet>"
-  network_tag = "<network_tag>"
+  name                     = "<network_credential_name>"
+  region                   = "<region_name>"
+  subnet                   = "<subnet>"
+  network_tag              = "<network_tag>"
   deployment_credential_id = "<deployment_credential_id>"
+
+  # Required for Multi-AZ deployments. Must list exactly 3 zones in the region.
+  zones                    = ["<region>-a", "<region>-b", "<region>-c"]
 }
 ```
 
@@ -35,7 +38,7 @@ This resource contains the following required arguments and optional arguments:
 
 - `region`: (Forces new resource) The Name of the GCP region.
 
-- `subnet`: (Forces new resource) The Name of GCP subnet.
+- `subnet`: (Forces new resource) The Name of GCP subnet. Use this argument in place of the deprecated `subnet_name` argument.
 
 - `network_tag`: (Forces new resource) The target tag of the firewall rules that you use to enable connectivity between cluster nodes within your own VPC and between CelerData's VPC and your own VPC over TLS.
 
@@ -43,12 +46,16 @@ This resource contains the following required arguments and optional arguments:
 
 **Optional:**
 
+- `zones`: (Forces new resource) The list of GCP zones (e.g. `["us-central1-a", "us-central1-b", "us-central1-c"]`) in which cluster nodes may be placed. **Exactly 3 zones must be supplied** (the resource enforces both `MinItems = 3` and `MaxItems = 3`). This argument is required to deploy a Multi-AZ cluster — the zones a warehouse's `specified_azs` references must be a subset of this list. For single-AZ deployments the argument is optional; if omitted, the backend chooses a default zone.
+
 - `psc_connection_id`: (Forces new resource) The ID of the [Private Service Connect](https://cloud.google.com/vpc/docs/private-service-connect) connection that you create to allow direct, secure connectivity between CelerData's VPC and your own VPC.
   
   For information about how to create a PSC Connection, see [Create a Private Service Connect Endpoint](https://docs.celerdata.com/BYOC/docs/sql-reference/gcp/create_psc_endpoint/).
   NOTE:
     - If PSC connection ID is not set, then the Private Service Connect connection will not be built, CelerData's VPC communicates with your own VPC over the Internet.
     - If you have enabled Shared VPC, you should enter the ID of the PSC Connection from the service project (that is, the project where the cluster is deployed)..
+
+- `subnet_name`: (Forces new resource, **Deprecated**) Old name for the `subnet` argument. Kept only for backward compatibility; use `subnet` for all new configurations.
 
 ## Attribute Reference
 

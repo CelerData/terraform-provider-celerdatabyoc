@@ -58,6 +58,8 @@ This resource contains the following required arguments and optional arguments:
 
 - `public_accessible`: (Forces new resource) Whether the cluster can be accessed from public networks. Valid values: `true` and `false`. If you set this argument to `true`, CelerData will attach a load balancer to the cluster to distribute incoming queries, and will assign a public domain name to the cluster so you can access the cluster over a public network. If you set this argument to `false`, the cluster is accessible only through a private domain name.
 
+- `vpc_endpoint_id`: (Forces new resource) The resource ID of the Azure Private Endpoint used to access the cluster via Azure Private Link. When this argument is set, the cluster is reachable over Private Link instead of the public network. The referenced Private Endpoint must already be Approved against the CelerData Private Link Service and must reside in the same virtual network as the subnet specified by `subnet_name`. See [azurerm_private_endpoint](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint).
+
 ## Attribute Reference
 
 This resource exports the following attributes:'
