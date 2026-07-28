@@ -307,6 +307,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `suspend_at`: (Optional) Cluster auto suspend time.
     - `enable`: (Required) Whether to enable this scheduling policy. When specified as true, the system will perform cluster scheduling according to this policy.
 
+- `disable_public_access`: (Optional, default: false) If your network credential has VPC endpoint, you can disable public access to the Cluster console to ensure that all users access it via PrivateLink, securing the traffic instead of using the public internet. This approach protects all traffic between clients and the Cluster console, and is the recommended approach. Alternatively, you can enable public access if you prefer easier access to the Cluster console without additional network configuration.     
+
 ## See Also
 ### AWS
 - [AWS IAM](https://us-east-1.console.aws.amazon.com/iamv2/home?region=us-east-1#/policies)

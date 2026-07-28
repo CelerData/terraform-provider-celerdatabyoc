@@ -204,8 +204,8 @@ type UpdateDeploymentScriptsReq struct {
 }
 
 type CustomAmi struct {
-	AmiID string `json:"amiId"`
-	OS    string `json:"os"`
+	AmiID string `json:"amiId" mapstructure:"amiId"`
+	OS    string `json:"os" mapstructure:"os"`
 }
 
 type ClusterConf struct {
@@ -234,6 +234,9 @@ type ClusterConf struct {
 	// release_version selects which StarRocks release channel the cluster is deployed on:
 	// "stable" (default), "preview" or "ga". Empty defaults to "stable". Create-time only.
 	ReleaseVersion string `json:"release_version,omitempty"`
+	// You can disable public access to the Cluster console to ensure that all users access it via PrivateLink,
+	// securing the traffic instead of using the public internet.
+	DisablePublicAccess bool `json:"disable_public_access"`
 }
 
 type GetReq struct {
@@ -350,7 +353,8 @@ type Cluster struct {
 	Warehouses          []*Warehouse      `json:"warehouses" mapstructure:"warehouses"`
 	IsMultiWarehouse    bool              `json:"is_multi_warehouse" mapstructure:"is_multi_warehouse"`
 	Tags                map[string]string `json:"tags" mapstructure:"tags"`
-	CustomAmi           *CustomAmi        `json:"custom_ami"`
+	CustomAmi           *CustomAmi        `json:"custom_ami" mapstructure:"custom_ami"`
+	DisablePublicAccess bool              `json:"disable_public_access" mapstructure:"disable_public_access"`
 }
 
 type ScaleInReq struct {
@@ -1182,4 +1186,9 @@ type SetClusterArrowFlightReq struct {
 
 type SetClusterArrowFlightResp struct {
 	ActionID string `json:"action_id" mapstructure:"action_id"`
+}
+
+type ChangeClusterPublicAccessConfigReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+	Enable    bool   `json:"enable" mapstructure:"enable"`
 }

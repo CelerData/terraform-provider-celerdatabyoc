@@ -105,6 +105,7 @@ type IClusterAPI interface {
 	InstallAuditLoaderPlugin(ctx context.Context, req *InstallAuditLoaderPluginReq) (*InstallAuditLoaderPluginResp, error)
 	UninstallAuditLoaderPlugin(ctx context.Context, req *UninstallAuditLoaderPluginReq) (*UninstallAuditLoaderPluginResp, error)
 	ChangeClusterAdminPassword(ctx context.Context, req *ChangeClusterAdminPasswordReq) error
+	ChangeClusterPublicAccessConfig(ctx context.Context, req *ChangeClusterPublicAccessConfigReq) error
 }
 
 func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
@@ -114,6 +115,11 @@ func NewClustersAPI(cli *client.CelerdataClient) IClusterAPI {
 type clusterAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+// ChangeClusterPublicAccessConfig implements [IClusterAPI].
+func (c *clusterAPI) ChangeClusterPublicAccessConfig(ctx context.Context, req *ChangeClusterPublicAccessConfigReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/public-access", c.apiVersion, req.ClusterId), req, nil)
 }
 
 func (c *clusterAPI) RunScripts(ctx context.Context, req *RunScriptsReq) error {
