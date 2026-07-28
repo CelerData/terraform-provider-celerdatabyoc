@@ -540,6 +540,13 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"release_version": {
+				Type:         schema.TypeString,
+				Description:  "The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `preview`, `ga`. Default: `stable`. This field only takes effect at cluster creation time and cannot be changed afterwards.",
+				Optional:     true,
+				Default:      "stable",
+				ValidateFunc: common.ValidateReleaseVersion,
+      }
 			"audit_loader_plugin_enabled": {
 				Type:        schema.TypeBool,
 				Optional:    true,
@@ -1219,6 +1226,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
+		ReleaseVersion:               d.Get("release_version").(string),
 		DisablePublicAccess:          d.Get("disable_public_access").(bool),
 	}
 
@@ -2218,6 +2226,10 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
 	}
 
+	if d.HasChange("release_version") && !d.IsNewResource() {
+		return diag.FromErr(fmt.Errorf("`release_version` of cluster (%s) cannot be modified after the cluster is created", d.Id()))
+	}
+
 	// Always reconcile audit loader plugin to ensure actual state matches desired config
 	// This handles both explicit config changes and any state drift
 	if !d.IsNewResource() {
@@ -2232,7 +2244,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		err := clusterAPI.UnlockFreeTier(ctx, clusterId)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("cluster (%s) failed to unlock free tier: %s", d.Id(), err.Error()))
-		}
+    }
 	}
 
 	if d.HasChange("coordinator_node_volume_config") {
