@@ -84,6 +84,12 @@ type IClusterAPI interface {
 	SaveClusterSchedulePolicy(ctx context.Context, req *SaveClusterSchedulePolicyReq) (*SaveClusterSchedulePolicyResp, error)
 	ModifyClusterSchedulePolicy(ctx context.Context, req *ModifyClusterSchedulePolicyReq) error
 	DeleteClusterSchedulePolicy(ctx context.Context, req *DeleteClusterSchedulePolicyReq) error
+
+	ListWarehouseSchedulePolicy(ctx context.Context, req *ListWarehouseSchedulePolicyReq) (*ListWarehouseSchedulePolicyResp, error)
+	SaveWarehouseSchedulePolicy(ctx context.Context, req *SaveWarehouseSchedulePolicyReq) (*SaveWarehouseSchedulePolicyResp, error)
+	UpdateWarehouseSchedulePolicy(ctx context.Context, req *UpdateWarehouseSchedulePolicyReq) error
+	DeleteWarehouseSchedulePolicy(ctx context.Context, req *DeleteWarehouseSchedulePolicyReq) error
+
 	GetGlobalSqlSessionVariables(ctx context.Context, req *GetGlobalSqlSessionVariablesReq) (*GetGlobalSqlSessionVariablesResp, error)
 	SetGlobalSqlSessionVariables(ctx context.Context, req *SetGlobalSqlSessionVariablesReq) (*SetGlobalSqlSessionVariablesResp, error)
 	ResetGlobalSqlSessionVariables(ctx context.Context, req *ResetGlobalSqlSessionVariablesReq) (*ResetGlobalSqlSessionVariablesResp, error)
@@ -684,6 +690,34 @@ func (c *clusterAPI) DeleteClusterSchedulePolicy(ctx context.Context, req *Delet
 		return err
 	}
 	return nil
+}
+
+func (c *clusterAPI) ListWarehouseSchedulePolicy(ctx context.Context, req *ListWarehouseSchedulePolicyReq) (*ListWarehouseSchedulePolicyResp, error) {
+	var policies []*WarehouseSchedulePolicy
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scheduling-policies", c.apiVersion, req.WarehouseId), nil, &policies)
+	if err != nil {
+		return nil, err
+	}
+	return &ListWarehouseSchedulePolicyResp{
+		SchedulePolicies: policies,
+	}, nil
+}
+
+func (c *clusterAPI) SaveWarehouseSchedulePolicy(ctx context.Context, req *SaveWarehouseSchedulePolicyReq) (*SaveWarehouseSchedulePolicyResp, error) {
+	resp := &SaveWarehouseSchedulePolicyResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scheduling-policies", c.apiVersion, req.WarehouseId), req, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) UpdateWarehouseSchedulePolicy(ctx context.Context, req *UpdateWarehouseSchedulePolicyReq) error {
+	return c.cli.Put(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scheduling-policies/%s", c.apiVersion, req.WarehouseId, req.PolicyId), req, nil)
+}
+
+func (c *clusterAPI) DeleteWarehouseSchedulePolicy(ctx context.Context, req *DeleteWarehouseSchedulePolicyReq) error {
+	return c.cli.Delete(ctx, fmt.Sprintf("/api/%s/warehouses/%s/scheduling-policies/%s", c.apiVersion, req.WarehouseId, req.PolicyId), nil, nil)
 }
 
 func (c *clusterAPI) GetGlobalSqlSessionVariables(ctx context.Context, req *GetGlobalSqlSessionVariablesReq) (*GetGlobalSqlSessionVariablesResp, error) {

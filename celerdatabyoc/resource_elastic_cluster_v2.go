@@ -273,6 +273,8 @@ func resourceElasticClusterV2() *schema.Resource {
 								return nil, nil
 							},
 						},
+						"scheduled_scaling_policy":            warehouseScheduledScalingPolicySchema(),
+						"scheduled_scaling_policy_extra_info": warehouseScheduledScalingPolicyExtraInfoSchema(),
 						"compute_node_configs": {
 							Type:     schema.TypeMap,
 							Optional: true,
@@ -427,6 +429,8 @@ func resourceElasticClusterV2() *schema.Resource {
 								return nil, nil
 							},
 						},
+						"scheduled_scaling_policy":            warehouseScheduledScalingPolicySchema(),
+						"scheduled_scaling_policy_extra_info": warehouseScheduledScalingPolicyExtraInfoSchema(),
 						"expected_state": {
 							Type:         schema.TypeString,
 							Optional:     true,
@@ -1171,8 +1175,11 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 	// truth from backend post-apply.
 	markWarehouseCngroupUnknown(d)
 
-	err2 := SchedulingPolicyParamCheck(d)
-	return err2
+	if err := SchedulingPolicyParamCheck(d); err != nil {
+		return err
+	}
+
+	return WarehouseScheduledScalingPolicyParamCheck(d)
 }
 
 func markWarehouseCngroupUnknown(d *schema.ResourceDiff) {
@@ -1542,6 +1549,11 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
+	if errDiag := SaveWarehouseScheduledScalingPolicies(ctx, clusterAPI, clusterId, defaultWarehouseId,
+		DEFAULT_WAREHOUSE_NAME, defaultWhMap["scheduled_scaling_policy"]); errDiag != nil {
+		return errDiag
+	}
+
 	// create normal warehouses
 	for _, v := range normalWhMaps {
 		errDiag := createWarehouse(ctx, clusterAPI, clusterId, v)
@@ -1757,6 +1769,8 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 
 	warehouseExternalInfo := make(map[string]interface{}, 0)
 
+	configuredSchedulePolicyNames := ConfiguredWarehouseSchedulePolicyNames(d)
+
 	for _, v := range resp.Cluster.Warehouses {
 		if v.Deleted {
 			continue
@@ -1824,6 +1838,21 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 			bytes, _ := json.Marshal(policy)
 			whMap["auto_scaling_policy"] = string(bytes)
 		}
+
+		schedulePolicies, schedulePolicyExtraInfo, err := ListWarehouseScheduledScalingPolicies(ctx, clusterAPI,
+			warehouseId, configuredSchedulePolicyNames[warehouseName])
+		if err != nil {
+			log.Printf("[ERROR] Query warehouse scheduled scaling policy failed, warehouseId:%s", warehouseId)
+			return diag.Diagnostics{
+				diag.Diagnostic{
+					Severity: diag.Error,
+					Summary:  fmt.Sprintf("Failed to get warehouse scheduled scaling policy, warehouseId:[%s] ", warehouseId),
+					Detail:   err.Error(),
+				},
+			}
+		}
+		whMap["scheduled_scaling_policy"] = schedulePolicies
+		whMap["scheduled_scaling_policy_extra_info"] = schedulePolicyExtraInfo
 
 		computeNodeConfigsResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
 			ClusterID:   clusterId,
@@ -2520,6 +2549,11 @@ func createWarehouse(ctx context.Context, clusterAPI cluster.IClusterAPI, cluste
 		}
 	}
 
+	if errDiag := SaveWarehouseScheduledScalingPolicies(ctx, clusterAPI, clusterId, warehouseId,
+		warehouseName, whParamMap["scheduled_scaling_policy"]); errDiag != nil {
+		return errDiag
+	}
+
 	if v, ok := whParamMap["compute_node_configs"]; ok && len(whParamMap["compute_node_configs"].(map[string]interface{})) > 0 {
 		configMap := v.(map[string]interface{})
 		configs := make(map[string]string, len(configMap))
@@ -2990,6 +3024,19 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 				}
 			}
 		}
+	}
+
+	// Modify scheduled scaling policies. The policy ids live in the computed
+	// extra info recorded by the last Read.
+	schedulePolicyExtraInfo := make(map[string]string)
+	if v, ok := oldParamMap["scheduled_scaling_policy_extra_info"]; ok && v != nil {
+		for k, id := range v.(map[string]interface{}) {
+			schedulePolicyExtraInfo[k] = id.(string)
+		}
+	}
+	if errDiag := HandleChangedWarehouseScheduledScalingPolicy(ctx, clusterAPI, clusterId, warehouseId, warehouseName,
+		oldParamMap["scheduled_scaling_policy"], newParamMap["scheduled_scaling_policy"], schedulePolicyExtraInfo); errDiag != nil {
+		return errDiag
 	}
 
 	return nil

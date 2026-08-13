@@ -90,6 +90,16 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
     resource_tags = {
       <tag_key> = "<tag_name>"
     }
+    // optional, see "Scheduled scaling policy" below
+    scheduled_scaling_policy {
+      policy_name    = "business-hours"
+      schedule_type  = "DAILY"
+      size           = 4
+      start_time     = "09:00"
+      end_time       = "18:00"
+      time_zone      = "UTC"
+      enable         = true
+    }
    }
 
    custom_ami {
@@ -188,6 +198,11 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `resource_tags`: The tags to be attached to the warehouse (Please note that resource_tags is a concept in ClelerData. For AWS and Azure, it will be added as a tag to the corresponding resources. For GCP Cloud, it will be added as a label to the corresponding GCP resources).
 
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of compute nodes, based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#compute-autoscaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+
+    - `scheduled_scaling_policy`: (Optional, List) Resizes the warehouse on a schedule rather than in reaction to load. See [Scheduled scaling policy](#scheduled-scaling-policy) for the full argument list.
+
+    - `scheduled_scaling_policy_extra_info`: (Read-only, Map) Maps each scheduled scaling policy name to the policy id assigned by CelerData.
+
     - `distribution_policy`: (Optional, supported on AWS and GCP) The compute node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values:
         - `specify_az`: Nodes are deployed in the primary availability zone.
         - `multi_az`: Nodes are distributed evenly across the availability zones specified in `specified_azs` (2 or 3 AZs). `compute_node_count` is required and must be a positive multiple of `len(specified_azs)`.
@@ -245,6 +260,10 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `idle_suspend_interval`: The amount of time (in minutes) during which the warehouse can stay idle. After the specified time period elapses, the warehouse will be automatically suspended. To enable the Auto Suspend feature, set this argument to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform configuration.
 
     - `auto_scaling_policy`: This policy will automatically scale the number of Compute nodes (CN), based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+
+    - `scheduled_scaling_policy`: (Optional, List) Resizes the warehouse on a schedule rather than in reaction to load. See [Scheduled scaling policy](#scheduled-scaling-policy) for the full argument list.
+
+    - `scheduled_scaling_policy_extra_info`: (Read-only, Map) Maps each scheduled scaling policy name to the policy id assigned by CelerData.
 
     - `distribution_policy`: (Supported on AWS and GCP) The Compute Node distribution policy for the warehouse if you want to enable Multi-AZ deployment for the cluster. Valid values:
         - `specify_az`: Nodes are deployed in the primary availability zone.
@@ -308,6 +327,84 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `enable`: (Required) Whether to enable this scheduling policy. When specified as true, the system will perform cluster scheduling according to this policy.
 
 - `disable_public_access`: (Optional, default: false) If your network credential has VPC endpoint, you can disable public access to the Cluster console to ensure that all users access it via PrivateLink, securing the traffic instead of using the public internet. This approach protects all traffic between clients and the Cluster console, and is the recommended approach. Alternatively, you can enable public access if you prefer easier access to the Cluster console without additional network configuration.     
+
+## Scheduled scaling policy
+
+A `scheduled_scaling_policy` block resizes a warehouse on a fixed schedule instead of reacting to load. It can be declared inside both `default_warehouse` and `warehouse`. At the policy's start time the warehouse is resized to `size`; at the end time it returns to its previous size.
+
+~> Scheduled scaling requires cluster version 3.5.5 or above.
+
+**Arguments:**
+
+- `policy_name`: (Required) Policy name. Must be unique among the policies of the same warehouse.
+- `description`: (Optional) Explanation of this policy.
+- `time_zone`: (Optional) Your IANA Time-Zone, for example `Asia/Shanghai`. Default: `UTC`.
+- `enable`: (Optional) Whether this policy is active. Default: `true`. A disabled policy still counts toward the five-policy limit.
+- `size`: (Required) The number of compute nodes **per cngroup** to scale to. Must be a positive integer. The resulting total node count is `size` * `cngroup_count`, where `cngroup_count` is the read-only attribute on the same warehouse.
+- `schedule_type`: (Required) How often the policy repeats. Valid values: `DAILY`, `WEEKLY`, `MONTHLY`, `DATE_RANGE`. Each type owns its own set of arguments, listed below; setting an argument that belongs to another type is rejected during `terraform plan`.
+- `start_time`: (Required) Time of day the policy takes effect, in `HH:mm` (24-hour, zero-padded).
+- `end_time`: (Required) Time of day the policy stops, in `HH:mm`. Must be later than `start_time`, so a policy cannot span midnight.
+- `week_days`: (Required when `schedule_type` is `WEEKLY`) The days the policy runs on. Valid values: `MONDAY`, `TUESDAY`, `WEDNESDAY`, `THURSDAY`, `FRIDAY`, `SATURDAY`, `SUNDAY`.
+- `month_days`: (Required when `schedule_type` is `MONTHLY`) The days of the month the policy runs on. Valid values: integers between `1` and `31`.
+- `start_date` / `end_date`: (Required when `schedule_type` is `DATE_RANGE`) The first and last day the policy applies, in `yyyy-MM-dd`. `end_date` must not be earlier than `start_date`.
+
+**Limits:**
+
+- A warehouse can have at most **5** scheduled scaling policies, whether enabled or not.
+- If several policies match the same moment, the one with the largest `size` wins.
+- CelerData rejects a new `DAILY` policy whose time window overlaps an existing one on the same warehouse.
+
+**Examples:**
+
+```hcl
+warehouse {
+  name              = "wh1"
+  compute_node_size = "r6id.4xlarge"
+
+  // Every day during business hours.
+  scheduled_scaling_policy {
+    policy_name    = "business-hours"
+    description    = "Scale up for the working day"
+    time_zone      = "Asia/Shanghai"
+    schedule_type  = "DAILY"
+    size           = 4
+    start_time     = "09:00"
+    end_time       = "18:00"
+    enable         = true
+  }
+
+  // Weekday-only reporting window.
+  scheduled_scaling_policy {
+    policy_name    = "weekday-reports"
+    schedule_type  = "WEEKLY"
+    week_days      = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]
+    size           = 6
+    start_time     = "20:00"
+    end_time       = "23:00"
+  }
+
+  // Month-end close.
+  scheduled_scaling_policy {
+    policy_name    = "month-end"
+    schedule_type  = "MONTHLY"
+    month_days     = [1, 28, 29, 30, 31]
+    size           = 8
+    start_time     = "00:00"
+    end_time       = "06:00"
+  }
+
+  // A one-off busy season.
+  scheduled_scaling_policy {
+    policy_name    = "peak-season"
+    schedule_type  = "DATE_RANGE"
+    start_date     = "2026-11-20"
+    end_date       = "2026-12-05"
+    size           = 12
+    start_time     = "08:00"
+    end_time       = "22:00"
+  }
+}
+```
 
 ## See Also
 ### AWS
