@@ -338,9 +338,9 @@ A `scheduled_scaling_policy` block resizes a warehouse on a fixed schedule inste
 
 - `policy_name`: (Required) Policy name. Must be unique among the policies of the same warehouse.
 - `description`: (Optional) Explanation of this policy.
-- `time_zone`: (Optional) Your IANA Time-Zone, for example `Asia/Shanghai`. Default: `UTC`.
+- `time_zone`: (Optional) Your IANA Time-Zone, for example `America/Los_Angeles`. Default: `UTC`.
 - `enable`: (Optional) Whether this policy is active. Default: `true`. A disabled policy still counts toward the five-policy limit.
-- `size`: (Required) The number of compute nodes **per cngroup** to scale to. Must be a positive integer. The resulting total node count is `size` * `cngroup_count`, where `cngroup_count` is the read-only attribute on the same warehouse.
+- `size`: (Required) The number of compute nodes.
 - `schedule_type`: (Required) How often the policy repeats. Valid values: `DAILY`, `WEEKLY`, `MONTHLY`, `DATE_RANGE`. Each type owns its own set of arguments, listed below; setting an argument that belongs to another type is rejected during `terraform plan`.
 - `start_time`: (Required) Time of day the policy takes effect, in `HH:mm` (24-hour, zero-padded).
 - `end_time`: (Required) Time of day the policy stops, in `HH:mm`. Must be later than `start_time`, so a policy cannot span midnight.
@@ -365,7 +365,7 @@ warehouse {
   scheduled_scaling_policy {
     policy_name    = "business-hours"
     description    = "Scale up for the working day"
-    time_zone      = "Asia/Shanghai"
+    time_zone      = "America/Los_Angeles"
     schedule_type  = "DAILY"
     size           = 4
     start_time     = "09:00"
