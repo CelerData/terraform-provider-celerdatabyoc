@@ -211,6 +211,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
     - `auto_scaling_policy`: (Optional) This policy will automatically scale the number of compute nodes, based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#compute-autoscaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
 
+      When `distribution_policy` is `multi_az`, `min_size`, `max_size`, and each `policy_item.step_size` must be positive multiples of the warehouse's cngroup count (which equals `len(specified_azs)` for `multi_az`). The backend enforces this invariant so that compute nodes remain balanced across the cngroups.
+
     - `scheduled_scaling_policy`: (Optional, List) Resizes the warehouse on a schedule rather than in reaction to load. See [Scheduled scaling policy](#scheduled-scaling-policy) for the full argument list.
 
     - `scheduled_scaling_policy_extra_info`: (Read-only, Map) Maps each scheduled scaling policy name to the policy id assigned by CelerData.
@@ -274,6 +276,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `idle_suspend_interval`: The amount of time (in minutes) during which the warehouse can stay idle. After the specified time period elapses, the warehouse will be automatically suspended. To enable the Auto Suspend feature, set this argument to an integer with the range of 15 to 999999. To disable this feature again, remove this argument from your Terraform configuration.
 
     - `auto_scaling_policy`: This policy will automatically scale the number of Compute nodes (CN), based on CPU utilization of the warehouse. For more information, see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling). You can generate the `policy_json` value for this argument using the [`celerdatabyoc_auto_scaling_policy`](../resources/warehouse_auto_scaling_policy.md) resource.
+
+      When `distribution_policy` is `multi_az`, `min_size`, `max_size`, and each `policy_item.step_size` must be positive multiples of the warehouse's cngroup count (which equals `len(specified_azs)` for `multi_az`). The backend enforces this invariant so that compute nodes remain balanced across the cngroups.
 
     - `scheduled_scaling_policy`: (Optional, List) Resizes the warehouse on a schedule rather than in reaction to load. See [Scheduled scaling policy](#scheduled-scaling-policy) for the full argument list.
 
