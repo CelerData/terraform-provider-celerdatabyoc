@@ -232,7 +232,9 @@ type ClusterConf struct {
 	// this feature is supported starting from sr 4.0.0
 	TableNameCaseInsensitive bool `json:"table_name_case_insensitive"`
 	// release_version selects which StarRocks release channel the cluster is deployed on:
-	// "stable" (default), "preview" or "ga". Empty defaults to "stable". Create-time only.
+	// "stable" (default), "preview" or "ga". Empty defaults to "stable". The backend deploys
+	// the newest version the region offers on that channel; an exact version cannot be
+	// requested through this API. Create-time only.
 	ReleaseVersion string `json:"release_version,omitempty"`
 	// You can disable public access to the Cluster console to ensure that all users access it via PrivateLink,
 	// securing the traffic instead of using the public internet.

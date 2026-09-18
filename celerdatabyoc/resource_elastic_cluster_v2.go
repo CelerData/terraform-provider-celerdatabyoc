@@ -550,10 +550,18 @@ func resourceElasticClusterV2() *schema.Resource {
 			},
 			"release_version": {
 				Type:         schema.TypeString,
-				Description:  "The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `preview`, `ga`. Default: `stable`. This field only takes effect at cluster creation time and cannot be changed afterwards.",
+				Description:  "The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `ga`, `preview` (case-insensitive). Default: `stable`. A region may offer several versions per channel; the newest version of the chosen channel at creation time is deployed, and `cluster_version` reports which one that was. This field only takes effect at cluster creation time and cannot be changed afterwards.",
 				Optional:     true,
 				Default:      "stable",
 				ValidateFunc: common.ValidateReleaseVersion,
+				StateFunc: func(v interface{}) string {
+					return common.NormalizeReleaseVersion(v.(string))
+				},
+			},
+			"cluster_version": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The exact StarRocks version the cluster runs: the newest version of `release_version`'s channel at creation time, advanced by later patch upgrades.",
 			},
 			"audit_loader_plugin_enabled": {
 				Type:        schema.TypeBool,
@@ -1320,7 +1328,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
-		ReleaseVersion:               d.Get("release_version").(string),
+		ReleaseVersion:               common.NormalizeReleaseVersion(d.Get("release_version").(string)),
 		DisablePublicAccess:          d.Get("disable_public_access").(bool),
 	}
 
@@ -1827,6 +1835,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 
 	d.Set("disable_public_access", disablePublicAccess)
 	d.Set("cluster_state", string(resp.Cluster.ClusterState))
+	d.Set("cluster_version", resp.Cluster.ClusterVersion)
 	d.Set("expected_cluster_state", string(resp.Cluster.ClusterState))
 	d.Set("cluster_name", resp.Cluster.ClusterName)
 	d.Set("data_credential_id", resp.Cluster.DataCredID)

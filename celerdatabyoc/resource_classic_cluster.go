@@ -239,6 +239,21 @@ func resourceClassicCluster() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"release_version": {
+				Type:         schema.TypeString,
+				Description:  "The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `ga`, `preview` (case-insensitive). Default: `stable`. A region may offer several versions per channel; the newest version of the chosen channel at creation time is deployed, and `cluster_version` reports which one that was. This field only takes effect at cluster creation time and cannot be changed afterwards.",
+				Optional:     true,
+				Default:      "stable",
+				ValidateFunc: common.ValidateReleaseVersion,
+				StateFunc: func(v interface{}) string {
+					return common.NormalizeReleaseVersion(v.(string))
+				},
+			},
+			"cluster_version": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Description: "The exact StarRocks version the cluster runs: the newest version of `release_version`'s channel at creation time, advanced by later patch upgrades.",
+			},
 			"query_port": {
 				Type:     schema.TypeInt,
 				Optional: true,
@@ -644,6 +659,7 @@ func resourceClusterCreate(ctx context.Context, d *schema.ResourceData, m interf
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
+		ReleaseVersion:               common.NormalizeReleaseVersion(d.Get("release_version").(string)),
 	}
 	netResp, err := networkAPI.GetNetwork(ctx, clusterConf.NetIfaceId)
 	if err != nil {
@@ -1003,6 +1019,7 @@ func resourceClusterRead(ctx context.Context, d *schema.ResourceData, m interfac
 
 	log.Printf("[DEBUG] get cluster, resp:%+v", resp.Cluster)
 	d.Set("cluster_state", resp.Cluster.ClusterState)
+	d.Set("cluster_version", resp.Cluster.ClusterVersion)
 	d.Set("expected_cluster_state", resp.Cluster.ClusterState)
 	d.Set("cluster_name", resp.Cluster.ClusterName)
 	d.Set("data_credential_id", resp.Cluster.DataCredID)
@@ -1184,7 +1201,7 @@ func needSuspend(d *schema.ResourceData) bool {
 }
 
 func resourceClusterUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	var immutableFields = []string{"csp", "region", "cluster_name", "data_credential_id", "deployment_credential_id", "network_id", "query_port"}
+	var immutableFields = []string{"csp", "region", "cluster_name", "data_credential_id", "deployment_credential_id", "network_id", "query_port", "release_version"}
 	for _, f := range immutableFields {
 		if d.HasChange(f) && !d.IsNewResource() {
 			return diag.FromErr(fmt.Errorf("the `%s` field is not allowed to be modified", f))
