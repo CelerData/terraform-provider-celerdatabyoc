@@ -139,16 +139,23 @@ func ValidateSchedulingPolicyTimeZone(i interface{}, k string) ([]string, []erro
 	return nil, nil
 }
 
+// NormalizeReleaseVersion canonicalises a release channel name ("GA" -> "ga"). The
+// backend matches the channel case-insensitively; normalising in the provider keeps the
+// value stored in state independent of how the operator spelled it.
+func NormalizeReleaseVersion(v string) string {
+	return strings.ToLower(strings.TrimSpace(v))
+}
+
 func ValidateReleaseVersion(i interface{}, k string) ([]string, []error) {
 	v, ok := i.(string)
 	if !ok {
 		return nil, []error{fmt.Errorf("expected type of %s to be string", k)}
 	}
-	switch v {
+	switch NormalizeReleaseVersion(v) {
 	case "stable", "preview", "ga":
 		return nil, nil
 	default:
-		return nil, []error{fmt.Errorf("%s must be one of \"stable\", \"preview\" or \"ga\", got: %s", k, v)}
+		return nil, []error{fmt.Errorf("%s must be one of \"stable\", \"preview\" or \"ga\" (case-insensitive), got: %s", k, v)}
 	}
 }
 
