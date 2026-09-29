@@ -1502,7 +1502,14 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(err)
 	}
 
-	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok {
+	if !volumeAutoscalingSupported(d.Get("csp").(string)) {
+		// Every create used to call SetVolumeAutoScalingConfig here, with the
+		// configured block or an auto-enable default. The control plane rejects
+		// it on azure, and returning that error skipped every create step below
+		// (node configs, warehouses, RunScripts, ranger config, ...) on a cluster
+		// that was already deployed.
+		log.Printf("[WARN] coordinator node volume autoscaling is not supported on %s, skipping it for cluster %s", d.Get("csp").(string), clusterId)
+	} else if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok {
 		yamlConfig := v.([]interface{})[0].(map[string]interface{})
 		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
 		if err != nil {
@@ -2391,7 +2398,8 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if d.HasChange("coordinator_node_volume_autoscaling") && !d.IsNewResource() {
+	if d.HasChange("coordinator_node_volume_autoscaling") && !d.IsNewResource() &&
+		volumeAutoscalingSupported(d.Get("csp").(string)) {
 		_, v := d.GetChange("coordinator_node_volume_autoscaling")
 		vList := v.([]interface{})
 		var autoscalingConfig *cluster.VolumeAutoScalingConfig
@@ -4349,6 +4357,15 @@ func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.ICluster
 	}
 
 	return actualInstalled, nil
+}
+
+// volumeAutoscalingSupported reports whether the control plane accepts
+// SetVolumeAutoScalingConfig for clusters on csp. Azure rejects it ("it is not
+// allowed to set storage autoscaling on azure for now",
+// cluster_svc_volume_autoscaling.go); reads still work there and return no
+// configs. Drop the azure case once the control plane supports it.
+func volumeAutoscalingSupported(csp string) bool {
+	return csp != cluster.CSP_AZURE
 }
 
 func getVolumeAutoscalingFromYaml(yamlConfig map[string]interface{}) (*cluster.VolumeAutoScalingConfig, error) {
