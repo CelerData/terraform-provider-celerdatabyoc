@@ -156,6 +156,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   idle_suspend_interval = 60
   enabled_termination_protection = false
   release_version = "stable"
+  audit_loader_plugin_enabled = false
 }
 ```
 
@@ -325,6 +326,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `enabled_termination_protection`: When enabled, termination protection prevents the deletion of the cluster via Console or APIs. To delete the cluster, this feature needs to be disabled. This has no affect on termination from scale-in, auto scaling events and scheduled maintenance.
 
 - `release_version`: The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `ga`, `preview` (case-insensitive). Default value: `stable`. A region may offer several StarRocks versions on one channel (for example `4.1.5-ee` and `26.2.0-ee` on `preview`); the cluster is deployed on the newest version of the chosen channel at creation time, and the `cluster_version` attribute reports which version that was. An exact version cannot be requested through Terraform — use the CelerData Cloud console for that. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
+
+- `audit_loader_plugin_enabled`: (Optional, default: `false`) Whether to enable the audit loader plugin on the cluster. When set to `true`, CelerData installs the audit loader plugin, which persists audit logs (such as executed queries and their metadata) into an internal table so they can be queried from within the cluster. Set to `false` to uninstall the plugin. The plugin is installed or uninstalled after the cluster reaches the `Running` state, so reconciliation of this argument requires the cluster to be running.
 
 - `scheduling_policy`:(Optional, List) When specified. CelerData will automatically suspend the cluster to save the majority of costs on EC2 (only EBS costs will be incurred) and resume the cluster for usage as scheduled.
     - `policy_name`: (Required) Policy name.
