@@ -1502,28 +1502,34 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		return diag.FromErr(err)
 	}
 
-	if !volumeAutoscalingSupported(d.Get("csp").(string)) {
-		// Every create used to call SetVolumeAutoScalingConfig here, with the
-		// configured block or an auto-enable default. The control plane rejects
-		// it on azure, and returning that error skipped every create step below
-		// (node configs, warehouses, RunScripts, ranger config, ...) on a cluster
-		// that was already deployed.
-		log.Printf("[WARN] coordinator node volume autoscaling is not supported on %s, skipping it for cluster %s", d.Get("csp").(string), clusterId)
-	} else if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok {
+	// SetVolumeAutoScalingConfig is rejected by the control plane on some clouds
+	// (azure). Returning that error used to abort create here and skip every
+	// step below (node configs, warehouses, RunScripts, ranger config, ...) on a
+	// cluster that was already deployed, so on those clouds the call is skipped.
+	csp := d.Get("csp").(string)
+	if v, ok := d.GetOk("coordinator_node_volume_autoscaling"); ok {
 		yamlConfig := v.([]interface{})[0].(map[string]interface{})
 		autoscalingConfig, err := getVolumeAutoscalingFromYaml(yamlConfig)
 		if err != nil {
 			return diag.FromErr(fmt.Errorf("[DEBUG] failed to parse coordinator node volume autoscaling config, err:%w", err))
 		}
-		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
-		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
-			ClusterId:                clusterId,
-			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %w", d.Id(), err))
+		if !volumeAutoscalingSupported(csp) {
+			// enable = false already matches the cluster; only a requested
+			// enable is being dropped, so only that is worth telling the user.
+			if autoscalingConfig.Enable {
+				diags = append(diags, volumeAutoscalingUnsupportedWarning(csp))
+			}
+		} else {
+			autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
+			err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+				ClusterId:                clusterId,
+				VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+			})
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %w", d.Id(), err))
+			}
 		}
-	} else {
+	} else if volumeAutoscalingSupported(csp) {
 		// If the user does not configure volume autoscaling, it will be enabled by default.
 		autoscalingConfig := &cluster.VolumeAutoScalingConfig{
 			Enable:                     true,
@@ -1704,10 +1710,10 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 	if d.Get("expected_cluster_state").(string) == string(cluster.ClusterStateSuspended) {
 		warningDiag := UpdateClusterState(ctx, clusterAPI, d.Get("id").(string), string(cluster.ClusterStateRunning), string(cluster.ClusterStateSuspended))
 		if warningDiag != nil {
-			return warningDiag
+			return append(diags, warningDiag...)
 		}
 	}
-	return resourceElasticClusterV2Read(ctx, d, m)
+	return append(diags, resourceElasticClusterV2Read(ctx, d, m)...)
 }
 
 func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -2398,8 +2404,7 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		}
 	}
 
-	if d.HasChange("coordinator_node_volume_autoscaling") && !d.IsNewResource() &&
-		volumeAutoscalingSupported(d.Get("csp").(string)) {
+	if d.HasChange("coordinator_node_volume_autoscaling") && !d.IsNewResource() {
 		_, v := d.GetChange("coordinator_node_volume_autoscaling")
 		vList := v.([]interface{})
 		var autoscalingConfig *cluster.VolumeAutoScalingConfig
@@ -2416,13 +2421,20 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 			}
 		}
 
-		autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
-		err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
-			ClusterId:                clusterId,
-			VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
-		})
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
+		if csp := d.Get("csp").(string); !volumeAutoscalingSupported(csp) {
+			// Same as create: the control plane rejects the call here.
+			if autoscalingConfig.Enable {
+				diags = append(diags, volumeAutoscalingUnsupportedWarning(csp))
+			}
+		} else {
+			autoscalingConfig.ModuleType = cluster.ModuleTypeNumber_MODULE_TYPE_FE
+			err = clusterAPI.SetVolumeAutoScalingConfig(ctx, &cluster.SetVolumeAutoScalingConfigsReq{
+				ClusterId:                clusterId,
+				VolumeAutoscalingConfigs: []*cluster.VolumeAutoScalingConfig{autoscalingConfig},
+			})
+			if err != nil {
+				return diag.FromErr(fmt.Errorf("cluster (%s) failed to update coordinator node volume autoscaling config: %s", d.Id(), err.Error()))
+			}
 		}
 	}
 
@@ -4366,6 +4378,19 @@ func reconcileAuditLoaderPlugin(ctx context.Context, clusterAPI cluster.ICluster
 // configs. Drop the azure case once the control plane supports it.
 func volumeAutoscalingSupported(csp string) bool {
 	return csp != cluster.CSP_AZURE
+}
+
+// volumeAutoscalingUnsupportedWarning is returned when the configuration asks
+// for coordinator node volume autoscaling on a cloud that does not support it,
+// so the request is not dropped silently.
+func volumeAutoscalingUnsupportedWarning(csp string) diag.Diagnostic {
+	return diag.Diagnostic{
+		Severity: diag.Warning,
+		Summary:  fmt.Sprintf("coordinator_node_volume_autoscaling is not supported on %s", csp),
+		Detail: fmt.Sprintf("Coordinator node volume autoscaling cannot be enabled on %s yet, so "+
+			"coordinator_node_volume_autoscaling.enable = true was not applied. Set it to false "+
+			"or remove the block to silence this warning.", csp),
+	}
 }
 
 func getVolumeAutoscalingFromYaml(yamlConfig map[string]interface{}) (*cluster.VolumeAutoScalingConfig, error) {
