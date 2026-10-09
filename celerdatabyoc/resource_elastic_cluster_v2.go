@@ -1744,10 +1744,14 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	networkAPI := network.NewNetworkAPI(c)
 	log.Printf("[DEBUG] resourceElasticClusterV2Read cluster id:%s", clusterId)
 	var diags diag.Diagnostics
+	// Refresh blocks here while the cluster is in a transitional state (e.g. Scaling),
+	// so log it to make a long wait distinguishable from a hang.
+	waitTimeout := 30 * time.Minute
+	log.Printf("[INFO] waiting for cluster[%s] to reach a stable state before reading (timeout: %s)", clusterId, waitTimeout)
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
 		clusterID:  clusterId,
-		timeout:    30 * time.Minute,
+		timeout:    waitTimeout,
 		pendingStates: []string{
 			string(cluster.ClusterStateDeploying),
 			string(cluster.ClusterStateScaling),
@@ -1766,6 +1770,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) change complete: %s", d.Id(), err))
 	}
+	log.Printf("[INFO] cluster[%s] reached stable state: %s", clusterId, stateResp.ClusterState)
 
 	if stateResp.ClusterState == string(cluster.ClusterStateReleased) {
 		log.Printf("[WARN] Cluster (%s) not found, removing from state", d.Id())
