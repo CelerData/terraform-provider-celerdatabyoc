@@ -1,7 +1,9 @@
 package celerdatabyoc
 
 import (
+	"encoding/json"
 	"fmt"
+	"terraform-provider-celerdatabyoc/celerdata-sdk/service/cluster"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -111,12 +113,24 @@ func findWarehouseByName(whs []interface{}, whName string) map[string]interface{
 }
 
 // autoScalingSkippedScaleWarning explains why a compute_node_count change was
-// recorded in state without resizing the warehouse.
-func autoScalingSkippedScaleWarning(whName string, declared, live int) diag.Diagnostic {
+// saved in state without resizing the warehouse. policyJSON is the warehouse's
+// auto_scaling_policy, used to show the bounds the autoscaler works within.
+//
+// The backend only resizes when a policy item fires, clamping the target to
+// min_size/max_size; saving new bounds resizes nothing by itself. Removing the
+// policy is the only way to apply the declared count right away.
+func autoScalingSkippedScaleWarning(whName string, declared, live int, policyJSON string) diag.Diagnostic {
+	bounds := "the policy's min_size and max_size"
+	policy := &cluster.WarehouseAutoScalingConfig{}
+	if err := json.Unmarshal([]byte(policyJSON), policy); err == nil && policy.MaxSize > 0 {
+		bounds = fmt.Sprintf("the policy's min_size (%d) and max_size (%d)", policy.MinSize, policy.MaxSize)
+	}
 	return diag.Diagnostic{
 		Severity: diag.Warning,
-		Summary:  fmt.Sprintf("compute_node_count change for warehouse %q was recorded but not applied", whName),
-		Detail: fmt.Sprintf("Auto scaling is active on this warehouse and manages its node count within the policy's min_size/max_size "+
-			"(declared: %d, current: %d). To change the baseline, adjust min_size/max_size instead.", declared, live),
+		Summary:  fmt.Sprintf("compute_node_count change for warehouse %q was saved but not applied", whName),
+		Detail: fmt.Sprintf("Auto scaling is active on this warehouse, so the autoscaler manages its node count within %s; "+
+			"current count: %d. The new compute_node_count (%d) is saved in state and is applied when auto_scaling_policy "+
+			"is removed, unless a scheduled scaling policy is enabled. Changing min_size/max_size only bounds future "+
+			"autoscaler moves; it does not resize the warehouse by itself.", bounds, live, declared),
 	}
 }

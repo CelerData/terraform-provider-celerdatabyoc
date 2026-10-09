@@ -177,7 +177,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
-							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs). While auto_scaling_policy is active this is the declared (initial) count only: the autoscaler owns the live count, and changes to this value are recorded but not applied.",
+							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs). While auto_scaling_policy is active this is the declared (initial) count only: the autoscaler owns the live count, and changes to this value are saved but not applied until auto_scaling_policy is removed. min_size/max_size only bound the autoscaler's moves and do not resize the warehouse by themselves.",
 						},
 						"distribution_policy": {
 							Type:     schema.TypeString,
@@ -320,7 +320,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
-							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs). While auto_scaling_policy is active this is the declared (initial) count only: the autoscaler owns the live count, and changes to this value are recorded but not applied.",
+							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs). While auto_scaling_policy is active this is the declared (initial) count only: the autoscaler owns the live count, and changes to this value are saved but not applied until auto_scaling_policy is removed. min_size/max_size only bound the autoscaler's moves and do not resize the warehouse by themselves.",
 						},
 						"distribution_policy": {
 							Type:     schema.TypeString,
@@ -3882,7 +3882,7 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 			newCnt := newWh["compute_node_count"].(int)
 			if (isScaleOut && newCnt > oldCnt) || (!isScaleOut && newCnt < oldCnt) {
 				if autoScalingOwnsNodeCount(oldWh, newWh) {
-					diags = append(diags, autoScalingSkippedScaleWarning(whName, newCnt, liveNodeCount(oldWh)))
+					diags = append(diags, autoScalingSkippedScaleWarning(whName, newCnt, liveNodeCount(oldWh), newWh["auto_scaling_policy"].(string)))
 					continue
 				}
 				if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, whExternalInfo.Id, int32(newCnt)); err != nil {
@@ -3922,7 +3922,7 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 		defaultNewCnt := defaultNewWh["compute_node_count"].(int)
 		if (isScaleOut && defaultNewCnt > defaultOldCnt) || (!isScaleOut && defaultNewCnt < defaultOldCnt) {
 			if autoScalingOwnsNodeCount(defaultOldWh, defaultNewWh) {
-				return append(diags, autoScalingSkippedScaleWarning(DEFAULT_WAREHOUSE_NAME, defaultNewCnt, liveNodeCount(defaultOldWh)))
+				return append(diags, autoScalingSkippedScaleWarning(DEFAULT_WAREHOUSE_NAME, defaultNewCnt, liveNodeCount(defaultOldWh), defaultNewWh["auto_scaling_policy"].(string)))
 			}
 			if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, defaultWhExternalInfo.Id, int32(defaultNewCnt)); err != nil {
 				return diag.FromErr(err)
