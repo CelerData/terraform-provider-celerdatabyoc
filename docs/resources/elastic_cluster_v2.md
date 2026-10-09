@@ -199,7 +199,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `default_warehouse`: (List of Object) The default warehouse. The attributes of a default warehouse include:
     - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to `r6id.4xlarge`.
 
-    - `compute_node_count`: (Optional) The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
+    - `compute_node_count`: (Optional) The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`. While `auto_scaling_policy` is active, this is the declared (initial) count only: the autoscaler owns the live count, Terraform does not report its moves as drift, and changing this value is saved in state without resizing the warehouse (a warning is shown). The saved value is applied when `auto_scaling_policy` is removed. Changing `min_size`/`max_size` does not resize the warehouse either: the autoscaler only resizes when a policy item fires, and the bounds limit how far it moves. While a scheduled scaling policy is enabled, the backend's resizes are likewise not reported as drift. Removing `auto_scaling_policy` resizes the warehouse back to this value in the same apply, unless a scheduled scaling policy is enabled.
+    - `effective_compute_node_count`: (Read-only) The live number of compute nodes as reported by CelerData. It differs from `compute_node_count` while auto scaling or scheduled scaling has resized the warehouse.
 
     - `compute_node_volume_config`: The compute nodes volume configuration.
         - `vol_number`: The number of disks for each compute node. Valid values: [1,16]. Default value: `2`.
@@ -259,7 +260,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
     - `name`: (Required) The warehouse name must be unique within the cluster and cannot be named "default_warehouse".
     - `compute_node_size`: (Required) The instance type for compute nodes in the cluster. Select a compute node instance type from the table "[Supported Node Sizes](#supported-node-sizes)". For example, you can set this argument to `r6id.4xlarge`.
 
-    - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`.
+    - `compute_node_count`: The number of compute nodes in the cluster. Valid values: any non-zero positive integer. Default value: `3`. While `auto_scaling_policy` is active, this is the declared (initial) count only: the autoscaler owns the live count, Terraform does not report its moves as drift, and changing this value is saved in state without resizing the warehouse (a warning is shown). The saved value is applied when `auto_scaling_policy` is removed. Changing `min_size`/`max_size` does not resize the warehouse either: the autoscaler only resizes when a policy item fires, and the bounds limit how far it moves. While a scheduled scaling policy is enabled, the backend's resizes are likewise not reported as drift. Removing `auto_scaling_policy` resizes the warehouse back to this value in the same apply, unless a scheduled scaling policy is enabled.
+    - `effective_compute_node_count`: (Read-only) The live number of compute nodes as reported by CelerData. It differs from `compute_node_count` while auto scaling or scheduled scaling has resized the warehouse.
 
     - `compute_node_volume_config`: The compute nodes volume configuration.
         - `vol_number`: The number of disks for each compute node. Valid values: [1,16]. Default value: `2`.

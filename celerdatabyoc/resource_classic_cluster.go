@@ -1993,7 +1993,7 @@ func WaitClusterStateChangeComplete(ctx context.Context, req *waitStateReq) (*cl
 
 	outputRaw, err := stateConf.WaitForStateContext(ctx)
 	if output, ok := outputRaw.(*cluster.GetStateResp); ok {
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 10)
 		if output.ClusterState == string(cluster.ClusterStateAbnormal) {
 			time.Sleep(time.Second * 10)
 		}

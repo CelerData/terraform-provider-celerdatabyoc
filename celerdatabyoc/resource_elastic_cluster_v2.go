@@ -177,7 +177,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
-							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs).",
+							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs). While auto_scaling_policy is active this is the declared (initial) count only: the autoscaler owns the live count, and changes to this value are saved but not applied until auto_scaling_policy is removed. min_size/max_size only bound the autoscaler's moves and do not resize the warehouse by themselves.",
 						},
 						"distribution_policy": {
 							Type:     schema.TypeString,
@@ -204,12 +204,17 @@ func resourceElasticClusterV2() *schema.Resource {
 						"cngroup_size": {
 							Type:        schema.TypeInt,
 							Computed:    true,
-							Description: "Per-cngroup VM count, derived as compute_node_count / cngroup_count. Read-only.",
+							Description: "Per-cngroup VM count, derived as effective_compute_node_count / cngroup_count. Read-only.",
 						},
 						"cngroup_count": {
 							Type:        schema.TypeInt,
 							Computed:    true,
 							Description: "Current cngroup count as reported by the backend. Read-only. Scale-in cannot bring compute_node_count below this value.",
+						},
+						"effective_compute_node_count": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Live compute node count as reported by the backend. Read-only. Differs from compute_node_count while auto scaling or scheduled scaling has moved the warehouse.",
 						},
 						"resource_tags": {
 							Type:        schema.TypeMap,
@@ -315,7 +320,7 @@ func resourceElasticClusterV2() *schema.Resource {
 							Optional:     true,
 							Default:      3,
 							ValidateFunc: validation.IntAtLeast(1),
-							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs).",
+							Description:  "Total compute node count. When distribution_policy is \"multi_az\", must be a positive multiple of len(specified_azs). While auto_scaling_policy is active this is the declared (initial) count only: the autoscaler owns the live count, and changes to this value are saved but not applied until auto_scaling_policy is removed. min_size/max_size only bound the autoscaler's moves and do not resize the warehouse by themselves.",
 						},
 						"distribution_policy": {
 							Type:     schema.TypeString,
@@ -342,12 +347,17 @@ func resourceElasticClusterV2() *schema.Resource {
 						"cngroup_size": {
 							Type:        schema.TypeInt,
 							Computed:    true,
-							Description: "Per-cngroup VM count, derived as compute_node_count / cngroup_count. Read-only.",
+							Description: "Per-cngroup VM count, derived as effective_compute_node_count / cngroup_count. Read-only.",
 						},
 						"cngroup_count": {
 							Type:        schema.TypeInt,
 							Computed:    true,
 							Description: "Current cngroup count as reported by the backend. Read-only. Scale-in cannot bring compute_node_count below this value.",
+						},
+						"effective_compute_node_count": {
+							Type:        schema.TypeInt,
+							Computed:    true,
+							Description: "Live compute node count as reported by the backend. Read-only. Differs from compute_node_count while auto scaling or scheduled scaling has moved the warehouse.",
 						},
 						"resource_tags": {
 							Type:        schema.TypeMap,
@@ -961,11 +971,15 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 			oldWhMap = oldWhByName[whName]
 		}
 		var oldPolicy string
-		var oldCount, oldCngroupCount, oldCngroupSize int
+		// oldCount is the live node count the backend's distribution math runs on;
+		// oldDeclaredCount is what the user declared, which differs from it while
+		// auto scaling or scheduled scaling has moved the warehouse.
+		var oldCount, oldDeclaredCount, oldCngroupCount, oldCngroupSize int
 		var oldSpecifiedAZs []string
 		if oldWhMap != nil {
 			oldPolicy, _ = oldWhMap["distribution_policy"].(string)
-			oldCount, _ = oldWhMap["compute_node_count"].(int)
+			oldCount = liveNodeCount(oldWhMap)
+			oldDeclaredCount, _ = oldWhMap["compute_node_count"].(int)
 			oldCngroupCount, _ = oldWhMap["cngroup_count"].(int)
 			oldCngroupSize, _ = oldWhMap["cngroup_size"].(int)
 			oldSpecifiedAZs = toStringSlice(oldWhMap["specified_azs"])
@@ -1021,7 +1035,9 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 		// the source cngroup_count is no longer the relevant divisor for
 		// those transitions.
 		azCountChanged := oldPolicy == MULTI_AZ && policy == MULTI_AZ && len(oldSpecifiedAZs) > 0 && len(oldSpecifiedAZs) != len(azs)
-		if oldCngroupCount > 0 && oldPolicy == policy && !azCountChanged && cnc != oldCount && cnc%oldCngroupCount != 0 {
+		// Skipped while auto scaling owns the count: the change is recorded, not applied.
+		if oldCngroupCount > 0 && oldPolicy == policy && !azCountChanged && cnc != oldDeclaredCount && cnc%oldCngroupCount != 0 &&
+			!autoScalingOwnsNodeCount(oldWhMap, vMap) {
 			return fmt.Errorf("%s compute_node_count %d must be a multiple of current cngroup_count %d", whLabel, cnc, oldCngroupCount)
 		}
 
@@ -1278,32 +1294,49 @@ func customizeEl2Diff(ctx context.Context, d *schema.ResourceDiff, m interface{}
 }
 
 func markWarehouseCngroupUnknown(d *schema.ResourceDiff) {
-	cngroupTriggers := []string{"distribution_policy", "specified_azs", "compute_node_count"}
-
 	if d.HasChange("default_warehouse") {
-		for _, f := range cngroupTriggers {
-			if d.HasChange("default_warehouse.0." + f) {
-				_ = d.SetNewComputed("default_warehouse.0.cngroup_count")
-				_ = d.SetNewComputed("default_warehouse.0.cngroup_size")
-				break
-			}
-		}
+		o, n := d.GetChange("default_warehouse")
+		markWarehouseNodeFieldsUnknown(d, "default_warehouse.0", firstBlock(o), firstBlock(n))
 	}
 
 	if d.HasChange("warehouse") {
-		whs, ok := d.Get("warehouse").([]interface{})
-		if !ok {
-			return
-		}
-		for i := range whs {
-			for _, f := range cngroupTriggers {
-				if d.HasChange(fmt.Sprintf("warehouse.%d.%s", i, f)) {
-					_ = d.SetNewComputed(fmt.Sprintf("warehouse.%d.cngroup_count", i))
-					_ = d.SetNewComputed(fmt.Sprintf("warehouse.%d.cngroup_size", i))
-					break
-				}
+		o, n := d.GetChange("warehouse")
+		oldWhs, _ := o.([]interface{})
+		newWhs, _ := n.([]interface{})
+		for i, item := range newWhs {
+			newWh, ok := item.(map[string]interface{})
+			if !ok {
+				continue
 			}
+			oldWh := findWarehouseByName(oldWhs, newWh["name"].(string))
+			markWarehouseNodeFieldsUnknown(d, fmt.Sprintf("warehouse.%d", i), oldWh, newWh)
 		}
+	}
+}
+
+// markWarehouseNodeFieldsUnknown marks the backend-derived node fields of the
+// warehouse at prefix Unknown when the apply will move its nodes.
+func markWarehouseNodeFieldsUnknown(d *schema.ResourceDiff, prefix string, oldWh, newWh map[string]interface{}) {
+	triggers := []string{"distribution_policy", "specified_azs"}
+	// A count change left to the autoscaler resizes nothing.
+	if !autoScalingOwnsNodeCount(oldWh, newWh) {
+		triggers = append(triggers, "compute_node_count")
+	}
+
+	nodesMove := false
+	for _, f := range triggers {
+		if d.HasChange(prefix + "." + f) {
+			nodesMove = true
+			break
+		}
+	}
+	if nodesMove {
+		_ = d.SetNewComputed(prefix + ".cngroup_count")
+		_ = d.SetNewComputed(prefix + ".cngroup_size")
+	}
+	// Disabling auto scaling converges the live count to the declared one.
+	if nodesMove || d.HasChange(prefix+".auto_scaling_policy") {
+		_ = d.SetNewComputed(prefix + ".effective_compute_node_count")
 	}
 }
 
@@ -1711,10 +1744,14 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	networkAPI := network.NewNetworkAPI(c)
 	log.Printf("[DEBUG] resourceElasticClusterV2Read cluster id:%s", clusterId)
 	var diags diag.Diagnostics
+	// Refresh blocks here while the cluster is in a transitional state (e.g. Scaling),
+	// so log it to make a long wait distinguishable from a hang.
+	waitTimeout := 30 * time.Minute
+	log.Printf("[INFO] waiting for cluster[%s] to reach a stable state before reading (timeout: %s)", clusterId, waitTimeout)
 	stateResp, err := WaitClusterStateChangeComplete(ctx, &waitStateReq{
 		clusterAPI: clusterAPI,
 		clusterID:  clusterId,
-		timeout:    30 * time.Minute,
+		timeout:    waitTimeout,
 		pendingStates: []string{
 			string(cluster.ClusterStateDeploying),
 			string(cluster.ClusterStateScaling),
@@ -1733,6 +1770,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("waiting for cluster (%s) change complete: %s", d.Id(), err))
 	}
+	log.Printf("[INFO] cluster[%s] reached stable state: %s", clusterId, stateResp.ClusterState)
 
 	if stateResp.ClusterState == string(cluster.ClusterStateReleased) {
 		log.Printf("[WARN] Cluster (%s) not found, removing from state", d.Id())
@@ -1893,7 +1931,9 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap := make(map[string]interface{}, 0)
 		whMap["name"] = warehouseName
 		whMap["compute_node_size"] = v.Module.InstanceType
-		whMap["compute_node_count"] = v.Module.Num
+		liveCount := int(v.Module.Num)
+		whMap["compute_node_count"] = liveCount
+		whMap["effective_compute_node_count"] = liveCount
 		// Backend reports cngroup_count but not cngroup_size; derive size locally
 		// to keep the field truthful (size = total nodes / cngroup count).
 		cngroupSize := 0
@@ -1958,6 +1998,15 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		}
 		whMap["scheduled_scaling_policy"] = schedulePolicies
 		whMap["scheduled_scaling_policy_extra_info"] = schedulePolicyExtraInfo
+
+		// While auto scaling or scheduled scaling resizes the warehouse, keep the
+		// declared count so the backend's moves do not surface as a plan diff;
+		// effective_compute_node_count still reports the live count.
+		if (policy != nil && policy.State) || hasEnabledSchedulePolicy(schedulePolicies) {
+			if declared, ok := priorDeclaredNodeCount(d, isDefaultWarehouse, warehouseName); ok {
+				whMap["compute_node_count"] = declared
+			}
+		}
 
 		computeNodeConfigsResp, err := clusterAPI.GetCustomConfig(ctx, &cluster.ListCustomConfigReq{
 			ClusterID:   clusterId,
@@ -2301,9 +2350,12 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		return diags
 	}
 
-	if diags := handleScaleInWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
-		return diags
+	// May carry warnings for count changes left to an active autoscaler.
+	scaleDiags := handleScaleInWarehouses(ctx, d, clusterAPI, clusterId)
+	if scaleDiags.HasError() {
+		return scaleDiags
 	}
+	diags = append(diags, scaleDiags...)
 
 	// ---- CONFIG ----
 	if d.HasChange("global_session_variables") && !d.IsNewResource() {
@@ -2543,9 +2595,12 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 		return diags
 	}
 
-	if diags := handleScaleOutWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
-		return diags
+	// May carry warnings for count changes left to an active autoscaler.
+	scaleDiags = handleScaleOutWarehouses(ctx, d, clusterAPI, clusterId)
+	if scaleDiags.HasError() {
+		return scaleDiags
 	}
+	diags = append(diags, scaleDiags...)
 
 	if diags := handleSuspendWarehouses(ctx, d, clusterAPI, clusterId); diags != nil {
 		return diags
@@ -3201,6 +3256,20 @@ func updateWarehouse(ctx context.Context, req *UpdateWarehouseReq, multiAz bool)
 					},
 				}
 			}
+
+			// The autoscaler may have left the live count away from the declared
+			// one; converge now rather than on the next apply. A declared change was
+			// already sent by handleScaleWarehouses, and a distribution change
+			// carries the count itself; an enabled scheduled policy still owns it.
+			declared := newParamMap["compute_node_count"].(int)
+			live := liveNodeCount(oldParamMap)
+			if declared == oldParamMap["compute_node_count"].(int) && declared != live && live > 0 &&
+				!(computeNodeDistributionChanged && multiAz) &&
+				!hasEnabledSchedulePolicy(newParamMap["scheduled_scaling_policy"]) {
+				if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, warehouseId, int32(declared)); err != nil {
+					return diag.FromErr(err)
+				}
+			}
 		}
 	}
 
@@ -3765,10 +3834,15 @@ func handleScaleInWarehouses(ctx context.Context, d *schema.ResourceData, cluste
 	return handleScaleWarehouses(ctx, d, clusterAPI, clusterId, false)
 }
 
+// handleScaleWarehouses resizes warehouses whose compute_node_count changed in
+// the isScaleOut direction. A change left to an active autoscaler is recorded in
+// state without resizing, and reported as a warning in the returned diagnostics.
 func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterAPI cluster.IClusterAPI, clusterId string, isScaleOut bool) diag.Diagnostics {
 	if !d.HasChange("warehouse") && !d.HasChange("default_warehouse") {
 		return nil
 	}
+
+	var diags diag.Diagnostics
 
 	whExternalInfoMap := d.Get("warehouse_external_info").(map[string]interface{})
 
@@ -3812,6 +3886,10 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 			oldCnt := oldWh["compute_node_count"].(int)
 			newCnt := newWh["compute_node_count"].(int)
 			if (isScaleOut && newCnt > oldCnt) || (!isScaleOut && newCnt < oldCnt) {
+				if autoScalingOwnsNodeCount(oldWh, newWh) {
+					diags = append(diags, autoScalingSkippedScaleWarning(whName, newCnt))
+					continue
+				}
 				if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, whExternalInfo.Id, int32(newCnt)); err != nil {
 					return diag.FromErr(err)
 				}
@@ -3832,13 +3910,13 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 		oldPolicy := defaultOldWh["distribution_policy"].(string)
 		newPolicy := defaultNewWh["distribution_policy"].(string)
 		if oldPolicy != newPolicy {
-			return nil
+			return diags
 		}
 		oldAZs := toStringSlice(defaultOldWh["specified_azs"])
 		newAZs := toStringSlice(defaultNewWh["specified_azs"])
 		if newPolicy == string(cluster.DistributionPolicyMultiAZ) &&
 			len(oldAZs) != len(newAZs) {
-			return nil
+			return diags
 		}
 
 		defaultWhExternalInfoStr := whExternalInfoMap[DEFAULT_WAREHOUSE_NAME].(string)
@@ -3848,13 +3926,16 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 		defaultOldCnt := defaultOldWh["compute_node_count"].(int)
 		defaultNewCnt := defaultNewWh["compute_node_count"].(int)
 		if (isScaleOut && defaultNewCnt > defaultOldCnt) || (!isScaleOut && defaultNewCnt < defaultOldCnt) {
+			if autoScalingOwnsNodeCount(defaultOldWh, defaultNewWh) {
+				return append(diags, autoScalingSkippedScaleWarning(DEFAULT_WAREHOUSE_NAME, defaultNewCnt))
+			}
 			if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, defaultWhExternalInfo.Id, int32(defaultNewCnt)); err != nil {
 				return diag.FromErr(err)
 			}
 		}
 	}
 
-	return nil
+	return diags
 }
 
 func scaleWarehouseNum(ctx context.Context, clusterAPI cluster.IClusterAPI, clusterId, warehouseId string, vmNum int32) error {
