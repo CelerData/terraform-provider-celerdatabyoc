@@ -89,16 +89,19 @@ func resourceAutoScalingPolicy() *schema.Resource {
 						"type": {
 							Type:         schema.TypeString,
 							Required:     true,
+							ForceNew:     true,
 							ValidateFunc: validation.StringInSlice(cluster.WhScaleTypeArr, false),
 						},
 						"step_size": {
 							Type:         schema.TypeInt,
 							Required:     true,
+							ForceNew:     true,
 							ValidateFunc: validation.IntAtLeast(1),
 						},
 						"condition": {
 							Type:     schema.TypeSet,
 							Optional: true,
+							ForceNew: true,
 							MinItems: 1,
 							MaxItems: 1,
 							Set: func(v interface{}) int {
@@ -110,15 +113,18 @@ func resourceAutoScalingPolicy() *schema.Resource {
 									"type": {
 										Type:     schema.TypeString,
 										Required: true,
+										ForceNew: true,
 									},
 									"duration_seconds": {
 										Type:     schema.TypeInt,
 										Optional: true,
+										ForceNew: true,
 										Default:  0,
 									},
 									"value": {
 										Type:         schema.TypeFloat,
 										Required:     true,
+										ForceNew:     true,
 										ValidateFunc: validation.FloatAtLeast(0.01),
 									},
 								},
