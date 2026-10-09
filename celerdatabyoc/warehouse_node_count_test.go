@@ -256,20 +256,16 @@ func TestAutoScaledWarehousePlansClean(t *testing.T) {
 }
 
 func TestAutoScalingSkippedScaleWarning(t *testing.T) {
-	dg := autoScalingSkippedScaleWarning("wh01", 2, 3, testPolicyJSON)
+	dg := autoScalingSkippedScaleWarning("wh01", 2)
 	if dg.Severity != diag.Warning {
 		t.Fatalf("severity = %v, want warning", dg.Severity)
 	}
-	for _, want := range []string{"min_size (2) and max_size (6)", "current count: 3", "compute_node_count (2)",
-		"applied when auto_scaling_policy is removed", "does not resize the warehouse by itself"} {
+	if !strings.Contains(dg.Summary, `"wh01"`) {
+		t.Errorf("summary missing warehouse name: %s", dg.Summary)
+	}
+	for _, want := range []string{"compute_node_count (2)", "will be applied when auto_scaling_policy is removed"} {
 		if !strings.Contains(dg.Detail, want) {
 			t.Errorf("detail missing %q: %s", want, dg.Detail)
 		}
-	}
-
-	// An unparsable policy still yields a usable message without the bounds.
-	dg = autoScalingSkippedScaleWarning("wh01", 2, 3, "not-json")
-	if !strings.Contains(dg.Detail, "the policy's min_size and max_size") {
-		t.Errorf("fallback detail: %s", dg.Detail)
 	}
 }

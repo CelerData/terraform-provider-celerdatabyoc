@@ -3882,7 +3882,7 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 			newCnt := newWh["compute_node_count"].(int)
 			if (isScaleOut && newCnt > oldCnt) || (!isScaleOut && newCnt < oldCnt) {
 				if autoScalingOwnsNodeCount(oldWh, newWh) {
-					diags = append(diags, autoScalingSkippedScaleWarning(whName, newCnt, liveNodeCount(oldWh), newWh["auto_scaling_policy"].(string)))
+					diags = append(diags, autoScalingSkippedScaleWarning(whName, newCnt))
 					continue
 				}
 				if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, whExternalInfo.Id, int32(newCnt)); err != nil {
@@ -3922,7 +3922,7 @@ func handleScaleWarehouses(ctx context.Context, d *schema.ResourceData, clusterA
 		defaultNewCnt := defaultNewWh["compute_node_count"].(int)
 		if (isScaleOut && defaultNewCnt > defaultOldCnt) || (!isScaleOut && defaultNewCnt < defaultOldCnt) {
 			if autoScalingOwnsNodeCount(defaultOldWh, defaultNewWh) {
-				return append(diags, autoScalingSkippedScaleWarning(DEFAULT_WAREHOUSE_NAME, defaultNewCnt, liveNodeCount(defaultOldWh), defaultNewWh["auto_scaling_policy"].(string)))
+				return append(diags, autoScalingSkippedScaleWarning(DEFAULT_WAREHOUSE_NAME, defaultNewCnt))
 			}
 			if err := scaleWarehouseNum(ctx, clusterAPI, clusterId, defaultWhExternalInfo.Id, int32(defaultNewCnt)); err != nil {
 				return diag.FromErr(err)
