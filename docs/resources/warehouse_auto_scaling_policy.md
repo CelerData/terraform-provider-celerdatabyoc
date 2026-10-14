@@ -13,6 +13,15 @@ Generates a warehouse Auto Scaling policy in the JSON format.
 This policy will automatically scale the number of Compute Nodes (CN) based on CPU utilization of the warehouse. For more information, 
 see [Enable Auto Scaling for your warehouse](https://docs.celerdata.com/BYOC/docs/cluster_management/scale_cluster#auto-scaling).
 
+## Scaling Unit
+
+A warehouse's size is its cngroup count multiplied by its compute nodes per cngroup. `auto_scaling_unit` picks which of the two the policy scales, and the unit that `min_size`, `max_size` and `step_size` are counted in:
+
+- `Node` (default): compute nodes per cngroup. The cngroup count is left as it is, so the warehouse holds `min_size` * cngroup count to `max_size` * cngroup count compute nodes. On a warehouse with a single cngroup, such as a `specify_az` warehouse, this is the same as the total compute node count.
+- `Group`: the number of cngroups. The compute nodes per cngroup are left as they are.
+
+~> On a `multi_az` warehouse, `Node` bounds used to count the warehouse's total compute nodes and had to be multiples of the AZ count. They now count compute nodes per cngroup, and CelerData has converted existing policies by dividing them by the AZ count. If such a warehouse takes its policy from Terraform, divide `min_size`, `max_size` and every `step_size` by `len(specified_azs)` in your configuration. Otherwise the next `terraform plan` shows a change to `auto_scaling_policy`, and applying it sets the old totals as per-cngroup bounds, multiplying the warehouse's range by the AZ count.
+
 ## Example Usage
 ### CPU-based Auto Scaling Policy
 #### Supported Metrics
