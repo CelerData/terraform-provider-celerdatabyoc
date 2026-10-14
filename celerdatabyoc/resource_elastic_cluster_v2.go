@@ -4272,8 +4272,14 @@ func equalAsSet(a, b []string) bool {
 
 // suppressSpecifiedAZsDiff suppresses plan diffs caused purely by reordering
 // specified_azs. Terraform invokes this for both the count key (".#") and each
-// element index; in either case we resolve the parent list and compare as sets.
-func suppressSpecifiedAZsDiff(k, _, _ string, d *schema.ResourceData) bool {
+// element index. A reorder never changes the count, so the count key is decided
+// on its own old/new values; for element keys we resolve the parent list and
+// compare as sets.
+//
+// The count check matters when specified_azs is removed from the config: the new
+// side of GetChange then falls back to the state value, so the set comparison
+// alone would keep the old AZs in the plan.
+func suppressSpecifiedAZsDiff(k, old, new string, d *schema.ResourceData) bool {
 	lastDot := strings.LastIndex(k, ".")
 	if lastDot < 0 {
 		return false
@@ -4281,6 +4287,9 @@ func suppressSpecifiedAZsDiff(k, _, _ string, d *schema.ResourceData) bool {
 	parent := k[:lastDot]
 	if !strings.HasSuffix(parent, ".specified_azs") {
 		return false
+	}
+	if strings.HasSuffix(k, ".#") {
+		return old == new
 	}
 	oldList, newList := d.GetChange(parent)
 	return equalAsSet(toStringSlice(oldList), toStringSlice(newList))
