@@ -36,6 +36,7 @@ func policyMap(overrides map[string]interface{}) map[string]interface{} {
 		"time_zone":     "UTC",
 		"enable":        true,
 		"size":          4,
+		"scaling_unit":  "Node",
 		"schedule_type": cluster.WarehouseSchedulePolicyTypeDaily,
 		"start_time":    "09:00",
 		"end_time":      "18:00",
@@ -328,6 +329,34 @@ func TestWarehouseSchedulePolicyToMap(t *testing.T) {
 	if !reflect.DeepEqual(m["month_days"], []int{1, 15}) {
 		t.Errorf("expected month_days [1 15], got %v", m["month_days"])
 	}
+	if m["scaling_unit"] != "Node" {
+		t.Errorf("expected scaling_unit Node for an absent unit, got %v", m["scaling_unit"])
+	}
+
+	group := warehouseSchedulePolicyToMap(&cluster.WarehouseSchedulePolicy{ScalingUnit: cluster.AutoScalingUnit_CN_GROUP})
+	if group["scaling_unit"] != "Group" {
+		t.Errorf("expected scaling_unit Group, got %v", group["scaling_unit"])
+	}
+}
+
+func TestWarehouseScheduledScalingPolicyScalingUnitSent(t *testing.T) {
+	api := &fakeSchedulePolicyAPI{}
+	if diags := HandleChangedWarehouseScheduledScalingPolicy(context.Background(), api, "c-1", "wh-1", "wh1",
+		[]interface{}{policyMap(map[string]interface{}{"policy_name": "change"})},
+		[]interface{}{
+			policyMap(map[string]interface{}{"policy_name": "change", "scaling_unit": "Group"}),
+			policyMap(map[string]interface{}{"policy_name": "add", "scaling_unit": "Group"}),
+		},
+		map[string]string{"change": "id-change"}); diags != nil {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+
+	if len(api.updated) != 1 || api.updated[0].ScalingUnit != cluster.AutoScalingUnit_CN_GROUP {
+		t.Fatalf("expected one update with unit CN_GROUP, got %+v", api.updated)
+	}
+	if len(api.saved) != 1 || api.saved[0].ScalingUnit != cluster.AutoScalingUnit_CN_GROUP {
+		t.Fatalf("expected one save with unit CN_GROUP, got %+v", api.saved)
+	}
 }
 
 func TestHandleChangedWarehouseScheduledScalingPolicy(t *testing.T) {
@@ -397,6 +426,7 @@ func TestWarehouseSchedulePolicyChanged(t *testing.T) {
 		{name: "end_time", next: policyMap(map[string]interface{}{"end_time": "19:00"}), want: true},
 		{name: "time_zone", next: policyMap(map[string]interface{}{"time_zone": "Asia/Shanghai"}), want: true},
 		{name: "description", next: policyMap(map[string]interface{}{"description": "x"}), want: true},
+		{name: "scaling_unit", next: policyMap(map[string]interface{}{"scaling_unit": "Group"}), want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -404,6 +434,13 @@ func TestWarehouseSchedulePolicyChanged(t *testing.T) {
 				t.Fatalf("expected changed=%v, got %v", tt.want, got)
 			}
 		})
+	}
+
+	// State saved before scaling_unit existed reads back without it; those policies were all Node.
+	legacy := policyMap(nil)
+	delete(legacy, "scaling_unit")
+	if warehouseSchedulePolicyChanged(legacy, policyMap(nil)) {
+		t.Error("a missing scaling_unit should match Node")
 	}
 
 	// Set ordering must not register as a change.

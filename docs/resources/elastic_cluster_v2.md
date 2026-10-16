@@ -95,6 +95,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
       policy_name    = "business-hours"
       schedule_type  = "DAILY"
       size           = 4
+      scaling_unit   = "Node"
       start_time     = "09:00"
       end_time       = "18:00"
       time_zone      = "UTC"
@@ -351,7 +352,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 ## Scheduled scaling policy
 
-A `scheduled_scaling_policy` block resizes a warehouse on a fixed schedule instead of reacting to load. It can be declared inside both `default_warehouse` and `warehouse`. At the policy's start time the warehouse is resized to `size`; at the end time it returns to its previous size.
+A `scheduled_scaling_policy` block resizes a warehouse on a fixed schedule instead of reacting to load. It can be declared inside both `default_warehouse` and `warehouse`. At the policy's start time the warehouse is resized as given by `size` and `scaling_unit`; at the end time it is restored, as described under **Limits** below.
 
 ~> Scheduled scaling requires cluster version 3.5.5 or above.
 
@@ -361,7 +362,10 @@ A `scheduled_scaling_policy` block resizes a warehouse on a fixed schedule inste
 - `description`: (Optional) Explanation of this policy.
 - `time_zone`: (Optional) Your IANA Time-Zone, for example `America/Los_Angeles`. Default: `UTC`.
 - `enable`: (Optional) Whether this policy is active. Default: `true`. A disabled policy still counts toward the five-policy limit.
-- `size`: (Required) The number of compute nodes.
+- `size`: (Required) The size to scale to, in the unit given by `scaling_unit`.
+- `scaling_unit`: (Optional) The unit of `size`. Default: `Node`. A warehouse's size is its cngroup count multiplied by its compute nodes per cngroup, and a policy changes only one of the two:
+    - `Node`: `size` is the number of compute nodes per cngroup. The cngroup count stays as it is at the start time, so the warehouse is resized to `size` * cngroup count.
+    - `Group`: `size` is the number of cngroups. The compute nodes per cngroup stay as they are at the start time. Requires a cluster that supports multiple cngroups, and is not available on a `crossing_az` warehouse. On a `multi_az` warehouse, `size` must be at least `len(specified_azs)`. A warehouse can hold at most 20 cngroups per AZ: 20 in total, or 20 * `len(specified_azs)` on a `multi_az` warehouse.
 - `schedule_type`: (Required) How often the policy repeats. Valid values: `DAILY`, `WEEKLY`, `MONTHLY`, `DATE_RANGE`. Each type owns its own set of arguments, listed below; setting an argument that belongs to another type is rejected during `terraform plan`.
 - `start_time`: (Required) Time of day the policy takes effect, in `HH:mm` (24-hour, zero-padded).
 - `end_time`: (Required) Time of day the policy stops, in `HH:mm`. Must be later than `start_time`, so a policy cannot span midnight.
@@ -372,7 +376,9 @@ A `scheduled_scaling_policy` block resizes a warehouse on a fixed schedule inste
 **Limits:**
 
 - A warehouse can have at most **5** scheduled scaling policies, whether enabled or not.
-- If several policies match the same moment, the one with the largest `size` wins.
+- If several policies with the same `scaling_unit` start at the same minute, the one with the largest `size` wins. A `Node` policy and a `Group` policy that start at the same minute both run, one after the other.
+- At the end time each policy restores only its own dimension: a `Node` policy restores the compute nodes per cngroup, a `Group` policy the cngroup count. The warehouse is not restored if it was resized by hand or by `auto_scaling_policy` during the window, if the cluster or the warehouse was suspended or released during the window, or if `auto_scaling_policy` is enabled at the end time.
+- The resulting warehouse cannot exceed 1000 compute nodes, and a `Group` policy cannot exceed the cngroup limit given under `scaling_unit`. Both limits are checked against the warehouse when the policy is saved and again at the start time, because the dimension a policy keeps can change in between. If the warehouse would exceed a limit at the start time, that window is skipped: the warehouse is neither resized nor restored.
 - CelerData rejects a new `DAILY` policy whose time window overlaps an existing one on the same warehouse.
 
 **Examples:**
@@ -412,6 +418,17 @@ warehouse {
     size           = 8
     start_time     = "00:00"
     end_time       = "06:00"
+  }
+
+  // Add cngroups on weekend mornings, keeping the nodes per cngroup.
+  scheduled_scaling_policy {
+    policy_name    = "weekend-groups"
+    schedule_type  = "WEEKLY"
+    week_days      = ["SATURDAY", "SUNDAY"]
+    scaling_unit   = "Group"
+    size           = 3
+    start_time     = "08:00"
+    end_time       = "12:00"
   }
 
   // A one-off busy season.

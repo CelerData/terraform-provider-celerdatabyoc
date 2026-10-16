@@ -57,6 +57,11 @@ var (
 		AutoScalingUnitDisplay_CN_GROUP: AutoScalingUnit_CN_GROUP,
 	}
 
+	AutoScalingUnitTypeToDisplay = map[AutoScalingUnit]AutoScalingUnitDisplay{
+		AutoScalingUnit_SINGLE:   AutoScalingUnitDisplay_SINGLE,
+		AutoScalingUnit_CN_GROUP: AutoScalingUnitDisplay_CN_GROUP,
+	}
+
 	MetricStrGroup = map[string]string{
 		"AVERAGE_CPU_UTILIZATION":        AutoScalingMetricType_CPU,
 		"QUERY_QUEUE_LENGTH":             AutoScalingMetricType_QUERY_QUEUE,
@@ -1102,21 +1107,22 @@ func WarehouseSchedulePolicyTypeName(number int32) string {
 }
 
 type WarehouseSchedulePolicy struct {
-	PolicyId    string   `json:"policy_id" mapstructure:"policy_id"`
-	ClusterId   string   `json:"cluster_id" mapstructure:"cluster_id"`
-	WarehouseId string   `json:"warehouse_id" mapstructure:"warehouse_id"`
-	Name        string   `json:"name" mapstructure:"name"`
-	Description string   `json:"description" mapstructure:"description"`
-	TimeZone    string   `json:"time_zone" mapstructure:"time_zone"`
-	Type        int32    `json:"type" mapstructure:"type"`
-	State       bool     `json:"state" mapstructure:"state"`
-	Size        int32    `json:"size" mapstructure:"size"`
-	StartTime   string   `json:"start_time" mapstructure:"start_time"`
-	EndTime     string   `json:"end_time" mapstructure:"end_time"`
-	WeekDays    []string `json:"week_days" mapstructure:"week_days"`
-	MonthDays   []int32  `json:"month_days" mapstructure:"month_days"`
-	StartDate   string   `json:"start_date" mapstructure:"start_date"`
-	EndDate     string   `json:"end_date" mapstructure:"end_date"`
+	PolicyId    string          `json:"policy_id" mapstructure:"policy_id"`
+	ClusterId   string          `json:"cluster_id" mapstructure:"cluster_id"`
+	WarehouseId string          `json:"warehouse_id" mapstructure:"warehouse_id"`
+	Name        string          `json:"name" mapstructure:"name"`
+	Description string          `json:"description" mapstructure:"description"`
+	TimeZone    string          `json:"time_zone" mapstructure:"time_zone"`
+	Type        int32           `json:"type" mapstructure:"type"`
+	State       bool            `json:"state" mapstructure:"state"`
+	Size        int32           `json:"size" mapstructure:"size"`
+	ScalingUnit AutoScalingUnit `json:"scaling_unit" mapstructure:"scaling_unit"`
+	StartTime   string          `json:"start_time" mapstructure:"start_time"`
+	EndTime     string          `json:"end_time" mapstructure:"end_time"`
+	WeekDays    []string        `json:"week_days" mapstructure:"week_days"`
+	MonthDays   []int32         `json:"month_days" mapstructure:"month_days"`
+	StartDate   string          `json:"start_date" mapstructure:"start_date"`
+	EndDate     string          `json:"end_date" mapstructure:"end_date"`
 }
 
 type ListWarehouseSchedulePolicyReq struct {
@@ -1130,20 +1136,21 @@ type ListWarehouseSchedulePolicyResp struct {
 // The date and day fields are omitted when empty: the backend rejects a present
 // but blank start_date/end_date, so a DAILY policy must not send them at all.
 type SaveWarehouseSchedulePolicyReq struct {
-	ClusterId   string   `json:"cluster_id" mapstructure:"cluster_id"`
-	WarehouseId string   `json:"warehouse_id" mapstructure:"warehouse_id"`
-	Name        string   `json:"name" mapstructure:"name"`
-	Description string   `json:"description" mapstructure:"description"`
-	TimeZone    string   `json:"time_zone" mapstructure:"time_zone"`
-	Type        int32    `json:"type" mapstructure:"type"`
-	State       bool     `json:"state" mapstructure:"state"`
-	Size        int32    `json:"size" mapstructure:"size"`
-	StartTime   string   `json:"start_time" mapstructure:"start_time"`
-	EndTime     string   `json:"end_time" mapstructure:"end_time"`
-	WeekDays    []string `json:"week_days,omitempty" mapstructure:"week_days"`
-	MonthDays   []int32  `json:"month_days,omitempty" mapstructure:"month_days"`
-	StartDate   string   `json:"start_date,omitempty" mapstructure:"start_date"`
-	EndDate     string   `json:"end_date,omitempty" mapstructure:"end_date"`
+	ClusterId   string          `json:"cluster_id" mapstructure:"cluster_id"`
+	WarehouseId string          `json:"warehouse_id" mapstructure:"warehouse_id"`
+	Name        string          `json:"name" mapstructure:"name"`
+	Description string          `json:"description" mapstructure:"description"`
+	TimeZone    string          `json:"time_zone" mapstructure:"time_zone"`
+	Type        int32           `json:"type" mapstructure:"type"`
+	State       bool            `json:"state" mapstructure:"state"`
+	Size        int32           `json:"size" mapstructure:"size"`
+	ScalingUnit AutoScalingUnit `json:"scaling_unit" mapstructure:"scaling_unit"`
+	StartTime   string          `json:"start_time" mapstructure:"start_time"`
+	EndTime     string          `json:"end_time" mapstructure:"end_time"`
+	WeekDays    []string        `json:"week_days,omitempty" mapstructure:"week_days"`
+	MonthDays   []int32         `json:"month_days,omitempty" mapstructure:"month_days"`
+	StartDate   string          `json:"start_date,omitempty" mapstructure:"start_date"`
+	EndDate     string          `json:"end_date,omitempty" mapstructure:"end_date"`
 }
 
 type SaveWarehouseSchedulePolicyResp struct {
@@ -1152,20 +1159,21 @@ type SaveWarehouseSchedulePolicyResp struct {
 
 // WarehouseId is only used to build the request path, so it stays out of the body.
 type UpdateWarehouseSchedulePolicyReq struct {
-	WarehouseId string   `json:"-" mapstructure:"-"`
-	PolicyId    string   `json:"policy_id" mapstructure:"policy_id"`
-	Name        string   `json:"name" mapstructure:"name"`
-	Description string   `json:"description" mapstructure:"description"`
-	TimeZone    string   `json:"time_zone" mapstructure:"time_zone"`
-	Type        int32    `json:"type" mapstructure:"type"`
-	State       bool     `json:"state" mapstructure:"state"`
-	Size        int32    `json:"size" mapstructure:"size"`
-	StartTime   string   `json:"start_time" mapstructure:"start_time"`
-	EndTime     string   `json:"end_time" mapstructure:"end_time"`
-	WeekDays    []string `json:"week_days,omitempty" mapstructure:"week_days"`
-	MonthDays   []int32  `json:"month_days,omitempty" mapstructure:"month_days"`
-	StartDate   string   `json:"start_date,omitempty" mapstructure:"start_date"`
-	EndDate     string   `json:"end_date,omitempty" mapstructure:"end_date"`
+	WarehouseId string          `json:"-" mapstructure:"-"`
+	PolicyId    string          `json:"policy_id" mapstructure:"policy_id"`
+	Name        string          `json:"name" mapstructure:"name"`
+	Description string          `json:"description" mapstructure:"description"`
+	TimeZone    string          `json:"time_zone" mapstructure:"time_zone"`
+	Type        int32           `json:"type" mapstructure:"type"`
+	State       bool            `json:"state" mapstructure:"state"`
+	Size        int32           `json:"size" mapstructure:"size"`
+	ScalingUnit AutoScalingUnit `json:"scaling_unit" mapstructure:"scaling_unit"`
+	StartTime   string          `json:"start_time" mapstructure:"start_time"`
+	EndTime     string          `json:"end_time" mapstructure:"end_time"`
+	WeekDays    []string        `json:"week_days,omitempty" mapstructure:"week_days"`
+	MonthDays   []int32         `json:"month_days,omitempty" mapstructure:"month_days"`
+	StartDate   string          `json:"start_date,omitempty" mapstructure:"start_date"`
+	EndDate     string          `json:"end_date,omitempty" mapstructure:"end_date"`
 }
 
 type DeleteWarehouseSchedulePolicyReq struct {

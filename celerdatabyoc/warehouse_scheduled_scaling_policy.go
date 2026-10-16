@@ -52,10 +52,21 @@ func warehouseScheduledScalingPolicySchema() *schema.Schema {
 				},
 				"size": {
 					Type: schema.TypeInt,
-					Description: "Number of compute nodes per cngroup to scale to. The resulting total node count " +
-						"is `size` * `cngroup_count`.",
+					Description: "Size to scale to, in the unit given by `scaling_unit`. With `Node`, the number of " +
+						"compute nodes per cngroup, keeping the live cngroup count. With `Group`, the number of " +
+						"cngroups, keeping the live nodes per cngroup.",
 					Required:     true,
 					ValidateFunc: validation.IntAtLeast(1),
+				},
+				"scaling_unit": {
+					Type:        schema.TypeString,
+					Description: "Unit of `size`. Valid values: `Node`, `Group`.",
+					Optional:    true,
+					Default:     string(cluster.AutoScalingUnitDisplay_SINGLE),
+					ValidateFunc: validation.StringInSlice([]string{
+						string(cluster.AutoScalingUnitDisplay_SINGLE),
+						string(cluster.AutoScalingUnitDisplay_CN_GROUP),
+					}, false),
 				},
 				"schedule_type": {
 					Type:         schema.TypeString,
@@ -336,6 +347,18 @@ func toInt32Set(raw interface{}) []int32 {
 	return out
 }
 
+// State written before scaling_unit existed has no value for it, and those policies were all Node.
+func warehouseSchedulePolicyScalingUnitDisplay(m map[string]interface{}) string {
+	if v, ok := m["scaling_unit"].(string); ok && v != "" {
+		return v
+	}
+	return string(cluster.AutoScalingUnitDisplay_SINGLE)
+}
+
+func warehouseSchedulePolicyScalingUnit(m map[string]interface{}) cluster.AutoScalingUnit {
+	return cluster.AutoScalingUnitDisplayToType[cluster.AutoScalingUnitDisplay(warehouseSchedulePolicyScalingUnitDisplay(m))]
+}
+
 // SaveWarehouseScheduledScalingPolicy creates one policy for the given warehouse.
 func SaveWarehouseScheduledScalingPolicy(ctx context.Context, api cluster.IClusterAPI,
 	clusterId, warehouseId string, m map[string]interface{}) error {
@@ -349,6 +372,7 @@ func SaveWarehouseScheduledScalingPolicy(ctx context.Context, api cluster.IClust
 		Type:        cluster.WarehouseSchedulePolicyTypeNumber(m["schedule_type"].(string)),
 		State:       m["enable"].(bool),
 		Size:        int32(m["size"].(int)),
+		ScalingUnit: warehouseSchedulePolicyScalingUnit(m),
 		StartTime:   m["start_time"].(string),
 		EndTime:     m["end_time"].(string),
 		WeekDays:    toStringSet(m["week_days"]),
@@ -381,6 +405,7 @@ func UpdateWarehouseScheduledScalingPolicy(ctx context.Context, api cluster.IClu
 		Type:        cluster.WarehouseSchedulePolicyTypeNumber(m["schedule_type"].(string)),
 		State:       m["enable"].(bool),
 		Size:        int32(m["size"].(int)),
+		ScalingUnit: warehouseSchedulePolicyScalingUnit(m),
 		StartTime:   m["start_time"].(string),
 		EndTime:     m["end_time"].(string),
 		WeekDays:    toStringSet(m["week_days"]),
@@ -539,6 +564,7 @@ func warehouseSchedulePolicyToMap(p *cluster.WarehouseSchedulePolicy) map[string
 		"time_zone":     p.TimeZone,
 		"enable":        p.State,
 		"size":          int(p.Size),
+		"scaling_unit":  string(cluster.AutoScalingUnitTypeToDisplay[p.ScalingUnit]),
 		"schedule_type": cluster.WarehouseSchedulePolicyTypeName(p.Type),
 		"start_time":    p.StartTime,
 		"end_time":      p.EndTime,
@@ -662,6 +688,9 @@ func warehouseSchedulePolicyChanged(ov, nv map[string]interface{}) bool {
 		return true
 	}
 	if ov["size"].(int) != nv["size"].(int) {
+		return true
+	}
+	if warehouseSchedulePolicyScalingUnitDisplay(ov) != warehouseSchedulePolicyScalingUnitDisplay(nv) {
 		return true
 	}
 	if strings.Join(toStringSet(ov["week_days"]), ",") != strings.Join(toStringSet(nv["week_days"]), ",") {
