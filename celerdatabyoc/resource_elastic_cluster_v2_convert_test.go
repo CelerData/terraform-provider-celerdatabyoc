@@ -191,9 +191,18 @@ func TestSuppressPinnedPolicyDiff(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "undeclared config over CrossingAZ is a real change",
+			// A multi-AZ create with no declared policy leaves the backend default
+			// CrossingAZ in state; without suppression the next apply sends an empty
+			// policy and fails on "param distribution_policy is invalid".
+			name: "undeclared config over backend-defaulted CrossingAZ",
 			old:  CROSSING_AZ,
 			new:  "",
+			want: true,
+		},
+		{
+			name: "declared switch away from CrossingAZ is not suppressed",
+			old:  CROSSING_AZ,
+			new:  SPECIFY_AZ,
 			want: false,
 		},
 		{
