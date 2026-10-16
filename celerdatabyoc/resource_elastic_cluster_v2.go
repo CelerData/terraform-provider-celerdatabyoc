@@ -4546,11 +4546,16 @@ func abnormalErr(clusterID, operation, abnormalReason string) error {
 // it took out 6 of the elastic_v2_az_conversion e2e cases, starting with a plain re-apply of
 // the vars that had just succeeded.
 //
-// Only SPECIFY_AZ is absorbed. MULTI_AZ and CROSSING_AZ never reach state without a config
-// asking for them, so an emptied policy there is a real user-requested change and must still
-// reach the backend.
+// CROSSING_AZ is absorbed for the same reason: creating a cluster on a multi-AZ network with no
+// declared policy makes the backend default the warehouse to CrossingAZ, which Read backfills
+// into state. The next plan is then `distribution_policy "crossing_az" -> null` and the apply
+// fails with the same empty-policy ChangeWarehouseDistribution call. Observed on sandbox
+// 2026-10-16 on default_warehouse right after a multi-AZ create.
+//
+// MULTI_AZ is not absorbed: it never reaches state without a config asking for it, so an
+// emptied policy there is a real user-requested change and must still reach the backend.
 func suppressPinnedPolicyDiff(_, old, new string, _ *schema.ResourceData) bool {
-	return new == "" && old == SPECIFY_AZ
+	return new == "" && (old == SPECIFY_AZ || old == CROSSING_AZ)
 }
 
 // suppressPinnedSpecifyAzDiff does the same for specify_az, but only while its sibling
