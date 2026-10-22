@@ -9,6 +9,9 @@ import (
 )
 
 type ICredentialAPI interface {
+	// IssueExternalId returns the AWS ExternalId CelerData issued to the caller's organization. The
+	// same id comes back until a deployment credential uses it.
+	IssueExternalId(ctx context.Context) (*IssueExternalIdResp, error)
 	CreateDeploymentRoleCredential(ctx context.Context, req *CreateDeployRoleCredReq) (*CreateDeployRoleCredResp, error)
 	GetDeploymentRoleCredential(ctx context.Context, credID string) (*GetDeployRoleCredResp, error)
 	DeleteDeploymentRoleCredential(ctx context.Context, credID string) error
@@ -35,6 +38,18 @@ func NewCredentialAPI(cli *client.CelerdataClient) ICredentialAPI {
 type credentialAPI struct {
 	cli        *client.CelerdataClient
 	apiVersion version.ApiVersion
+}
+
+func (c *credentialAPI) IssueExternalId(ctx context.Context) (*IssueExternalIdResp, error) {
+	resp := &IssueExternalIdResp{}
+	err := c.cli.Post(ctx, fmt.Sprintf("/api/%s/external-ids", c.apiVersion), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.ExternalId) == 0 {
+		return nil, errors.New("CelerData returned an empty external id")
+	}
+	return resp, nil
 }
 
 func (c *credentialAPI) UpdateDataCredentialPolicyVersion(ctx context.Context, req *UpdateDataCredentialPolicyVersionReq) error {

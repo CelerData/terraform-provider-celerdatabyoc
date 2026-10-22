@@ -67,8 +67,10 @@ resource "celerdatabyoc_aws_deployment_role_credential" "deployment_role_credent
 
 This resource exports the following attributes:
 
-- `external_id`: The external_id for this policy.
+- `external_id`: The external ID CelerData issued to your organization. The trust policy in `json` requires it, and the `celerdatabyoc_aws_deployment_role_credential` resource must use it as its `external_id`; CelerData rejects deployment credentials whose external ID it did not issue, or whose role trust policy does not require `sts:ExternalId`. The ID is obtained once, when this resource is created, and kept in the Terraform state.
 - `json`: AWS policy json.
+
+~> The external ID used to be generated locally by the provider. Resources created that way keep their existing external ID; only newly created resources get an issued one.
 
 ## See Also
 
