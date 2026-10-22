@@ -75,9 +75,12 @@ func resourceAwsDeployCredAssumePolicyCreate(ctx context.Context, d *schema.Reso
 	}
 
 	d.SetId(externalID)
-	// nolint
-	d.Set("json", policyJSON)
-	d.Set("external_id", externalID)
+	if err := d.Set("json", policyJSON); err != nil {
+		return diag.FromErr(err)
+	}
+	if err := d.Set("external_id", externalID); err != nil {
+		return diag.FromErr(err)
+	}
 	return nil
 }
 
