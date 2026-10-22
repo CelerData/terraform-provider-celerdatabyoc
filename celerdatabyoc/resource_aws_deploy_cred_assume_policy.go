@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/client"
+	"terraform-provider-celerdatabyoc/celerdata-sdk/service/credential"
 	"terraform-provider-celerdatabyoc/celerdata-sdk/service/csp"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
@@ -60,7 +60,30 @@ func resourceAwsDeployCredAssumePolicyCreate(ctx context.Context, d *schema.Reso
 		return diag.FromErr(err)
 	}
 
-	externalID := uuid.NewString()
+	// CelerData only accepts deployment credentials whose ExternalId it issued to the
+	// organization, so the id comes from the API instead of being generated here. It is kept in
+	// state from then on: issuing again after a credential used the id would return a new one.
+	eidResp, err := credential.NewCredentialAPI(c).IssueExternalId(ctx)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	externalID := eidResp.ExternalId
+
+	policyJSON, err := buildDeployCredAssumePolicy(resp.Csp.TrustAccountId, externalID)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+
+	d.SetId(externalID)
+	// nolint
+	d.Set("json", policyJSON)
+	d.Set("external_id", externalID)
+	return nil
+}
+
+// buildDeployCredAssumePolicy is the trust policy that lets CelerData's AWS account assume the
+// deployment role, and only with externalID.
+func buildDeployCredAssumePolicy(trustAccountID, externalID string) (string, error) {
 	policy := awsIamPolicy{
 		Version: "2012-10-17",
 		Statements: []*awsIamPolicyStatement{
@@ -73,21 +96,16 @@ func resourceAwsDeployCredAssumePolicyCreate(ctx context.Context, d *schema.Reso
 					},
 				},
 				Principal: map[string]string{
-					"AWS": fmt.Sprintf("arn:aws:iam::%s:root", resp.Csp.TrustAccountId),
+					"AWS": fmt.Sprintf("arn:aws:iam::%s:root", trustAccountID),
 				},
 			},
 		},
 	}
 	policyJSON, err := json.MarshalIndent(policy, "", "  ")
 	if err != nil {
-		return diag.FromErr(err)
+		return "", err
 	}
-
-	d.SetId(externalID)
-	// nolint
-	d.Set("json", string(policyJSON))
-	d.Set("external_id", externalID)
-	return nil
+	return string(policyJSON), nil
 }
 
 func resourceAwsDeployCredAssumePolicyRead(ctx context.Context, d *schema.ResourceData, m interface{}) (diags diag.Diagnostics) {
