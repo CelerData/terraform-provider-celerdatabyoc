@@ -444,7 +444,7 @@ GCP regions that expose 3 zones (`a`, `b`, `c`) include `us-central1`, `us-west1
 
 ### Cluster-level requirements
 
-- `coordinator_node_count` must be at least `3` (i.e. `3` or `5`). FE nodes are placed by the cluster service using a min-fe-nodes policy that keeps the per-zone FE count balanced.
+- `coordinator_node_count` must be at least `3` (i.e. `3`, `5`, or `6` through `11`). FE nodes are placed by the cluster service using a min-fe-nodes policy that keeps the per-zone FE count balanced.
 - The `celerdatabyoc_gcp_network` resource must declare the zones the cluster can span via its `zones` argument. GCP uses a single regional subnet, so the AZ set is expressed via `zones` rather than per-AZ subnets. The provider enforces `MinItems = 3` and `MaxItems = 3` on this list — you must supply **exactly 3 zones**, and the warehouse-level `specified_azs` (which may contain 2 or 3 zones) must be a subset of this list. `zones` is `ForceNew`: changing it after creation recreates the network resource.
 
   ```hcl

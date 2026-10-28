@@ -247,7 +247,7 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 
 **Optional:**
 
-- `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, and `5`. Default value: `1`. If you want to enable Multi-AZ Deployment (supported on AWS and GCP), you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
+- `coordinator_node_count`: The number of coordinator nodes in the cluster. Valid values: `1`, `3`, `5`, and `6` through `11`. Default value: `1`. Coordinator nodes beyond 5 are deployed as observer nodes. If you want to enable Multi-AZ Deployment (supported on AWS and GCP), you must deploy at least 3 Coordinator Nodes, that is, `coordinator_node_count` must be greater or equal to `3`.
 
 - `coordinator_node_volume_config`: The coordinator nodes volume configuration.
     - `vol_size`: The size per disk for each coordinator node. Unit: GB. Default value: `150`. You can only increase the value of this parameter.
