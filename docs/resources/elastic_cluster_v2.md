@@ -156,6 +156,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   query_port = 9030
   idle_suspend_interval = 60
   enabled_termination_protection = false
+  enabled_arrow_flight = false
   release_version = "stable"
   audit_loader_plugin_enabled = false
 }
@@ -327,6 +328,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `idle_suspend_interval`: The amount of time (in minutes) during which the cluster can stay idle. After the specified time period elapses, the cluster will be automatically suspended. The Auto Suspend feature is disabled by default. To enable the Auto Suspend feature, set this argument to an integer with the range of 15-999999. To disable this feature again, remove this argument from your Terraform configuration.
 
 - `enabled_termination_protection`: When enabled, termination protection prevents the deletion of the cluster via Console or APIs. To delete the cluster, this feature needs to be disabled. This has no affect on termination from scale-in, auto scaling events and scheduled maintenance.
+
+- `enabled_arrow_flight`: (Optional, default: `false`) Whether to enable Arrow Flight SQL on the cluster. **Note:** Enabling or disabling this feature restarts all nodes in the cluster one at a time (rolling restart). The process may take several minutes, depending on the total number of nodes.
 
 - `release_version`: The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `ga`, `preview` (case-insensitive). Default value: `stable`. A region may offer several StarRocks versions on one channel (for example `4.1.5-ee` and `26.2.0-ee` on `preview`); the cluster is deployed on the newest version of the chosen channel at creation time, and the `cluster_version` attribute reports which version that was. An exact version cannot be requested through Terraform — use the CelerData Cloud console for that. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 
