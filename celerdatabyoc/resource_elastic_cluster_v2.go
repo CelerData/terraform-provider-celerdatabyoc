@@ -549,9 +549,10 @@ func resourceElasticClusterV2() *schema.Resource {
 				Default:  false,
 			},
 			"enabled_arrow_flight": {
-				Type:     schema.TypeBool,
-				Optional: true,
-				Default:  false,
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     false,
+				Description: "Whether to enable Arrow Flight SQL on the cluster. Enabling or disabling it restarts all nodes in the cluster one at a time, which may take several minutes depending on the total number of nodes.",
 			},
 			"table_name_case_insensitive": {
 				Type:     schema.TypeBool,
