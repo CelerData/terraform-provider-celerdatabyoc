@@ -153,6 +153,7 @@ resource "celerdatabyoc_elastic_cluster_v2" "elastic_cluster_1" {
   }
 
   run_scripts_parallel = false
+  skip_init_script_failure = true
   query_port = 9030
   idle_suspend_interval = 60
   enabled_termination_protection = false
@@ -322,6 +323,8 @@ The `celerdatabyoc_elastic_cluster_v2` resource contains the following required 
 - `run_scripts_parallel`: Whether to execute the scripts in parallel. Valid values: `true` and `false`. Default value: `false`.
 
 - `run_scripts_timeout`: The amount of time after which the script execution times out. Unit: Seconds. Default: `3600` (1 hour). The maximum value of this item is `21600` (6 hours).
+
+- `skip_init_script_failure`: Whether to skip user script failures. This is the "Skip user script failures" setting in the CelerData Cloud console. User scripts (the scripts configured in `init_scripts`) run when the cluster is deployed and during scale-out, AMI upgrades, blue-green upgrades and node replacement. When `true`, a failed user script is skipped and the operation continues; the affected nodes are reported through a console banner on the cluster, the notification centre and an email. When `false`, a user script failure fails the operation and the cluster becomes `Abnormal`, except a failure of the post-deployment script during scale-out, which is always skipped and reported because the new nodes are already serving. If this argument is omitted when the cluster is created, it defaults to `true`. Clusters created before this setting existed report `false` until it is changed. This argument can be modified in place after the cluster is created.
 
 - `query_port`: The query port, which must be within the range of 1-65535 excluding 443. The default query port is port `9030`. Note that this argument can be specified only at cluster deployment, and cannot be modified once it is set.
 

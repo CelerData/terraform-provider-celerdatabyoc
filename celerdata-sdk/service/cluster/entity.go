@@ -236,6 +236,11 @@ type ClusterConf struct {
 	// table_name_case_insensitive indicates whether cluster will be created with table name case insensitive mode.
 	// this feature is supported starting from sr 4.0.0
 	TableNameCaseInsensitive bool `json:"table_name_case_insensitive"`
+	// SkipInitScriptFailure controls whether a failed init script is skipped (the operation continues)
+	// or fails the deploy / scale-out / upgrade / node replacement operation. It is a pointer so that an
+	// omitted value lets the server apply its default (true for new clusters) while an explicit false is
+	// still sent.
+	SkipInitScriptFailure *bool `json:"skip_init_script_failure,omitempty"`
 	// release_version selects which StarRocks release channel the cluster is deployed on:
 	// "stable" (default), "preview" or "ga". Empty defaults to "stable". The backend deploys
 	// the newest version the region offers on that channel; an exact version cannot be
@@ -1283,6 +1288,18 @@ type GetClusterTableNameCaseInsensitiveReq struct {
 }
 
 type GetClusterTableNameCaseInsensitiveResp struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+type GetClusterSkipInitScriptFailureReq struct {
+	ClusterId string `json:"cluster_id" mapstructure:"cluster_id"`
+}
+
+type GetClusterSkipInitScriptFailureResp struct {
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+}
+
+type SetClusterSkipInitScriptFailureReq struct {
 	Enabled bool `json:"enabled" mapstructure:"enabled"`
 }
 
