@@ -8,6 +8,10 @@ type CreateDeployRoleCredReq struct {
 	PolicyVersion string `json:"policy_version" mapstructure:"policy_version"`
 }
 
+type IssueExternalIdResp struct {
+	ExternalId string `json:"external_id" mapstructure:"external_id"`
+}
+
 type CreateDeployRoleCredResp struct {
 	CredID      string `json:"cred_id" mapstructure:"cred_id"`
 	CheckErrMsg string `json:"check_err_msg" mapstructure:"check_err_msg"`
