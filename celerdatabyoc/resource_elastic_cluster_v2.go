@@ -1956,16 +1956,7 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 		whMap["cngroup_size"] = cngroupSize
 		whMap["cngroup_count"] = int(v.CngroupCount)
 		whMap["resource_tags"] = whTags
-		whMap["specified_azs"] = []string{}
-		if !netResp.Network.MultiAz {
-			whMap["distribution_policy"] = ""
-		} else {
-			whMap["distribution_policy"] = v.DistributionPolicyStr
-			if v.DistributionPolicyStr == MULTI_AZ {
-				whMap["specified_azs"] = v.SpecifiedAZs
-			}
-		}
-		whMap["specify_az"] = v.SpecifyAZ
+		setWarehouseAZPlacement(whMap, netResp.Network.MultiAz, v)
 
 		whModule := v.Module
 		if !whModule.IsInstanceStore {
@@ -4530,6 +4521,30 @@ func abnormalErr(clusterID, operation, abnormalReason string) error {
 		abnormalReason = "the backend reported no reason; check the cluster's action history"
 	}
 	return fmt.Errorf("cluster (%s) became abnormal while %s: %s", clusterID, operation, abnormalReason)
+}
+
+// setWarehouseAZPlacement fills a warehouse's distribution_policy, specify_az and
+// specified_azs into whMap from the backend's view of it.
+//
+// specify_az is only meaningful for a specify_az warehouse. The backend's
+// ChangeWarehouseDistribution keeps SpecifyAZ = specified_azs[0] on a multi_az
+// warehouse (sr-cloud-platform central/service/cluster/data_service/warehouse_svc.go), and a config cannot
+// declare it there (customizeEl2Diff rejects specify_az with multi_az). Backfilling it
+// would leave `specify_az "<az>" -> null` in every plan after a switch to multi_az,
+// and the apply never clears it because updateWarehouse ignores specify_az unless the
+// policy is specify_az. So a multi_az warehouse reads back with an empty specify_az.
+func setWarehouseAZPlacement(whMap map[string]interface{}, networkMultiAz bool, wh *cluster.Warehouse) {
+	whMap["specified_azs"] = []string{}
+	whMap["specify_az"] = wh.SpecifyAZ
+	if !networkMultiAz {
+		whMap["distribution_policy"] = ""
+		return
+	}
+	whMap["distribution_policy"] = wh.DistributionPolicyStr
+	if wh.DistributionPolicyStr == MULTI_AZ {
+		whMap["specified_azs"] = wh.SpecifiedAZs
+		whMap["specify_az"] = ""
+	}
 }
 
 // suppressPinnedPolicyDiff makes an undeclared warehouse distribution_policy mean "whatever
