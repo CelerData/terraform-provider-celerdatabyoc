@@ -17,7 +17,7 @@ const skipInitScriptFailureKey = "skip_init_script_failure"
 const skipInitScriptFailureDescription = "Whether to skip user script failures (the \"Skip user script failures\" setting in the CelerData Cloud console). " +
 	"User scripts (the scripts configured in `init_scripts`) run when the cluster is deployed and during scale-out, AMI upgrades, blue-green upgrades and node replacement. " +
 	"When `true`, a failed user script is skipped and the operation continues; the affected nodes are reported through a console banner on the cluster, the notification centre and an email. " +
-	"When `false`, a user script failure fails the operation and the cluster becomes `Abnormal`, except a failure of the post-deployment script during scale-out, which is always skipped and reported because the new nodes are already serving. " +
+	"When `false`, a user script failure fails the operation: a failed deployment is rolled back and the cluster is deleted, a failed scale-out is rolled back and its new nodes are removed, and a failed AMI upgrade, blue-green upgrade or node replacement leaves the cluster `Abnormal`. A failure of the post-deployment script during scale-out is always skipped and reported, because the new nodes are already serving. " +
 	"If this argument is omitted when the cluster is created, it defaults to `true`. Clusters created before this setting existed report `false` until it is changed. " +
 	"This argument can be modified in place after the cluster is created."
 
