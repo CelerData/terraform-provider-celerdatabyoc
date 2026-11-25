@@ -558,6 +558,7 @@ func resourceElasticClusterV2() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			skipInitScriptFailureKey: skipInitScriptFailureSchema(),
 			"release_version": {
 				Type:         schema.TypeString,
 				Description:  "The StarRocks release channel the cluster is deployed on. Valid values: `stable`, `ga`, `preview` (case-insensitive). Default: `stable`. A region may offer several versions per channel; the newest version of the chosen channel at creation time is deployed, and `cluster_version` reports which one that was. This field only takes effect at cluster creation time and cannot be changed afterwards.",
@@ -1361,6 +1362,7 @@ func resourceElasticClusterV2Create(ctx context.Context, d *schema.ResourceData,
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
+		SkipInitScriptFailure:        expandSkipInitScriptFailure(d.GetRawConfig()),
 		ReleaseVersion:               common.NormalizeReleaseVersion(d.Get("release_version").(string)),
 		DisablePublicAccess:          d.Get("disable_public_access").(bool),
 	}
@@ -1880,6 +1882,10 @@ func resourceElasticClusterV2Read(ctx context.Context, d *schema.ResourceData, m
 	if err != nil {
 		log.Printf("[ERROR] get cluster config[table_name_case_insensitive] failed, clusterId:%s err:%+v", clusterId, err)
 		return diag.FromErr(err)
+	}
+
+	if diags := readSkipInitScriptFailure(ctx, clusterAPI, d, clusterId); diags != nil {
+		return diags
 	}
 
 	disablePublicAccess := resp.Cluster.DisablePublicAccess
@@ -2418,6 +2424,10 @@ func resourceElasticClusterV2Update(ctx context.Context, d *schema.ResourceData,
 
 	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
 		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
+	}
+
+	if diags := updateSkipInitScriptFailure(ctx, clusterAPI, d, clusterId); diags != nil {
+		return diags
 	}
 
 	if d.HasChange("release_version") && !d.IsNewResource() {

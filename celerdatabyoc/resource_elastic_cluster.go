@@ -232,6 +232,7 @@ func resourceElasticCluster() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			skipInitScriptFailureKey: skipInitScriptFailureSchema(),
 			"query_port": {
 				Type:     schema.TypeInt,
 				Optional: true,
@@ -611,6 +612,7 @@ func resourceElasticClusterCreate(ctx context.Context, d *schema.ResourceData, m
 		RunScriptsTimeout:            int32(d.Get("run_scripts_timeout").(int)),
 		EnabledTerminationProtection: d.Get("enabled_termination_protection").(bool),
 		TableNameCaseInsensitive:     d.Get("table_name_case_insensitive").(bool),
+		SkipInitScriptFailure:        expandSkipInitScriptFailure(d.GetRawConfig()),
 	}
 
 	netResp, err := networkAPI.GetNetwork(ctx, clusterConf.NetIfaceId)
@@ -961,6 +963,10 @@ func resourceElasticClusterRead(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 
+	if diags := readSkipInitScriptFailure(ctx, clusterAPI, d, clusterID); diags != nil {
+		return diags
+	}
+
 	log.Printf("[DEBUG] get cluster, resp:%+v", resp.Cluster)
 	d.Set("cluster_state", string(resp.Cluster.ClusterState))
 	d.Set("expected_cluster_state", string(resp.Cluster.ClusterState))
@@ -1277,6 +1283,10 @@ func resourceElasticClusterUpdate(ctx context.Context, d *schema.ResourceData, m
 
 	if d.HasChange("table_name_case_insensitive") && !d.IsNewResource() {
 		return diag.FromErr(fmt.Errorf("`table_name_case_insensitive` of cluster (%s) cannot be modifeid after the cluster is created", d.Id()))
+	}
+
+	if diags := updateSkipInitScriptFailure(ctx, clusterAPI, d, clusterID); diags != nil {
+		return diags
 	}
 
 	if elasticClusterNeedUnlock(d) {

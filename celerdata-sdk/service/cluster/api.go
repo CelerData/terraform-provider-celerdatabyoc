@@ -102,6 +102,9 @@ type IClusterAPI interface {
 
 	GetClusterTableNameCaseInsensitive(ctx context.Context, req *GetClusterTableNameCaseInsensitiveReq) (*GetClusterTableNameCaseInsensitiveResp, error)
 
+	GetClusterSkipInitScriptFailure(ctx context.Context, req *GetClusterSkipInitScriptFailureReq) (*GetClusterSkipInitScriptFailureResp, error)
+	SetClusterSkipInitScriptFailure(ctx context.Context, clusterId string, req *SetClusterSkipInitScriptFailureReq) error
+
 	RunScripts(ctx context.Context, req *RunScriptsReq) error
 
 	ApplyRangerConfigV2(ctx context.Context, req *ApplyRangerConfigV2Req) (*OperateRangerConfigV2Resp, error)
@@ -776,6 +779,19 @@ func (c *clusterAPI) GetClusterTableNameCaseInsensitive(ctx context.Context, req
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (c *clusterAPI) GetClusterSkipInitScriptFailure(ctx context.Context, req *GetClusterSkipInitScriptFailureReq) (*GetClusterSkipInitScriptFailureResp, error) {
+	resp := &GetClusterSkipInitScriptFailureResp{}
+	err := c.cli.Get(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/skip-init-script-failure", c.apiVersion, req.ClusterId), nil, resp)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *clusterAPI) SetClusterSkipInitScriptFailure(ctx context.Context, clusterId string, req *SetClusterSkipInitScriptFailureReq) error {
+	return c.cli.Post(ctx, fmt.Sprintf("/api/%s/clusters/%s/cluster-config/skip-init-script-failure", c.apiVersion, clusterId), req, nil)
 }
 
 func (c *clusterAPI) SetClusterTerminationProtection(ctx context.Context, clusterId string, req *SetClusterTerminationProtectionReq) error {
